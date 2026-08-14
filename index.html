@@ -239,6 +239,25 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .route-profile .lab{font-size:11px;color:var(--text-muted)}
 .route-profile .val{font-family:var(--f-m);font-size:16px;font-weight:600;color:var(--accent);margin-top:2px}
 
+/* C3 海拔剖面（canvas） + 逐日定位卡 */
+.elev-wrap{display:block;margin-top:6px}
+.elev-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.elev-scroll canvas{display:block;min-width:720px;max-width:100%}
+@media(max-width:640px){.elev-scroll canvas{min-width:720px}}
+.daily-loc{display:flex;gap:8px;overflow-x:auto;margin-top:14px;padding-bottom:4px}
+.daily-loc .dl-card{flex:0 0 150px;border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--surface)}
+.daily-loc .dl-card .dl-h{font-size:12px;font-weight:700;font-family:var(--f-d)}
+.daily-loc .dl-card .dl-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+.daily-loc .dl-card .dl-wx{font-size:12px;margin-top:6px;line-height:1.6}
+.hc-wrap{margin-top:14px}
+.hc-lab{font-size:11px;color:var(--text-muted);margin-bottom:4px}
+.hc-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+.hc-scroll canvas{display:block;min-width:720px}
+.departure-entry{position:sticky;top:8px;z-index:20;display:inline-block;margin:10px 0;padding:7px 16px;background:var(--accent);color:#fff;border-radius:999px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.departure-card{padding:18px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
+
+
+
 /* 清单 + 分享卡 + 定制 */
 .card-custom{border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:14px;background:var(--surface)}
 .cc-h{font-size:13px;font-weight:700;font-family:var(--f-d);margin-bottom:10px}
@@ -429,6 +448,13 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
   .ov-wx .dg-lb{font-size:9px}
   /* ⑤步总览卡：地图区 min-height 降为加载占位，消除地图下方大片空白 */
   .ov-card-map{min-height:120px}
+  /* ③步指标字体：手机端缩小——每日明细指标小方框（图标/标签/值）+ 概览表格固定列与值（桌面 >640px 不变） */
+  .ind-cell .ic-ico{font-size:11px}
+  .ind-cell .ic-l{font-size:9px}
+  .ind-cell .ic-v{font-size:12px}
+  .dt-grid>.dg-cell{font-size:11px}
+  .dt-grid>.dg-lb{font-size:11px;padding:6px 6px}
+  .dt-grid>.dg-hd{font-size:10px}
   /* ①步搜索下拉：缩小字号、长地名单行完整显示不折行 */
   .srd-item{font-size:11px;padding:8px 10px;gap:6px}
   .srd-item .nm{font-size:12px}
@@ -461,6 +487,8 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
   <button class="step" data-step="5" onclick="go(5)">5 分享卡</button>
 </div>
 
+<div id="departureEntry" class="departure-entry" style="display:none" onclick="departureEntryClick()">🚪 出门检查</div>
+
 <!-- ============ 第 1 步：选位置 ============ -->
 <div class="panel active" id="p1">
   <div class="step-h">去哪里？</div>
@@ -482,6 +510,10 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
       <div><div class="lab">总距离</div><div class="val" id="totalDist">—</div></div>
       <div><div class="lab">累计爬升</div><div class="val" id="totalClimb">—</div></div>
       <div><div class="lab">预计耗时</div><div class="val" id="totalHours">—</div></div>
+    </div>
+    <div class="elev-wrap" id="elevWrap" style="display:none">
+      <div class="lab" style="margin:10px 0 4px">海拔剖面</div>
+      <div class="elev-scroll"><canvas id="elevProfile" width="720" height="170"></canvas></div>
     </div>
   </div>
 
@@ -537,6 +569,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
     <div><label>持续天数</label><input type="number" id="tripDays" min="1" max="16" value="1" aria-label="持续天数"></div>
     <div><label>预计爬升（可留空自动取）</label><input id="tripClimb" placeholder="如 1,280 m" aria-label="预计爬升"></div>
     <div><label>预计耗时（可留空自动算）</label><input id="tripHours" placeholder="如 6.5 h" aria-label="预计耗时"></div>
+    <div><label>出发时刻（留空用日出）</label><input type="time" id="tripTime" aria-label="出发时刻"></div>
   </div>
 
   <div class="chips" id="modeChips">
@@ -568,6 +601,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 
   <div id="viewWx" style="display:none">
     <div id="alertCard"></div>
+    <div id="dailyLoc"></div>
     <div id="wxList"></div>
   </div>
 
@@ -597,6 +631,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
     <button class="scene-btn on" data-type="gear" onclick="setCardType('gear')">🧗 装备清单卡</button>
     <button class="scene-btn" data-type="weather" onclick="setCardType('weather')">☀️ 天气情况卡</button>
     <button class="scene-btn" data-type="overview" onclick="setCardType('overview')">🗺 总览卡</button>
+    <button class="scene-btn" data-type="departure" onclick="setCardType('departure')">🚪 出发检查卡</button>
   </div>
   <div class="scene-sel" style="position:static;justify-content:flex-start;margin-top:10px">
     <button class="scene-btn on" data-name="mountain" onclick="setScene('mountain')">山野</button>
@@ -632,6 +667,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
   </div>
   <!-- 总览卡（长图）预览：独立容器，宽约 720px、高随内容 -->
   <div id="ovCard" class="ov-card" style="display:none"></div>
+  <div id="departureCard" class="departure-card" style="display:none"></div>
   <!-- 浮动可拖动定制按钮 + 引导箭头 + 配置浮层（视口右下角悬浮） -->
   <button id="cardCfgBtn" title="定制分享卡">⚙</button>
   <div id="cardCfgHint" class="card-cfg-hint">点这里定制分享卡<span class="hint-arrow">→</span></div>
@@ -1078,6 +1114,142 @@ function splitByDays(pts, days, segEnds) {
     out.push({ dayIndex: k, lat: a.lat + (b.lat - a.lat) * t, lon: a.lon + (b.lon - a.lon) * t, ele: a.ele != null && b.ele != null ? a.ele + (b.ele - a.ele) * t : (a.ele != null ? a.ele : (b.ele != null ? b.ele : null)), t: k / Math.max(n - 1, 1) })
   }
   return out
+}
+
+/* 逐日分段（C1 perday-aggregation）：按「第 k 天分点里程」把平铺路线点切成逐日徒步段，
+   返回 [{dayIndex, pts, climbM, descentM, distKm, distKmFromStart}]。
+   约定：第 k 天分点里程 pos_k = total·(k/(n-1))；第 k 天徒步段 = (pos_{k-1}, pos_k]，pos_{-1}=0。
+   · 第 1 天（dayIndex 0）分点在起点 → 其段为起点平台（多日多为抵达日，爬升≈0）
+   · 末日分点在路线终点 → 末日段为最后冲刺（非空）
+   · 单日（n=1）整条路线归第 1 天
+   2m 去噪与段间不跨段插值规则与 routeMetricsOf 一致。 */
+function sliceRouteByDays(route, splitPts, segEnds) {
+  var pts = route || []
+  var n = Math.max(1, (splitPts && splitPts.length) || 1)
+  var empty = []
+  for (var i = 0; i < n; i++) empty.push({ dayIndex: i, pts: [], climbM: null, descentM: null, distKm: 0, distKmFromStart: 0 })
+  if (pts.length < 2) return empty
+  var cum = [0], total = 0
+  for (var j = 1; j < pts.length; j++) {
+    if (isSegmentGap(segEnds, j - 1)) { cum.push(cum[j - 1]); continue }
+    total += hav(pts[j - 1], pts[j]); cum.push(total)
+  }
+  function endOf(k) { return n <= 1 ? total : total * (k / (n - 1)) }
+  // 每段归属：段终点里程 e → 最小 k 使 endOf(k) >= e
+  var segs = []
+  for (var j2 = 1; j2 < pts.length; j2++) {
+    if (isSegmentGap(segEnds, j2 - 1)) continue
+    var e = cum[j2], k = 0
+    while (k < n - 1 && endOf(k) < e) k++
+    segs.push({ j: j2, k: k })
+  }
+  var out = []
+  for (var k2 = 0; k2 < n; k2++) {
+    var climb = 0, descent = 0, dist = 0, inds = []
+    segs.forEach(function (s) {
+      if (s.k !== k2) return
+      inds.push(s.j)
+      var a = pts[s.j - 1], b = pts[s.j]
+      dist += hav(a, b)
+      if (a.ele != null && b.ele != null) {
+        var d = b.ele - a.ele
+        if (d > 2) climb += d
+        else if (d < -2) descent += -d
+      }
+    })
+    out.push({
+      dayIndex: k2,
+      pts: inds.map(function (j3) { return pts[j3] }),
+      climbM: inds.length ? Math.round(climb) : null,
+      descentM: inds.length ? Math.round(descent) : null,
+      distKm: inds.length ? Math.round(dist * 10) / 10 : 0,
+      distKmFromStart: Math.round(endOf(k2) * 10) / 10
+    })
+  }
+  return out
+}
+
+/* ---- C3 海拔剖面：纯数据（可测）+ canvas 渲染 ---- */
+/* 累计距离 + 海拔（缺失点相邻插值并标低置信）+ 每日分点（消费 perDay） */
+function elevProfileData(route, segEnds, perDayArr) {
+  var pts = route || []
+  var out = { points: [], maxEle: null, minEle: null, totalKm: 0, days: [] }
+  if (pts.length < 2) return out
+  var cum = 0
+  for (var i = 0; i < pts.length; i++) {
+    if (i > 0 && !isSegmentGap(segEnds, i - 1)) cum += hav(pts[i - 1], pts[i])
+    var ele = pts[i].ele != null ? pts[i].ele : null
+    var interp = false
+    if (ele == null && i > 0 && i < pts.length - 1 && pts[i - 1].ele != null && pts[i + 1].ele != null) {
+      ele = (pts[i - 1].ele + pts[i + 1].ele) / 2
+      interp = true
+    }
+    if (ele != null) {
+      if (out.maxEle == null || ele > out.maxEle) out.maxEle = ele
+      if (out.minEle == null || ele < out.minEle) out.minEle = ele
+    }
+    out.points.push({ distKm: Math.round(cum * 10) / 10, ele: ele, interp: interp })
+  }
+  out.totalKm = Math.round(cum * 10) / 10
+  if (perDayArr && perDayArr.length) {
+    perDayArr.forEach(function (pd, k) {
+      out.days.push({ dayIndex: k, distKmFromStart: pd.distKmFromStart || 0, climbM: pd.climbM, descentM: pd.descentM, date: pd.date })
+    })
+  }
+  return out
+}
+/* canvas 绘制：折线 + 插值弱化点 + 坐标刻度 + 每日分点竖线/标签 */
+function renderElevationProfile(canvas, data) {
+  if (!canvas || !data || !data.points || data.points.length < 2) return
+  var ctx = canvas.getContext && canvas.getContext('2d')
+  if (!ctx) return
+  var W = canvas.width, H = canvas.height
+  var PADL = 46, PADR = 14, PADT = 20, PADB = 24
+  ctx.clearRect(0, 0, W, H)
+  var maxEle = data.maxEle, minEle = data.minEle
+  if (maxEle == null || minEle == null) return
+  if (maxEle === minEle) maxEle = minEle + 10
+  var totalKm = data.totalKm || 1
+  function x(d) { return PADL + Math.min(1, d / totalKm) * (W - PADL - PADR) }
+  function y(e) { return PADT + (1 - (e - minEle) / (maxEle - minEle)) * (H - PADT - PADB) }
+  // 网格 + 海拔轴
+  ctx.strokeStyle = 'rgba(128,128,128,0.15)'; ctx.fillStyle = 'rgba(128,128,128,0.6)'; ctx.font = '10px sans-serif'; ctx.textBaseline = 'middle'
+  for (var g = 0; g <= 4; g++) {
+    var gy = PADT + (H - PADT - PADB) * g / 4
+    ctx.beginPath(); ctx.moveTo(PADL, gy); ctx.lineTo(W - PADR, gy); ctx.stroke()
+    ctx.fillText(Math.round(maxEle - (maxEle - minEle) * g / 4) + 'm', 2, gy)
+  }
+  // 距离轴
+  ctx.textAlign = 'center'
+  for (var gx = 0; gx <= 4; gx++) {
+    var kms = totalKm * gx / 4
+    ctx.fillText(Math.round(kms * 10) / 10 + 'km', x(kms), H - 8)
+  }
+  ctx.textAlign = 'left'
+  // 剖面折线
+  ctx.beginPath()
+  var penUp = true
+  data.points.forEach(function (p) {
+    if (p.ele == null) { penUp = true; return }
+    if (penUp) { ctx.moveTo(x(p.distKm), y(p.ele)); penUp = false } else ctx.lineTo(x(p.distKm), y(p.ele))
+  })
+  ctx.strokeStyle = '#4a90d9'; ctx.lineWidth = 2; ctx.stroke()
+  // 插值点弱化（低置信）
+  data.points.forEach(function (p) {
+    if (p.interp && p.ele != null) { ctx.fillStyle = 'rgba(128,128,128,0.55)'; ctx.beginPath(); ctx.arc(x(p.distKm), y(p.ele), 2, 0, Math.PI * 2); ctx.fill() }
+  })
+  // 每日分点竖线 + 「DayN · 爬X/下Y」
+  if (data.days && data.days.length) {
+    data.days.forEach(function (d) {
+      var dx = x(d.distKmFromStart)
+      ctx.strokeStyle = 'rgba(128,128,128,0.5)'; ctx.setLineDash([4, 3])
+      ctx.beginPath(); ctx.moveTo(dx, PADT); ctx.lineTo(dx, H - PADB); ctx.stroke()
+      ctx.setLineDash([])
+      var lbl = 'Day' + (d.dayIndex + 1) + (d.climbM != null ? ' 爬' + d.climbM : '')
+      if (d.descentM) lbl += '/下' + d.descentM
+      ctx.fillStyle = '#999'; ctx.font = '9px sans-serif'; ctx.fillText(lbl, Math.max(PADL, Math.min(dx - 24, W - PADR - 100)), PADT - 4)
+    })
+  }
 }
 
 </script>
@@ -1548,9 +1720,37 @@ function makeMapSnapshot(opts) {
 
 var OM_FCAST = 'https://api.open-meteo.com/v1/forecast'
 var QW_TTL = 30 * 60 * 1000
-var CACHE_TTL = 3 * 60 * 60 * 1000   // 3h
-var WEATHER_CACHE_VER = 7   // 天气缓存 schema 版本：降水情况等逐时数据按「天」归属（多日行程各天独立）；v7=预报按行程出发日期对齐（旧缓存存的是"从今天起的未对齐天数"，必须失效）
+var CACHE_TTL = 3 * 60 * 60 * 1000   // 3h（被 C2 forecastFreshness 分档阈值取代，保留作参考常量）
+var WEATHER_CACHE_VER = 9   // 天气缓存 schema 版本：v8=可信度字段；v9=温度按海拔校正（气温垂直递减率 6.5°C/1000m，旧缓存为未校正值必须失效）
 var alertStatus = ''   // 预警拉取状态：''=ok/空 | 'fail'=接口不可用
+var LAPSE_RATE = 6.5 / 1000   // 气温垂直递减率（ISA 标准，°C/米）：海拔每升 1000m 降 6.5°C，用于网格→路线海拔校正
+var perDay = []        // 逐日聚合视图（C1 perday-aggregation）：路线逐日切分 + 逐日天气 + 逐时，供逐日类功能消费
+
+/* ================= 预报新鲜度（C2 forecast-freshness）：年龄 × 出发剩余天数 → 三态 ================= */
+// 默认阈值表：leadDays 分档 [maxLead(天), freshH(小时), staleH(小时)]；≥staleH → 失效；远期(maxLead=Infinity) 不设失效（陈旧封顶）
+var FRESHNESS_DEFAULT = {
+  bands: [
+    { maxLead: 1, freshH: 2, staleH: 6 },     // 出发≤1天
+    { maxLead: 3, freshH: 6, staleH: 24 },    // ≤3天
+    { maxLead: 7, freshH: 24, staleH: 72 },   // ≤7天
+    { maxLead: Infinity, freshH: 72, staleH: Infinity }  // >7天：远期不设失效
+  ]
+}
+function freshnessBands() {
+  var f = (appConfig && appConfig.freshness && appConfig.freshness.bands) || FRESHNESS_DEFAULT.bands
+  return Array.isArray(f) && f.length ? f : FRESHNESS_DEFAULT.bands
+}
+/* 纯函数：ageHours 快照年龄（小时）、leadDays 出发剩余天数（今天出发=0）。
+   返回 { state: 'fresh'|'stale'|'expired', label }；ageHours 缺失 → 视为新鲜（无判定信息不降级）。 */
+function forecastFreshness(ageHours, leadDays) {
+  if (ageHours == null || isNaN(ageHours)) return { state: 'fresh', label: '' }
+  var l = leadDays == null || isNaN(leadDays) || leadDays < 0 ? 0 : leadDays
+  var bands = freshnessBands(), band = bands[0]
+  for (var i = 0; i < bands.length; i++) { if (l <= bands[i].maxLead) { band = bands[i]; break } }
+  if (ageHours < band.freshH) return { state: 'fresh', label: '' }
+  if (ageHours < band.staleH) return { state: 'stale', label: '缓存于 ' + Math.round(ageHours) + ' 小时前 · 数据可能过时' }
+  return { state: 'expired', label: '缓存已过期' }
+}
 
 /* ================= 和风 JWT（B7 修正版：host 可配/Bearer 头/sub=项目ID/不走代理） ================= */
 var _qwKey = null
@@ -1657,12 +1857,48 @@ function toUnifiedOM(om, srcTag) {
 
 /* ================= 多源字段级补齐（cascade）：daily 按 date、hourly 按 time 对齐取先源有值 ================= */
 function pickField(vals) { for (var i = 0; i < vals.length; i++) { var v = vals[i]; if (v == null || v === '') continue; if (typeof v === 'string') return v; if (!isNaN(+v)) return v } return null }
+
+/* ---- C6 预报可信度：关键字段分歧判定 + 可信度合成 ---- */
+var CONF_KEY_FIELDS = ['tempMax', 'tempMin', 'precipProbMax', 'windSpeedMax']
+var CONF_FIELD_ZH = { tempMax: '高温', tempMin: '低温', precipProbMax: '降水概率', windSpeedMax: '风' }
+/* 分歧判定：多源对该字段均有值时极差超阈值 → 不一致（false）。少于两源有值 → 视为一致（无分歧可判不降级） */
+function consistencyOf(fieldValues, field) {
+  var vals = (fieldValues || []).filter(function (v) { return v != null && !isNaN(+v) })
+  if (vals.length < 2) return true
+  var max = Math.max.apply(null, vals), min = Math.min.apply(null, vals), range = max - min
+  if (field === 'tempMax' || field === 'tempMin') return range <= 3       // 高低温差 >3°C → 低一致
+  if (field === 'precipProbMax') return range <= 25                       // 降水概率差 >25% → 低一致
+  if (field === 'windSpeedMax') {                                          // 风级差 ≥2 级 → 低一致
+    var a = beaufortKmh(max).level, b = beaufortKmh(min).level
+    return Math.abs(a - b) < 2
+  }
+  return true
+}
+/* 可信度合成：低一致字段数 + 不可用源比例 + 覆盖度 → high/medium/low。
+   任何关键字段分歧即低；覆盖度<70% 至少 medium；无分歧信息不降级。 */
+function confLevel(lowCount, unavailableRatio, coverage) {
+  var cov = coverage == null ? 1 : coverage
+  var s = 0
+  if (lowCount >= 1) s += 2
+  if (unavailableRatio != null && unavailableRatio >= 0.5) s += 1
+  if (cov < 0.7) s += 1
+  if (s >= 2) return 'low'
+  if (s >= 1) return 'medium'
+  return 'high'
+}
 function cascadeMerge(list) {
   // 以覆盖天数最长者为时间轴 primary：避免 meteoblue 等 7 天源排在前面时截断 10–16 天的旅程
   var primary = list.slice().sort(function (a, b) { return (b.daily || []).length - (a.daily || []).length })[0]
   var daily = (primary.daily || []).map(function (d) {
     var m = { date: d.date, src: list.map(function (s) { return s.src }).join('→') }
     Object.keys(d).forEach(function (k) { if (k === 'date' || k === 'src') return; m[k] = pickField(list.map(function (s) { var r = (s.daily || []).find(function (x) { return x.date === d.date }); return r ? r[k] : null })) })
+    // C6 分歧判定：关键字段各源取值极差超阈值 → lowConsistency
+    var low = []
+    CONF_KEY_FIELDS.forEach(function (f) {
+      var vals = list.map(function (s) { var r = (s.daily || []).find(function (x) { return x.date === d.date }); return r ? r[f] : null })
+      if (!consistencyOf(vals, f)) low.push(f)
+    })
+    m.lowConsistency = low
     return m
   })
   // 仅保留主源（最长）覆盖到的日期内的逐时数据，避免溢出日无对齐
@@ -1690,6 +1926,13 @@ function fetchPointWeather(lat, lng, days) {
     if (!ok.length) return null
     var merged = cascadeMerge(ok.map(function (r) { return r.value }))
     merged.srcs = ok.map(function (r) { return r.value.src })
+    // C6 源可用性：优先级中被启用的源里未成功返回数据的（rejected / 空 / 未配置参与）
+    var unavailable = []
+    prio.forEach(function (id, idx) {
+      var r = rs[idx]
+      if (!r || r.status !== 'fulfilled' || !r.value || !(r.value.daily || []).length) unavailable.push(id)
+    })
+    merged.unavailableSources = unavailable
     // 海拔：按源优先级取第一个非空（meteoblue metadata.height / OM forecast elevation；和风天气无海拔）
     for (var _ei = 0; _ei < ok.length; _ei++) {
       if (ok[_ei].value.elevation != null && ok[_ei].value.elevation > 0) { merged.elevation = ok[_ei].value.elevation; break }
@@ -1909,6 +2152,38 @@ function dateDiffDays(a, b) {
   return Math.round((db - da) / 86400000)
 }
 
+/* ---- C5 天黑返程：出发时刻 + 耗时 → 返程 vs 日落 三态 ---- */
+function timeToMin(hm) { if (hm == null) return null; var m = /(\d{1,2}):(\d{2})/.exec(String(hm)); return m ? (+m[1]) * 60 + (+m[2]) : null }   // 兼容 'HH:MM' 与 'YYYY-MM-DDTHH:MM'
+function fmtMin(min) { if (min == null || isNaN(min)) return null; var h = ((Math.floor(min / 60)) % 24 + 24) % 24, m = ((min % 60) + 60) % 60; return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m }
+/* 纯函数：返程=出发+耗时，对比日落 → {state: red|amber|green, returnTime, sunset}；缺输入 → green（无警告） */
+function returnDarkCheck(departureTime, hours, sunset, marginH) {
+  marginH = marginH == null ? 1 : marginH
+  var dep = timeToMin(departureTime), set = timeToMin(sunset)
+  if (dep == null || set == null || hours == null || isNaN(hours)) return { state: 'green', returnTime: null, sunset: sunset }
+  var ret = dep + Math.round(hours * 60)
+  if (ret >= set) return { state: 'red', returnTime: fmtMin(ret), sunset: fmtMin(set) }
+  if (set - ret < marginH * 60) return { state: 'amber', returnTime: fmtMin(ret), sunset: fmtMin(set) }
+  return { state: 'green', returnTime: fmtMin(ret), sunset: fmtMin(set) }
+}
+/* 参考日：单日=当天、多日=末日（回程那天）；出发时刻缺省用参考日日出 */
+function returnDarkRef() {
+  if (!weather || !weather.days || !weather.days.length) return { state: 'green', returnTime: null, sunset: null }
+  var ref = weather.days[weather.days.length - 1]
+  var dep = trip.departureTime || ref.sunrise || null
+  return returnDarkCheck(dep, trip.hours, ref.sunset, 1)
+}
+/* ②步出发时刻同步：手改值优先，否则默认日出（源缺失走本地天文） */
+function syncTripTime() {
+  var el = $('tripTime')
+  if (!el) return
+  if (trip.departureTime) { el.value = trip.departureTime; return }
+  if (!weather || !weather.days || !weather.days.length) return
+  var ref = weather.days[weather.days.length - 1]
+  var rise = ref.sunrise
+  if (!rise && ref.lat != null && ref.date) { var sn = sunTimesLocal(ref.lat, ref.lon, ref.date); if (sn) rise = sn.sunrise }
+  el.value = rise ? fmtTime(rise) : ''
+}
+
 function aggregateDays(pointWeatherList, splitPts, offset) {
   var days = [], valid = 0
   offset = offset || 0   // 出发日期对齐：预报从「今天」起，偏移到 startDate 对应索引
@@ -1919,7 +2194,7 @@ function aggregateDays(pointWeatherList, splitPts, offset) {
     // 逐日口径：precip3h/夜间温/活跃窗口/天气码只用该天逐时，避免多日行程所有天共用同一份逐时模式
     if (d0 && d0.date) hourly = hourly.filter(function (h) { return String(h.time).slice(0, 10) === d0.date })
     if (!d0) {
-      days.push({ date: String(k + 1) + '天', dayIndex: k, lat: p.lat, lon: p.lon, weatherCode: null, ele: p.ele, tempMax: null, tempMin: null, tempMean: null, appMax: null, appMin: null, appDay: null, nightAppTemp: null, nightMin: null, humidity: null, precipProb: null, precipSum: null, precip3h: [], windSpeedMax: null, windLevel: null, windDir: null, windGust: null, uvi: null, cloudCover: null, visibility: null, dewPoint: null, sunrise: null, sunset: null, snowfall: null, hourlyCodes: [], thunder: false, hail: false, windchill: null, scenes: sceneSummary({ nightAppTemp: null, nightMin: null, precipProb: null, precipSum: null, windLevel: null, snowfall: null }), src: u ? u.srcs.join('→') : '' })
+      days.push({ date: String(k + 1) + '天', dayIndex: k, lat: p.lat, lon: p.lon, weatherCode: null, ele: p.ele, tempMax: null, tempMin: null, tempMean: null, appMax: null, appMin: null, appDay: null, nightAppTemp: null, nightMin: null, humidity: null, precipProb: null, precipSum: null, precip3h: [], windSpeedMax: null, windLevel: null, windDir: null, windGust: null, uvi: null, cloudCover: null, visibility: null, dewPoint: null, sunrise: null, sunset: null, snowfall: null, hourlyCodes: [], thunder: false, hail: false, windchill: null, scenes: sceneSummary({ nightAppTemp: null, nightMin: null, precipProb: null, precipSum: null, windLevel: null, snowfall: null }), lowConsistency: [], confidence: 'high', src: u ? u.srcs.join('→') : '' })
       continue
     }
     valid++
@@ -1934,6 +2209,17 @@ function aggregateDays(pointWeatherList, splitPts, offset) {
     var nightApp = minOf(nightH.map(function (h) { return h.appTemp })) != null ? minOf(nightH.map(function (h) { return h.appTemp })) : minOf(hourly.map(function (h) { return h.appTemp }))
     if (nightMin == null) nightMin = d0.tempMin
     if (nightApp == null) nightApp = d0.appMin != null ? d0.appMin : d0.appMax
+    // 海拔校正（气温垂直递减率 6.5°C/1000m，weather-pipeline spec）：routeEle 点位/路线海拔 vs gridEle 源网格海拔
+    var routeEle = p.ele
+    var gridEle = (u && u.elevation != null) ? u.elevation : null
+    var lapseDelta = 0, lapseApplied = false
+    if (routeEle != null && gridEle != null && !isNaN(routeEle) && !isNaN(gridEle) && Math.abs(routeEle - gridEle) > 1) {
+      lapseDelta = (gridEle - routeEle) * LAPSE_RATE   // 路线高于网格 → Δ<0 → 温度下调
+      lapseApplied = true
+    }
+    var cNightMin = nightMin != null ? nightMin + lapseDelta : null
+    var cNightApp = nightApp != null ? nightApp + lapseDelta : null
+    var appDayVal = meanOf(inWin.map(function (h) { return h.appTemp })) != null ? Math.round(meanOf(inWin.map(function (h) { return h.appTemp }))) : (d0.appMax != null ? Math.round(d0.appMax) : null)
     var wd = beaufortKmh(d0.windSpeedMax)
     var codes = hourly.map(function (h) { return h.weatherCode }).filter(function (c) { return c != null && c >= 0 })
     // 降水情况：全天 0–23 每小时一条（正规天气展示：逐时降水量 mm + 概率；不再限定活跃窗口）
@@ -1942,13 +2228,18 @@ function aggregateDays(pointWeatherList, splitPts, offset) {
       var hh = hourly.find(function (h) { return hourOf(h.time) === hr })
       precip3h.push({ hour: hr, prob: hh ? hh.precipProb : null, mm: hh ? hh.precip : null })
     }
+    // C6 逐日可信度：低一致字段数 + 该点不可用源比例
+    var lowCons = d0.lowConsistency || []
+    var unavailArr = (u && u.unavailableSources) || []
+    var unavailRatio = (unavailArr.length + ((u && u.srcs && u.srcs.length) || 0)) ? unavailArr.length / (unavailArr.length + ((u && u.srcs && u.srcs.length) || 0)) : 0
     days.push({
       date: d0.date || String(k + 1) + '天', dayIndex: k, weatherCode: d0.weatherCode,
-      ele: p.ele, lat: p.lat, lon: p.lon, tempMax: d0.tempMax, tempMin: d0.tempMin, tempMean: d0.tempMean,
-      appMax: d0.appMax, appMin: d0.appMin,
-      appDay: meanOf(inWin.map(function (h) { return h.appTemp })) != null ? Math.round(meanOf(inWin.map(function (h) { return h.appTemp }))) : (d0.appMax != null ? Math.round(d0.appMax) : null),
-      nightAppTemp: nightApp != null ? round1(nightApp) : null,
-      nightMin: nightMin != null ? round1(nightMin) : null,
+      ele: p.ele, lat: p.lat, lon: p.lon,
+      tempMax: d0.tempMax != null ? d0.tempMax + lapseDelta : null, tempMin: d0.tempMin != null ? d0.tempMin + lapseDelta : null, tempMean: d0.tempMean,
+      appMax: d0.appMax != null ? d0.appMax + lapseDelta : null, appMin: d0.appMin != null ? d0.appMin + lapseDelta : null,
+      appDay: appDayVal != null ? Math.round(appDayVal + lapseDelta) : null,
+      nightAppTemp: cNightApp != null ? round1(cNightApp) : null,
+      nightMin: cNightMin != null ? round1(cNightMin) : null,
       humidity: meanOf(inWin.map(function (h) { return h.humidity })) != null ? Math.round(meanOf(inWin.map(function (h) { return h.humidity }))) : null,
       precipProb: d0.precipProbMax, precipSum: d0.precipSum,
       precip3h: precip3h,
@@ -1959,12 +2250,60 @@ function aggregateDays(pointWeatherList, splitPts, offset) {
       dewPoint: meanOf(inWin.map(function (h) { return h.dewPoint })) != null ? round1(meanOf(inWin.map(function (h) { return h.dewPoint }))) : null,
       sunrise: srise, sunset: sset, snowfall: d0.snowfallSum,
       hourlyCodes: codes, thunder: codes.some(isThunderCode), hail: codes.some(isHailCode),
-      windchill: windchillC(nightMin, d0.windSpeedMax) != null ? round1(windchillC(nightMin, d0.windSpeedMax)) : null,
-      scenes: sceneSummary({ nightAppTemp: nightApp, nightMin: nightMin, precipProb: d0.precipProbMax, precipSum: d0.precipSum, windLevel: wd.level, snowfall: d0.snowfallSum }),
-      src: u ? u.srcs.join('→') : ''
+      windchill: windchillC(cNightMin, d0.windSpeedMax) != null ? round1(windchillC(cNightMin, d0.windSpeedMax)) : null,
+      scenes: sceneSummary({ nightAppTemp: cNightApp, nightMin: cNightMin, precipProb: d0.precipProbMax, precipSum: d0.precipSum, windLevel: wd.level, snowfall: d0.snowfallSum }),
+      lowConsistency: lowCons, confidence: confLevel(lowCons.length, unavailRatio, null),
+      lapseDelta: lapseApplied ? lapseDelta : null, src: u ? u.srcs.join('→') : ''
     })
   }
-  return { days: days, coverage: splitPts.length ? valid / splitPts.length : 0 }
+  // C6 行程级可信度：全程低一致字段总数 + 全程不可用源比例 + 覆盖度
+  var tripLow = 0, unavailN = 0, srcN = 0
+  days.forEach(function (d) { tripLow += (d.lowConsistency || []).length })
+  pointWeatherList.forEach(function (u) {
+    if (u && u.unavailableSources) unavailN += u.unavailableSources.length
+    if (u && u.srcs) srcN += u.srcs.length
+  })
+  var tripUnavail = (unavailN + srcN) ? unavailN / (unavailN + srcN) : 0
+  var coverage = splitPts.length ? valid / splitPts.length : 0
+  var confidence = confLevel(tripLow, tripUnavail, coverage)
+  var lapseApplied = days.some(function (d) { return d.lapseDelta != null })
+  return { days: days, coverage: coverage, confidence: confidence, lapseApplied: lapseApplied, unavailableSources: pointWeatherList.filter(Boolean).reduce(function (a, u) { (u.unavailableSources || []).forEach(function (s) { if (a.indexOf(s) < 0) a.push(s) }); return a }, []) }
+}
+
+/* 逐日聚合（C1 perday-aggregation）：把路线逐日切分 + weather.days + 逐时组装为只读 perDay[]。
+   字段契约见 specs/perday-aggregation；perDay[k].weather 引用 weather.days[k] 保证「同源同值」。
+   pointList 可选：传入逐点源（含 .hourly）时按当天 date 过滤组装当日逐时；缺省（缓存/离线载入）hourly=[]。
+   纯函数、不发起网络请求、不落缓存（缓存 schema 不变）。 */
+function buildPerDay(route, segEnds, splitPts, weather, pointList) {
+  var days = (weather && weather.days) || []
+  var slices = (typeof sliceRouteByDays === 'function') ? sliceRouteByDays(route, splitPts, segEnds) : []
+  var hasRoute = !!(route && route.length > 1)
+  return days.map(function (d, k) {
+    var sl = slices[k] || { climbM: null, descentM: null, distKmFromStart: 0 }
+    var p = (splitPts && splitPts[k]) || {}
+    var hourly = []
+    var u = pointList && pointList[k]
+    if (u && u.hourly && d.date) {
+      hourly = u.hourly.filter(function (h) { return String(h.time).slice(0, 10) === d.date })
+    }
+    var scenes = d.scenes || { cold: { risk: false }, wet: { risk: false }, wind: { risk: false } }
+    var riskCapsules = [scenes.cold, scenes.wet, scenes.wind].filter(function (s) { return s && s.risk }).map(function (s) { return { label: s.label, detail: s.detail } })
+    return {
+      dayIndex: k,
+      date: d.date,
+      point: { lat: p.lat, lon: p.lon != null ? p.lon : p.lng, ele: p.ele },
+      climbM: hasRoute ? sl.climbM : null,
+      descentM: hasRoute ? sl.descentM : null,
+      distKmFromStart: hasRoute ? sl.distKmFromStart : 0,
+      weather: d,
+      hourly: hourly,
+      sunrise: d.sunrise,
+      sunset: d.sunset,
+      scenes: scenes,
+      riskCapsules: riskCapsules,
+      alertRisks: (typeof alerts !== 'undefined') ? alerts : []
+    }
+  })
 }
 
 /* ================= 29 项指标模板（id 全集照 finalized IND） ================= */
@@ -2149,6 +2488,71 @@ function toggleInd(id) {
 }
 /* 天气指标概览（③步天气概览页签）：每日明细合并版——降水情况 + 条件/风险行 + 勾选指标（指标名可点查触发装备）。
    与每日明细页签(renderDayIndGrid)、总览卡(renderOverviewCard)数据同源对齐。 */
+/* C3 逐日定位卡：Day N + 地名 + 海拔 + 天气摘要 + 距起点 km（数据取 perDay.weather 引用）；地名逆地理缓存 */
+var dlNameCache = {}
+function dlNameFor(p, cb) {
+  var key = Math.round(p.lat * 1e4) + ',' + Math.round(p.lon * 1e4)
+  if (dlNameCache[key]) { cb(dlNameCache[key]); return }
+  if (typeof reverseGeocode !== 'function') { dlNameCache[key] = key; cb(key); return }
+  reverseGeocode(p.lat, p.lon).then(function (nm) {
+    var name = (nm && nm.name) || (nm && nm.city) || key
+    dlNameCache[key] = name; cb(name)
+  }).catch(function () { dlNameCache[key] = key; cb(key) })
+}
+function renderDailyLoc() {
+  var box = $('dailyLoc')
+  if (!box) return
+  if (!perDay || !perDay.length) { box.innerHTML = ''; return }
+  var isRoute = !!(route && route.length > 1)
+  box.innerHTML = '<div class="daily-loc">' + perDay.map(function (pd, k) {
+    var w = pd.weather || {}
+    var cond = w.weatherCode != null ? (wmoOf(w.weatherCode).icon + ' ' + wmoOf(w.weatherCode).zh) : '—'
+    var ele = (pd.point && pd.point.ele != null) ? fmtInt(pd.point.ele) + 'm' : '—'
+    var sum = (w.tempMin != null ? Math.round(w.tempMin) + '°' : '—') + '/' + (w.tempMax != null ? Math.round(w.tempMax) + '°' : '—') + ' · 降水' + (w.precipProb != null ? Math.round(w.precipProb) + '%' : '—')
+    var dist = isRoute && pd.distKmFromStart != null ? ' · ' + pd.distKmFromStart + 'km' : ''
+    return '<div class="dl-card"><div class="dl-h">Day ' + (k + 1) + ' · ' + esc(fmtShort(pd.date)) + '</div>' +
+      '<div class="dl-sub"><span class="dl-name">…</span> · 海拔 ' + ele + dist + '</div>' +
+      '<div class="dl-wx">' + esc(cond) + ' · ' + esc(sum) + '</div></div>'
+  }).join('') + '</div>'
+  var names = box.querySelectorAll ? box.querySelectorAll('.dl-name') : []
+  perDay.forEach(function (pd, k) {
+    if (!pd.point || pd.point.lat == null) return
+    dlNameFor(pd.point, function (name) { if (names[k]) names[k].textContent = name })
+  })
+}
+
+/* C5 天黑返程胶囊：红/黄 → 展示；绿 → 空（不警告） */
+function timeSafetyDisplay() {
+  if (!weather || !weather.days || !weather.days.length) return ''
+  var rd = returnDarkRef()
+  if (!rd || rd.state === 'green' || !rd.returnTime) return ''
+  var cls = rd.state === 'red' ? 'red' : 'orange'
+  return '<div style="margin-top:8px"><span class="risk ' + cls + '" style="margin-right:6px">返程 ' + esc(rd.returnTime) + ' · 日落 ' + esc(rd.sunset || '—') + (rd.state === 'red' ? ' · 天黑未归' : ' · 接近日落') + '</span></div>'
+}
+/* C5 UV 累计暴露：≥阈值 展示；正午高温叠加遮荫提示 */
+function uvDisplay() {
+  if (typeof buildGearCtx !== 'function') return ''
+  var ctx = buildGearCtx()
+  if (ctx.uvCumulative == null || ctx.uvCumulative < (appConfig.uvThreshold != null ? appConfig.uvThreshold : 60)) return ''
+  var s = 'UV 累计超阈值（' + Math.round(ctx.uvCumulative) + '）'
+  if (ctx.tempMax != null && ctx.tempMax >= 33) s += ' · 正午 12-14 时遮荫休息'
+  return '<div style="margin-top:8px"><span class="risk orange" style="margin-right:6px">' + esc(s) + '</span></div>'
+}
+
+/* C6 可信度展示文案：高→空；中/低→胶囊 + 原因（复用 .risk 位） */
+function confidenceDisplay() {
+  if (!weather || !weather.days || !weather.days.length) return ''
+  var c = weather.confidence || 'high'
+  if (c === 'high') return ''
+  var lows = {}
+  weather.days.forEach(function (d) { (d.lowConsistency || []).forEach(function (f) { lows[f] = (lows[f] || 0) + 1 }) })
+  var parts = []
+  Object.keys(lows).forEach(function (f) { parts.push(CONF_FIELD_ZH[f] || f) })
+  if (weather.unavailableSources && weather.unavailableSources.length) parts.push('源不可用 ' + weather.unavailableSources.join('/'))
+  var reason = parts.length ? '，原因：' + parts.join(' · ') : ''
+  var cls = c === 'low' ? 'orange' : 'blue'
+  return '<div style="margin-top:8px"><span class="risk ' + cls + '" style="margin-right:6px">预报可信度' + (c === 'low' ? '低' : '中') + '</span><span style="color:var(--text-muted)">' + esc(reason) + '</span></div>'
+}
 function renderWxList() {
   var box = $('wxList')
   if (!box) return
@@ -2159,7 +2563,7 @@ function renderWxList() {
     return
   }
   var table = renderDayTable(weather.days, enabledInd, { clickable: true })
-  box.innerHTML = '<div class="wx-detail"><div class="wx-h"><div class="wx-cond">天气指标概览</div><div class="wx-src">所有天横排 · 随勾选变化<br>点指标名查看触发的装备</div></div><div class="dt-scroll">' + table + '</div><div id="fieldGearTip" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div></div>'
+  box.innerHTML = '<div class="wx-detail"><div class="wx-h"><div class="wx-cond">天气指标概览</div><div class="wx-src">所有天横排 · 随勾选变化<br>点指标名查看触发的装备' + (weather.lapseApplied ? '<br><span style="color:var(--info)">温度按海拔校正（6.5°C/1000m）</span>' : '') + '</div></div>' + timeSafetyDisplay() + uvDisplay() + confidenceDisplay() + '<div class="dt-scroll">' + table + '</div><div id="fieldGearTip" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div></div>'
 }
 
 /* 概览指标点击：显示该指标命中的装备（取本次 selectGear 结果，按行程最保守值） */
@@ -2204,11 +2608,93 @@ function renderDayIndGrid() {
     ? '<div class="ind-grid">' + cells + '</div>'
     : '<div style="font-size:12px;color:var(--text-muted);margin-top:12px">未勾选任何指标，可在 ⚙ 配置指标 中勾选</div>'
   var cond = d.weatherCode != null ? (wmoOf(d.weatherCode).icon + ' ' + wmoOf(d.weatherCode).zh) : ''
-  box.innerHTML = '<div class="wx-detail"><div class="wx-h"><div class="wx-cond">每日明细</div><div class="wx-src">逐日指标小方框 · 原版样式<br>' + esc(fmtShort(d.date)) + (cond ? ' · ' + esc(cond) : '') + '</div></div>' + dayTabs + body + '</div>'
+  // C9 逐时曲线区：降水条逻辑已含于指标网格，曲线独立 canvas（不随指标勾选增删）
+  var curve = '<div class="hc-wrap"><div class="hc-lab">逐时温度/风</div><div class="hc-scroll"><canvas id="hourlyCurves" width="720" height="180"></canvas></div></div>'
+  box.innerHTML = '<div class="wx-detail"><div class="wx-h"><div class="wx-cond">每日明细</div><div class="wx-src">逐日指标小方框 · 原版样式<br>' + esc(fmtShort(d.date)) + (cond ? ' · ' + esc(cond) : '') + '</div></div>' + dayTabs + body + curve + '</div>'
+  var cv = $('hourlyCurves')
+  if (cv && typeof renderHourlyCurves === 'function') renderHourlyCurves(cv, perDay, day)
+}
+
+/* ---- C9 逐时曲线：24h 温度/体感曲线 + 风柱 + 日出日落夜间 + 天气码变化（canvas 手绘）---- */
+function drawHourlyLine(ctx, arr, xf, yf, color, w) {
+  ctx.strokeStyle = color; ctx.lineWidth = w; ctx.beginPath(); var pen = false
+  arr.forEach(function (v, h) {
+    if (v == null || isNaN(v)) { pen = false; return }   // 缺失断开，不插值
+    if (pen) ctx.lineTo(xf(h), yf(v)); else { ctx.moveTo(xf(h), yf(v)); pen = true }
+  })
+  ctx.stroke()
+}
+function renderHourlyCurves(canvas, perDayArr, dayIndex) {
+  if (!canvas || !perDayArr || !perDayArr[dayIndex]) return
+  var pd = perDayArr[dayIndex]
+  var hourly = (pd && pd.hourly) || []
+  var ctx = canvas.getContext && canvas.getContext('2d')
+  if (!ctx) return
+  var W = canvas.width, H = canvas.height
+  var PADL = 34, PADR = 10, PADT = 18, PADB = 22
+  ctx.clearRect(0, 0, W, H)
+  var temp = [], app = [], wind = [], gust = [], codes = []
+  for (var h = 0; h < 24; h++) {
+    var rec = hourly.find(function (x) { return hourOf(x.time) === h })
+    temp.push(rec ? rec.temp : null); app.push(rec ? rec.appTemp : null)
+    wind.push(rec ? rec.windSpeed : null); gust.push(rec ? rec.windGust : null)
+    codes.push(rec && rec.weatherCode != null ? rec.weatherCode : null)
+  }
+  if (!temp.some(function (v) { return v != null }) && !wind.some(function (v) { return v != null })) return
+  var tvals = temp.concat(app).filter(function (v) { return v != null && !isNaN(v) })
+  var wvals = wind.concat(gust).filter(function (v) { return v != null && !isNaN(v) })
+  var tMin = tvals.length ? Math.min.apply(null, tvals) : 0, tMax = tvals.length ? Math.max.apply(null, tvals) : 0
+  if (tMin === tMax) tMax = tMin + 5
+  var wMax = wvals.length ? Math.max.apply(null, wvals) : 1
+  function xf(h) { return PADL + (h / 23) * (W - PADL - PADR) }
+  function yT(v) { return PADT + (1 - (v - tMin) / (tMax - tMin)) * (H - PADT - PADB) }
+  function yW(v) { return H - PADB - (v / wMax) * (H - PADT - PADB) }
+  // 网格 + 温度轴
+  ctx.strokeStyle = 'rgba(128,128,128,0.15)'; ctx.fillStyle = 'rgba(128,128,128,0.6)'; ctx.font = '10px sans-serif'; ctx.textBaseline = 'middle'
+  for (var g = 0; g <= 4; g++) {
+    var gy = PADT + (H - PADT - PADB) * g / 4
+    ctx.beginPath(); ctx.moveTo(PADL, gy); ctx.lineTo(W - PADR, gy); ctx.stroke()
+    ctx.fillText(Math.round(tMax - (tMax - tMin) * g / 4) + '°', 2, gy)
+  }
+  // 小时轴（偶数刻度）
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+  for (var hx = 0; hx < 24; hx += 2) { ctx.fillText(hx, xf(hx), H - 16) }
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+  // 夜间区间淡底
+  var riseH = hourOf(pd && pd.sunrise), setH = hourOf(pd && pd.sunset)
+  if (riseH != null && setH != null) {
+    ctx.fillStyle = 'rgba(128,128,128,0.07)'
+    ctx.fillRect(xf(0), PADT, xf(riseH) - xf(0), H - PADT - PADB)
+    ctx.fillRect(xf(setH), PADT, xf(23) - xf(setH), H - PADT - PADB)
+  }
+  // 风柱（≥6级=39km/h 警示色；阵风细柱）
+  for (var h2 = 0; h2 < 24; h2++) {
+    var wv = wind[h2], bw = (W - PADL - PADR) / 23 * 0.5
+    if (wv != null) {
+      ctx.fillStyle = (wv >= 39) ? 'rgba(224,90,90,0.45)' : 'rgba(128,128,128,0.22)'
+      ctx.fillRect(xf(h2) - bw / 2, yW(wv), bw, H - PADB - yW(wv))
+      if (gust[h2] != null && gust[h2] > wv) { ctx.fillStyle = 'rgba(224,90,90,0.35)'; ctx.fillRect(xf(h2) - bw / 2, yW(gust[h2]), bw * 0.5, H - PADB - yW(gust[h2])) }
+    }
+  }
+  // 温度曲线 + 体感次线
+  drawHourlyLine(ctx, temp, xf, yT, '#4a90d9', 2)
+  drawHourlyLine(ctx, app, xf, yT, 'rgba(160,160,160,0.8)', 1)
+  // 日出/日落竖线
+  if (riseH != null) { ctx.strokeStyle = 'rgba(240,180,40,0.6)'; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(xf(riseH), PADT); ctx.lineTo(xf(riseH), H - PADB); ctx.stroke(); ctx.setLineDash([]); ctx.fillText('日出', xf(riseH) + 2, PADT - 2) }
+  if (setH != null) { ctx.strokeStyle = 'rgba(224,90,90,0.5)'; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(xf(setH), PADT); ctx.lineTo(xf(setH), H - PADB); ctx.stroke(); ctx.setLineDash([]); ctx.fillText('日落', xf(setH) + 2, PADT - 2) }
+  // 天气码显著变化（码变且与前2h不同 → 标；滤单小时抖动）
+  ctx.fillStyle = 'rgba(128,128,128,0.85)'; ctx.font = '11px sans-serif'
+  for (var hc = 1; hc < 24; hc++) {
+    var c0 = codes[hc], c1 = codes[hc - 1], c2 = codes[hc - 2]
+    if (c0 == null || c1 == null || c0 === c1) continue
+    if (c2 != null && c0 === c2) continue
+    var wm = wmoOf(c0)
+    ctx.fillText(wm.icon + wm.zh, Math.min(xf(hc) + 2, W - PADR - 30), yT((tMin + tMax) / 2))
+  }
 }
 
 /* 目标/天数变更后失效内存天气：③步进入时按新状态重查（缓存键含天数，不命中旧天数缓存） */
-function invalidateWeather() { weather = null; splitPoints = []; alerts = []; weatherFromCache = false }
+function invalidateWeather() { weather = null; splitPoints = []; alerts = []; perDay = []; weatherFromCache = false }
 
 /* 天气加载进度条：pct=0..1 显示并设宽；null 隐藏 */
 function setWxProgress(pct) {
@@ -2217,6 +2703,29 @@ function setWxProgress(pct) {
   if (pct == null) { bar.style.display = 'none'; fill.style.width = '0'; return }
   bar.style.display = 'block'
   fill.style.width = Math.round(pct * 100) + '%'
+}
+
+/* C2 新鲜度：应用缓存天气（含海拔回填）并置全局态 */
+function applyCachedWeather(cached, state) {
+  weather = cached.weather
+  weatherFromCache = true
+  // 缓存命中：把刚补齐的海拔写回各天（旧缓存可能存了 0m）
+  if (splitPoints.length && weather.days) {
+    for (var _c = 0; _c < weather.days.length && _c < splitPoints.length; _c++) {
+      if (splitPoints[_c].ele != null && splitPoints[_c].ele > 0) weather.days[_c].ele = splitPoints[_c].ele
+    }
+  }
+}
+
+/* C2 新鲜度：wxStatus 三态渲染——新鲜=正常(基于缓存)；陈旧=wx-src 标黄+时长；失效=.risk 红标 */
+function renderWxStatus(fresh) {
+  var el = $('wxStatus')
+  if (!el || !weather) return
+  var base = '已获取 · ' + weather.days.length + ' 天'
+  if (!weatherFromCache) { el.textContent = base; el.style.color = ''; return }
+  if (fresh.state === 'fresh') { el.textContent = base + '（基于缓存）'; el.style.color = '' }
+  else if (fresh.state === 'stale') { el.textContent = base + '（' + fresh.label + '）'; el.style.color = 'var(--warning)' }
+  else { el.innerHTML = esc(base) + ' <span class="risk red">缓存已过期</span>'; el.style.color = '' }
 }
 
 /* ================= 主流程：按天划分点位 → 逐点拉取 → 聚合 → 缓存/历史 ================= */
@@ -2230,6 +2739,7 @@ async function runWeather() {
   weatherLoading = true
   $('wxStatus').textContent = '查询天气中…（点 N / 共 ' + Math.max(1, trip.days) + ' 天）'
   $('mapErr').style.display = 'none'
+  var cached = null, cacheFresh = { state: 'fresh', label: '' }   // C2：缓存与新鲜度（catch 兜底需在 try 外）
   try {
     var days = Math.max(1, Math.min(16, trip.days || 1))
     splitPoints = route && route.length > 1 ? splitByDays(route, days, routeSegs) : (selLoc ? Array.from({ length: days }, function (_, i) { return { dayIndex: i, lat: selLoc.lat, lon: selLoc.lng, ele: selLoc.ele, t: i / Math.max(days - 1, 1) } }) : splitByDays(null, days))
@@ -2241,16 +2751,13 @@ async function runWeather() {
     var need = Math.min(16, offset + days)
     var key = routeHashKey()
     var ckey = key + '|' + startDate + '|' + days
-    var cached = await idbGet('weather-cache', ckey)
-    if (cached && cached.ver === WEATHER_CACHE_VER && cached.weather && (Date.now() - new Date(cached.cachedAt).getTime() < CACHE_TTL)) {
-      weather = cached.weather
-      weatherFromCache = true
-      // 缓存命中：把刚补齐的海拔写回各天（旧缓存可能存了 0m）
-      if (splitPoints.length && weather.days) {
-        for (var _c = 0; _c < weather.days.length && _c < splitPoints.length; _c++) {
-          if (splitPoints[_c].ele != null && splitPoints[_c].ele > 0) weather.days[_c].ele = splitPoints[_c].ele
-        }
-      }
+    cached = await idbGet('weather-cache', ckey)
+    var cacheUsable = !!(cached && cached.ver === WEATHER_CACHE_VER && cached.weather)
+    // C2 新鲜度：ageHours 快照年龄、leadDays 出发剩余天数；新鲜缓存直接用，陈旧/失效走拉取（失败时 catch 兜底）
+    var ageHours = cacheUsable ? (Date.now() - new Date(cached.cachedAt).getTime()) / 3600000 : null
+    cacheFresh = forecastFreshness(ageHours, dateDiffDays(today(), startDate))
+    if (cacheUsable && cacheFresh.state === 'fresh') {
+      applyCachedWeather(cached, 'fresh')
       setWxProgress(null)
     } else {
       // 点位目标（所有采样点同坐标）只查一次、其余天复用；路线目标沿路线逐点查
@@ -2283,6 +2790,10 @@ async function runWeather() {
       try { await idbSet('weather-cache', ckey, { ver: WEATHER_CACHE_VER, routeHash: key, startDate: startDate, days: days, cachedAt: new Date().toISOString(), weather: weather }) } catch (e) {}
     }
 
+    // 逐日聚合（C1）：天气就绪后即时组装 perDay（路线逐日切分 + 逐日天气 + 逐时）。
+    // 缓存/离线载入时 list 不可用 → 逐时为空（缓存 schema 不变，逐时仅即时查询可得）
+    perDay = buildPerDay(route, routeSegs, splitPoints, weather, typeof list !== 'undefined' ? list : null)
+
     // 预警（源门控）
     if (appConfig.alertSource === 'qweather' && selLoc) { alerts = await qwWarningNow(selLoc.lat, selLoc.lng); alertStatus = '' }
     else if (appConfig.alertSource === 'nmc' && selLoc) { var nmcRes = await nmcAlerts(selLoc.lat, selLoc.lng); if (nmcRes === null) { alerts = []; alertStatus = 'fail' } else { alerts = nmcRes; alertStatus = '' } }
@@ -2291,18 +2802,28 @@ async function runWeather() {
     // 历史（≤5 条，同 id 更新不重复）
     await upsertHistory()
 
-    renderAlertCard(); renderWxList(); renderDayIndGrid(); renderIndCfg()
+    renderAlertCard(); renderDailyLoc(); renderWxList(); renderDayIndGrid(); renderIndCfg()
     renderRouteDisplay()
+    if (typeof syncTripTime === 'function') syncTripTime()
     // ③步 profile：总距离 / 累计爬升 / 预计耗时
     $('totalDist').textContent = routeMetrics ? routeMetrics.distanceKm.toFixed(1) + ' km' : (selLoc ? '目的地' : '—')
     $('totalClimb').textContent = routeMetrics ? routeMetrics.climbM.toLocaleString() + ' m' : (trip.climbM != null ? trip.climbM.toLocaleString() + ' m' : '—')
     $('totalHours').textContent = routeMetrics ? routeMetrics.hours.toFixed(1) + ' h' : (trip.hours != null ? trip.hours + ' h' : '—')
-    $('wxStatus').textContent = '已获取 · ' + weather.days.length + ' 天' + (weatherFromCache ? '（基于缓存）' : '')
+    renderWxStatus(cacheFresh)
   } catch (e) {
-    $('mapErr').style.display = 'block'
-    $('mapErr').className = 'risk orange'
-    $('mapErr').textContent = e && e.message === 'geo.not_found' ? '请先选择地点或导入路线' : '天气获取失败，请检查网络后重试'
-    $('wxStatus').textContent = ''
+    // C2 离线兜底：拉取失败但存在有效缓存（任何新鲜度）→ 用缓存出装备，三态标注；否则报错
+    if (cached && cached.ver === WEATHER_CACHE_VER && cached.weather) {
+      applyCachedWeather(cached, cacheFresh.state || 'stale')
+      perDay = buildPerDay(route, routeSegs, splitPoints, weather, null)
+      alertStatus = 'fail'
+      renderAlertCard(); renderWxList(); renderDayIndGrid(); renderIndCfg()
+      renderWxStatus(cacheFresh && cacheFresh.state ? cacheFresh : { state: 'stale', label: '数据可能过时' })
+    } else {
+      $('mapErr').style.display = 'block'
+      $('mapErr').className = 'risk orange'
+      $('mapErr').textContent = e && e.message === 'geo.not_found' ? '请先选择地点或导入路线' : '天气获取失败，请检查网络后重试'
+      $('wxStatus').textContent = ''
+    }
   } finally {
     weatherLoading = false
     setWxProgress(null)
@@ -2364,25 +2885,26 @@ var EQUIPMENT = [
   { id: 'wear_base', name: '排汗层(禁纯棉/美利奴)', cat: '着装', w: 180, m: true, t: 'base', p: false, c: null },
   { id: 'wear_dry_spare', name: '备用干内层(睡觉专用)', cat: '着装', w: 200, m: true, t: 'base', p: false, c: { f: 'tripMode', op: '==', v: 1 } },
   { id: 'wear_mid', name: '保暖层(抓绒/羽绒马甲)', cat: '着装', w: 350, m: true, t: 'base', p: false, c: null },
-  { id: 'wear_shell', name: '防风防雨硬壳', cat: '着装', w: 480, m: true, t: 'base', p: false, c: { or: [{ f: 'precipProb', op: '>=', v: 40 }, { f: 'windLevel', op: '>=', v: 6 }] }, wild: true },
+  { id: 'wear_shell', name: '防风防雨硬壳', cat: '着装', w: 480, m: true, t: 'base', p: false, scope: 'daily', c: { or: [{ f: 'precipProb', op: '>=', v: 40 }, { f: 'windLevel', op: '>=', v: 6 }] }, wild: true },
   { id: 'wear_hat', name: '帽子(速干/抓绒/羽绒)', cat: '着装', w: 120, m: true, t: 'base', p: false, c: null },
   { id: 'wear_gloves', name: '手套(触屏/加厚防水)', cat: '着装', w: 90, m: true, t: 'base', p: false, c: { or: [{ f: 'tempMin', op: '<', v: 10 }, { f: 'windLevel', op: '>=', v: 6 }] } },
   { id: 'wear_socks', name: '2双美利奴羊毛袜+干睡袜', cat: '着装', w: 140, m: true, t: 'base', p: false, c: null },
   { id: 'wear_shoes', name: '徒步鞋+营地鞋', cat: '着装', w: 1100, m: true, t: 'base', p: false, c: null, wild: true },
-  { id: 'wear_down_long', name: '长款羽绒外套+羽绒裤', cat: '着装', w: 700, m: false, t: 'cold', p: false, c: { f: 'tempMin', op: '<', v: 0 }, wild: true },
-  { id: 'wear_gloves_thick', name: '加厚防水手套', cat: '着装', w: 150, m: false, t: 'cold', p: false, c: { f: 'tempMin', op: '<', v: 0 }, wild: true },
-  { id: 'wear_crampons', name: '冰爪/雪镜', cat: '着装', w: 500, m: false, t: 'cold', p: false, c: { or: [{ f: 'elevation', op: '>=', v: 2500 }, { f: 'snow', op: '>=', v: 1 }] }, wild: true },
-  { id: 'wear_insulation', name: '棉服/羽绒服(营地静态保暖)', cat: '着装', w: 500, m: false, t: 'cold', p: false, c: { or: [{ f: 'tempMin', op: '<', v: 5 }, { f: 'nightMin', op: '<', v: 5 }] }, wild: true },
-  { id: 'wear_softshell', name: '软壳衣(干燥微风/轻度雨雪)', cat: '着装', w: 600, m: false, t: 'base', p: false, c: { and: [{ f: 'windLevel', op: '<', v: 6 }, { f: 'precipProb', op: '<', v: 40 }] } },
-  { id: 'wear_packable_rain', name: '超轻雨衣雨裤(夏季备用)', cat: '着装', w: 280, m: false, t: 'upgrade', p: false, c: { and: [{ f: 'hiLow', op: '==', v: 1 }, { f: 'precipProb', op: '>=', v: 40 }] }, wild: true },
+  { id: 'wear_down_long', name: '长款羽绒外套+羽绒裤', cat: '着装', w: 700, m: false, t: 'cold', p: false, scope: 'daily', c: { f: 'tempMin', op: '<', v: 0 }, wild: true },
+  { id: 'wear_gloves_thick', name: '加厚防水手套', cat: '着装', w: 150, m: false, t: 'cold', p: false, scope: 'daily', c: { f: 'tempMin', op: '<', v: 0 }, wild: true },
+  { id: 'wear_crampons', name: '冰爪/雪镜', cat: '着装', w: 500, m: false, t: 'cold', p: false, scope: 'daily', c: { or: [{ f: 'elevation', op: '>=', v: 2500 }, { f: 'snow', op: '>=', v: 1 }] }, wild: true },
+  { id: 'wear_insulation', name: '棉服/羽绒服(营地静态保暖)', cat: '着装', w: 500, m: false, t: 'cold', p: false, scope: 'daily', c: { or: [{ f: 'tempMin', op: '<', v: 5 }, { f: 'nightMin', op: '<', v: 5 }] }, wild: true },
+  { id: 'wear_softshell', name: '软壳衣(干燥微风/轻度雨雪)', cat: '着装', w: 600, m: false, t: 'base', p: false, scope: 'daily', c: { and: [{ f: 'windLevel', op: '<', v: 6 }, { f: 'precipProb', op: '<', v: 40 }] } },
+  { id: 'wear_packable_rain', name: '超轻雨衣雨裤(夏季备用)', cat: '着装', w: 280, m: false, t: 'upgrade', p: false, scope: 'daily', c: { and: [{ f: 'hiLow', op: '==', v: 1 }, { f: 'precipProb', op: '>=', v: 40 }] }, wild: true },
+  { id: 'wear_conf_rain', name: '备用雨披(预报分歧备选)', cat: '着装', w: 180, m: false, t: 'base', p: false, conf: true, c: { and: [{ f: 'confidence', op: '==', v: 'low' }, { f: 'precipLowCons', op: '==', v: 1 }] }, wild: true },
   { id: 'wear_boot_hb', name: '高帮重装徒步鞋(Gore-Tex)', cat: '着装', w: 1500, m: false, t: 'base', p: false, c: { f: 'tripMode', op: '==', v: 1 } },
   { id: 'wear_boot_winter', name: '冬季保暖徒步鞋', cat: '着装', w: 1800, m: false, t: 'cold', p: false, c: { f: 'tempMin', op: '<', v: 0 }, wild: true },
   { id: 'wear_campshoe', name: '营地鞋/溯溪鞋', cat: '着装', w: 300, m: false, t: 'upgrade', p: false, c: { f: 'tripMode', op: '==', v: 1 } },
-  { id: 'wear_waterproof_sock', name: '防水袜(冬季雪地/过溪)', cat: '着装', w: 120, m: false, t: 'cold', p: false, c: { or: [{ f: 'tempMin', op: '<', v: 0 }, { f: 'precipProb', op: '>=', v: 60 }] }, wild: true },
-  { id: 'wear_gaiters', name: '雪套(冬季雪地/沙地)', cat: '着装', w: 220, m: false, t: 'cold', p: false, c: { or: [{ f: 'tempMin', op: '<', v: 0 }, { f: 'snow', op: '>=', v: 1 }] }, wild: true },
+  { id: 'wear_waterproof_sock', name: '防水袜(冬季雪地/过溪)', cat: '着装', w: 120, m: false, t: 'cold', p: false, scope: 'daily', c: { or: [{ f: 'tempMin', op: '<', v: 0 }, { f: 'precipProb', op: '>=', v: 60 }] }, wild: true },
+  { id: 'wear_gaiters', name: '雪套(冬季雪地/沙地)', cat: '着装', w: 220, m: false, t: 'cold', p: false, scope: 'daily', c: { or: [{ f: 'tempMin', op: '<', v: 0 }, { f: 'snow', op: '>=', v: 1 }] }, wild: true },
   { id: 'wear_glove_liner', name: '薄抓绒手套(操作)', cat: '着装', w: 60, m: false, t: 'upgrade', p: false, c: null },
-  { id: 'wear_beanie', name: '保暖抓绒帽(营地/夜间)', cat: '着装', w: 60, m: false, t: 'base', p: false, c: { or: [{ f: 'tempMin', op: '<', v: 10 }, { f: 'nightMin', op: '<', v: 10 }] } },
-  { id: 'wear_iceaxe', name: '冰镐(雪线大坡制动)', cat: '着装', w: 550, m: false, t: 'cold', p: false, c: { and: [{ f: 'snow', op: '>=', v: 1 }, { f: 'elevation', op: '>=', v: 2500 }] }, wild: true },
+  { id: 'wear_beanie', name: '保暖抓绒帽(营地/夜间)', cat: '着装', w: 60, m: false, t: 'base', p: false, scope: 'daily', c: { or: [{ f: 'tempMin', op: '<', v: 10 }, { f: 'nightMin', op: '<', v: 10 }] } },
+  { id: 'wear_iceaxe', name: '冰镐(雪线大坡制动)', cat: '着装', w: 550, m: false, t: 'cold', p: false, scope: 'daily', c: { and: [{ f: 'snow', op: '>=', v: 1 }, { f: 'elevation', op: '>=', v: 2500 }] }, wild: true },
   // 导航通讯
   { id: 'nav_phone', name: '手机+离线等高线地图', cat: '导航通讯', w: 200, m: true, t: 'base', p: true, c: null },
   { id: 'nav_powerbank', name: '充电宝', cat: '导航通讯', w: 250, m: true, t: 'base', p: true, c: null },
@@ -2397,7 +2919,7 @@ var EQUIPMENT = [
   { id: 'health_altitude', name: '血氧仪/高原反应药', cat: '卫生应急', w: 100, m: false, t: 'upgrade', p: false, c: { or: [{ f: 'elevation', op: '>=', v: 2500 }, { f: 'highAlt', op: '==', v: 1 }] }, wild: true },
   { id: 'health_uvglove', name: '防UV手套(高原/雪地)', cat: '卫生应急', w: 70, m: false, t: 'cold', p: false, c: { or: [{ f: 'elevation', op: '>=', v: 2500 }, { f: 'snow', op: '>=', v: 1 }, { f: 'highAlt', op: '==', v: 1 }] }, wild: true },
   { id: 'health_warmpacks', name: '化学暖贴(冬季/极寒)', cat: '卫生应急', w: 80, m: false, t: 'cold', p: false, c: { f: 'tempMin', op: '<', v: 0 } },
-  { id: 'health_leechsock', name: '防蚂蟥袜/盐水(湿润丛林)', cat: '卫生应急', w: 90, m: false, t: 'upgrade', p: false, c: { and: [{ f: 'humidity', op: '>=', v: 70 }, { f: 'elevation', op: '<', v: 1500 }] }, wild: true },
+  { id: 'health_leechsock', name: '防蚂蟥袜/盐水(湿润丛林)', cat: '卫生应急', w: 90, m: false, t: 'upgrade', p: false, scope: 'daily', c: { and: [{ f: 'humidity', op: '>=', v: 70 }, { f: 'elevation', op: '<', v: 1500 }] }, wild: true },
   { id: 'health_ticks', name: '驱蜱剂+全身检查(草原灌木)', cat: '卫生应急', w: 30, m: false, t: 'upgrade', p: false, c: { and: [{ f: 'tempMin', op: '>=', v: 15 }, { f: 'elevation', op: '<', v: 2500 }] }, wild: true },
   { id: 'health_bearcan', name: '熊罐/防熊喷雾(熊分布区)', cat: '卫生应急', w: 300, m: false, t: 'upgrade', p: false, c: null, wild: true },
   // 安全修理
@@ -2441,23 +2963,23 @@ var EQUIPMENT = [
   { id: 'light_poles', name: '登山杖(双/单杖)', cat: '安全修理', w: 480, m: false, t: 'base', p: false, c: { f: 'tripMode', op: '==', v: 0 }, wild: true },
   { id: 'light_thermos', name: '保温杯(500ml-1L)', cat: '饮水食物', w: 400, m: false, t: 'base', p: false, c: { f: 'tripMode', op: '==', v: 0 } },
   // 轻装·夏季高温（白天≥25°C）：速干/防晒/暴雨突袭/蚊虫/补水
-  { id: 'light_sunhoody', name: '皮肤风衣/轻薄防晒衣', cat: '着装', w: 120, m: false, t: 'upgrade', p: false, c: { and: [{ f: 'tempMax', op: '>=', v: 25 }, { f: 'tripMode', op: '==', v: 0 }] } },
-  { id: 'light_sun_kit', name: '宽檐帽+运动太阳镜+魔术头巾', cat: '着装', w: 150, m: false, t: 'upgrade', p: false, c: { and: [{ f: 'tempMax', op: '>=', v: 25 }, { f: 'tripMode', op: '==', v: 0 }] } },
-  { id: 'light_repellent', name: '驱蚊液/电解质粉/防暑药', cat: '卫生应急', w: 80, m: false, t: 'upgrade', p: false, c: { and: [{ f: 'tempMax', op: '>=', v: 25 }, { f: 'tripMode', op: '==', v: 0 }] } },
-  { id: 'light_water_hot', name: '夏季饮水增量(3-4L)', cat: '饮水食物', w: 1000, m: false, t: 'upgrade', p: false, c: { and: [{ f: 'tempMax', op: '>=', v: 25 }, { f: 'tripMode', op: '==', v: 0 }] } },
+  { id: 'light_sunhoody', name: '皮肤风衣/轻薄防晒衣', cat: '着装', w: 120, m: false, t: 'upgrade', p: false, scope: 'daily', c: { and: [{ f: 'tempMax', op: '>=', v: 25 }, { f: 'tripMode', op: '==', v: 0 }] } },
+  { id: 'light_sun_kit', name: '宽檐帽+运动太阳镜+魔术头巾', cat: '着装', w: 150, m: false, t: 'upgrade', p: false, scope: 'daily', c: { and: [{ f: 'tempMax', op: '>=', v: 25 }, { f: 'tripMode', op: '==', v: 0 }] } },
+  { id: 'light_repellent', name: '驱蚊液/电解质粉/防暑药', cat: '卫生应急', w: 80, m: false, t: 'upgrade', p: false, scope: 'daily', c: { and: [{ f: 'tempMax', op: '>=', v: 25 }, { f: 'tripMode', op: '==', v: 0 }] } },
+  { id: 'light_water_hot', name: '夏季饮水增量(3-4L)', cat: '饮水食物', w: 1000, m: false, t: 'upgrade', p: false, scope: 'daily', c: { and: [{ f: 'tempMax', op: '>=', v: 25 }, { f: 'tripMode', op: '==', v: 0 }] } },
   // 轻装·春秋凉爽（夜间<10°C）：抓绒/软壳/保暖帽 多变的昼夜温差
-  { id: 'light_fleece', name: '抓绒衣(行进保暖)', cat: '着装', w: 300, m: false, t: 'base', p: false, c: { and: [{ f: 'tempMin', op: '<', v: 10 }, { f: 'tripMode', op: '==', v: 0 }] } },
-  { id: 'light_softshell', name: '软壳外套(防风防泼水)', cat: '着装', w: 400, m: false, t: 'upgrade', p: false, c: { and: [{ f: 'tempMin', op: '<', v: 10 }, { f: 'tripMode', op: '==', v: 0 }] } },
-  { id: 'light_beanie_gloves', name: '保暖帽+薄抓绒手套', cat: '着装', w: 100, m: false, t: 'upgrade', p: false, c: { and: [{ f: 'tempMin', op: '<', v: 10 }, { f: 'tripMode', op: '==', v: 0 }] } },
+  { id: 'light_fleece', name: '抓绒衣(行进保暖)', cat: '着装', w: 300, m: false, t: 'base', p: false, scope: 'daily', c: { and: [{ f: 'tempMin', op: '<', v: 10 }, { f: 'tripMode', op: '==', v: 0 }] } },
+  { id: 'light_softshell', name: '软壳外套(防风防泼水)', cat: '着装', w: 400, m: false, t: 'upgrade', p: false, scope: 'daily', c: { and: [{ f: 'tempMin', op: '<', v: 10 }, { f: 'tripMode', op: '==', v: 0 }] } },
+  { id: 'light_beanie_gloves', name: '保暖帽+薄抓绒手套', cat: '着装', w: 100, m: false, t: 'upgrade', p: false, scope: 'daily', c: { and: [{ f: 'tempMin', op: '<', v: 10 }, { f: 'tripMode', op: '==', v: 0 }] } },
   // 轻装·冬季严寒（夜间<0°C / 有雪）：防风/高充绒/防冻/雪地
-  { id: 'light_hardshell', name: '硬壳冲锋衣裤(防风防雪)', cat: '着装', w: 600, m: false, t: 'cold', p: false, c: { and: [{ f: 'tempMin', op: '<', v: 0 }, { f: 'tripMode', op: '==', v: 0 }] } },
-  { id: 'light_down_parka', name: '营地羽绒服(高充绒)', cat: '着装', w: 500, m: false, t: 'cold', p: false, c: { and: [{ f: 'tempMin', op: '<', v: 0 }, { f: 'tripMode', op: '==', v: 0 }] } },
-  { id: 'light_winter_gloves', name: '防水保暖手套(内外层)', cat: '着装', w: 150, m: false, t: 'cold', p: false, c: { and: [{ f: 'tempMin', op: '<', v: 0 }, { f: 'tripMode', op: '==', v: 0 }] } },
-  { id: 'light_snow_gaiters', name: '雪套(防进雪冻伤)', cat: '着装', w: 220, m: false, t: 'cold', p: false, c: { and: [{ f: 'tempMin', op: '<', v: 0 }, { f: 'tripMode', op: '==', v: 0 }] } },
-  { id: 'light_snow_goggles', name: '雪镜/高山墨镜(防雪盲)', cat: '着装', w: 150, m: false, t: 'cold', p: false, c: { or: [{ and: [{ f: 'snow', op: '>=', v: 1 }, { f: 'tripMode', op: '==', v: 0 }] }, { and: [{ f: 'tempMin', op: '<', v: 0 }, { f: 'tripMode', op: '==', v: 0 }] }] } },
-  { id: 'light_crampons_simple', name: '简易冰爪(硬雪冰道)', cat: '安全修理', w: 600, m: false, t: 'cold', p: false, c: { and: [{ f: 'snow', op: '>=', v: 1 }, { f: 'tempMin', op: '<', v: 0 }, { f: 'tripMode', op: '==', v: 0 }] } },
-  { id: 'light_thermos_large', name: '2个大容量保温壶(1-1.5L热水)', cat: '饮水食物', w: 800, m: false, t: 'cold', p: false, c: { and: [{ f: 'tempMin', op: '<', v: 0 }, { f: 'tripMode', op: '==', v: 0 }] } },
-  { id: 'light_survival', name: '救生毯+打火棒+口哨(生存包)', cat: '安全保命', w: 150, m: false, t: 'cold', p: false, c: { and: [{ f: 'tempMin', op: '<', v: 0 }, { f: 'tripMode', op: '==', v: 0 }] } },
+  { id: 'light_hardshell', name: '硬壳冲锋衣裤(防风防雪)', cat: '着装', w: 600, m: false, t: 'cold', p: false, scope: 'daily', c: { and: [{ f: 'tempMin', op: '<', v: 0 }, { f: 'tripMode', op: '==', v: 0 }] } },
+  { id: 'light_down_parka', name: '营地羽绒服(高充绒)', cat: '着装', w: 500, m: false, t: 'cold', p: false, scope: 'daily', c: { and: [{ f: 'tempMin', op: '<', v: 0 }, { f: 'tripMode', op: '==', v: 0 }] } },
+  { id: 'light_winter_gloves', name: '防水保暖手套(内外层)', cat: '着装', w: 150, m: false, t: 'cold', p: false, scope: 'daily', c: { and: [{ f: 'tempMin', op: '<', v: 0 }, { f: 'tripMode', op: '==', v: 0 }] } },
+  { id: 'light_snow_gaiters', name: '雪套(防进雪冻伤)', cat: '着装', w: 220, m: false, t: 'cold', p: false, scope: 'daily', c: { and: [{ f: 'tempMin', op: '<', v: 0 }, { f: 'tripMode', op: '==', v: 0 }] } },
+  { id: 'light_snow_goggles', name: '雪镜/高山墨镜(防雪盲)', cat: '着装', w: 150, m: false, t: 'cold', p: false, scope: 'daily', c: { or: [{ and: [{ f: 'snow', op: '>=', v: 1 }, { f: 'tripMode', op: '==', v: 0 }] }, { and: [{ f: 'tempMin', op: '<', v: 0 }, { f: 'tripMode', op: '==', v: 0 }] }] } },
+  { id: 'light_crampons_simple', name: '简易冰爪(硬雪冰道)', cat: '安全修理', w: 600, m: false, t: 'cold', p: false, scope: 'daily', c: { and: [{ f: 'snow', op: '>=', v: 1 }, { f: 'tempMin', op: '<', v: 0 }, { f: 'tripMode', op: '==', v: 0 }] } },
+  { id: 'light_thermos_large', name: '2个大容量保温壶(1-1.5L热水)', cat: '饮水食物', w: 800, m: false, t: 'cold', p: false, scope: 'daily', c: { and: [{ f: 'tempMin', op: '<', v: 0 }, { f: 'tripMode', op: '==', v: 0 }] } },
+  { id: 'light_survival', name: '救生毯+打火棒+口哨(生存包)', cat: '安全保命', w: 150, m: false, t: 'cold', p: false, scope: 'daily', c: { and: [{ f: 'tempMin', op: '<', v: 0 }, { f: 'tripMode', op: '==', v: 0 }] } },
   // 城市游模块（tripMode==2：城市观光，无露营/炊具/求生；仅 背负/导航通讯/卫生/医药/雨具/证照财务 六类，城市游不带复杂装备）
   { id: 'city_doc', name: '证件包(身份证/银行卡/现金)', cat: '证照财务', w: 120, m: true, t: 'base', p: true, c: { f: 'tripMode', op: '==', v: 2 } },
   { id: 'city_umbrella', name: '晴雨伞(折叠)', cat: '雨具', w: 300, m: true, t: 'base', p: true, c: { f: 'tripMode', op: '==', v: 2 } },
@@ -2489,6 +3011,7 @@ function evalCond(c, ctx) {
   if (c.or) return c.or.some(function (x) { return evalCond(x, ctx) })
   if (c.and) return c.and.every(function (x) { return evalCond(x, ctx) })
   var val = ctx[c.f]
+  if (typeof val === 'string') return c.op === '==' && val === c.v   // 字符串字段（如 confidence）仅 == 比较
   if (val == null || isNaN(val)) return false
   var n = parseFloat(c.v)
   switch (c.op) {
@@ -2548,6 +3071,32 @@ function condLabelHit(c, ctx) {
   return fmt(c.f, v) + (c.op === '>=' ? '≥' : c.op === '<=' ? '≤' : c.op) + c.v
 }
 
+/* ---- 阈值余量（C4）：命中方向距离，恒正；越小越临界。仅对天气波动字段算，tripMode/overNight 等行程常量不计 ---- */
+var MARGIN_FIELDS = { precipProb: 1, tempMax: 1, tempMin: 1, nightMin: 1, windLevel: 1, windSpeed: 1, windSpeedMax: 1, uvi: 1, humidity: 1, visibility: 1, elevation: 1, windchill: 1, snow: 1, thunder: 1, precipSum: 1, windGust: 1, appMax: 1, appMin: 1, nightAppTemp: 1, appDay: 1, dewPoint: 1 }
+function marginOf(c, ctx) {
+  if (!c) return null
+  if (c.or) {
+    var m1 = c.or.map(function (x) { return evalCond(x, ctx) ? marginOf(x, ctx) : null }).filter(function (m) { return m != null })
+    return m1.length ? Math.min.apply(null, m1) : null
+  }
+  if (c.and) {
+    var m2 = c.and.map(function (x) { return marginOf(x, ctx) }).filter(function (m) { return m != null })
+    return m2.length ? Math.min.apply(null, m2) : null
+  }
+  if (!MARGIN_FIELDS[c.f]) return null
+  var val = ctx[c.f]
+  if (val == null || isNaN(val)) return null
+  var n = parseFloat(c.v)
+  switch (c.op) {
+    case '>=': return val >= n ? val - n : null
+    case '>': return val > n ? val - n : null
+    case '<=': return val <= n ? n - val : null
+    case '<': return val < n ? n - val : null
+    case '==': return val === n ? 0 : null
+  }
+  return null
+}
+
 /* ---- 构建条件上下文（DSL 字段全集，alignment E4）；day 可选：传入某天 → 天气字段只取当天，供「按天」查看 ---- */
 function buildGearCtx(day) {
   var days = day != null ? [day] : (weather ? weather.days : [])
@@ -2562,14 +3111,59 @@ function buildGearCtx(day) {
   var overNight = trip.overNight || trip.mode === 'heavy' || trip.days > 1 ? 1 : 0
   var highAlt = trip.highAlt ? 1 : 0
   var alertRisk = (alerts && alerts.length ? Math.max.apply(null, alerts.map(function (a) { return a.level })) : 0)
+  // C6 预报可信度：行程级 confidence + 是否有降水字段低一致（供备用雨具等「预报分歧」装备判定）
+  var _precipLow = false
+  days.forEach(function (d) { if ((d.lowConsistency || []).indexOf('precipProbMax') >= 0) _precipLow = true })
+  var _conf = weather && weather.confidence ? weather.confidence : 'high'
+  // C5 天黑返程：参考日=单日当天/多日末日；出发时刻缺省用日出
+  var _rd = (typeof returnDarkRef === 'function') ? returnDarkRef() : { state: 'green' }
+  // C5 UV 累计暴露：u viMax × 活跃时长（缺 uvi → 该天不计；全缺 → null）
+  var _activeH = ((appConfig.activeWindow && appConfig.activeWindow[1]) || 18) - ((appConfig.activeWindow && appConfig.activeWindow[0]) || 8)
+  var _uvC = null
+  days.forEach(function (d) { if (d.uvi != null) { var c = d.uvi * _activeH; _uvC = _uvC == null ? c : Math.max(_uvC, c) } })
   return {
     precipProb: precipProb != null ? precipProb : null, tempMax: tempMax != null ? tempMax : null, tempMin: tempMin != null ? tempMin : null,
     windSpeed: windSpeed || 0, windLevel: windLevel || 0, uvi: uvi || 0, humidity: humidity != null ? humidity : null,
     visibility: visibility != null ? visibility : null, elevation: elevation || 0, nightMin: nightMin != null ? nightMin : null,
     windchill: windchill != null ? windchill : null, snow: snow, thunder: thunder, altZone: altZoneLevel(elevation || 0),
     precipIntensity: precipIntensity, hiLow: hiLow, tripMode: tripModeNum, overNight: overNight, highAlt: highAlt, alertRisk: alertRisk,
+    confidence: _conf, precipLowCons: _precipLow ? 1 : 0,
+    returnAfterDark: (_rd && _rd.state) || 'green', uvCumulative: _uvC,
     days: days.length
   }
+}
+
+/* ---- 作用域判定（C4）：trip 判定一次 / daily 逐日判定 → {hit, hitDays, margins} ---- */
+function allDayIndices() {
+  if (perDay && perDay.length) return perDay.map(function (_, i) { return i })
+  if (weather && weather.days) return weather.days.map(function (_, i) { return i })
+  return []
+}
+function evalGearWithScope(it, perDayArr) {
+  var allDays = allDayIndices()
+  if (!it.c) return { hit: true, hitDays: allDays, margins: [] }   // 无条件 → 恒带（底线/常备）
+  var tripCtx = buildGearCtx()
+  if (it.scope !== 'daily' || !perDayArr || !perDayArr.length) {
+    // trip 级：一次判定；margins 单一
+    var hit = evalCond(it.c, tripCtx)
+    return { hit: hit, hitDays: hit ? allDays : [], margins: hit ? [marginOf(it.c, tripCtx)] : [] }
+  }
+  // daily：逐日判定
+  var hitDays = [], margins = []
+  perDayArr.forEach(function (pd, k) {
+    var ctx = buildGearCtx(pd && pd.weather)
+    if (evalCond(it.c, ctx)) { hitDays.push(k); margins.push(marginOf(it.c, ctx)) }
+  })
+  return { hit: hitDays.length > 0, hitDays: hitDays, margins: margins }
+}
+/* 来源分类：weather 天气 / trip 行程 / time 时间安全 / confidence 不确定性 */
+function sourceCategoryOf(it) {
+  if (it.conf) return 'confidence'
+  if (it.time) return 'time'
+  if (it.c == null) return 'trip'
+  var json = JSON.stringify(it.c)
+  if (json.indexOf('tripMode') >= 0 || json.indexOf('overNight') >= 0 || json.indexOf('highAlt') >= 0 || json.indexOf('"days"') >= 0) return 'trip'
+  return 'weather'
 }
 
 /* 城市游允许的装备系统（cat）白名单：仅 背负/导航通讯/卫生/医药/雨具/证照财务 六类；着装/食物/安全修理/卫生应急/饮水食物等城市游不带（城市游玩不复杂） */
@@ -2586,7 +3180,15 @@ function selectGear(day) {
       if (!CITY_CATS[it.cat] && it.id !== 'health_fa') return
       if (it.wild) return
     }
-    var hit = evalCond(it.c, ctx)
+    // C4 作用域：成员资格沿用行程级求值（现状），hitDays/margins 由逐日判定导出（供标签/按天视图）
+    var ev
+    if (day != null) {
+      var hitD = evalCond(it.c, ctx)
+      ev = { hit: hitD, hitDays: hitD ? [day] : [], margins: hitD && it.c ? [marginOf(it.c, ctx)] : [] }
+    } else {
+      ev = evalGearWithScope(it, perDay)
+    }
+    var hit = evalCond(it.c, ctx) || (day != null && ev.hit)   // 成员资格 = 行程级（按天路径沿用当日）
     var included = hit || (it.p && it.c == null)
     if (!included) return
     // 自定义项需「已有」且条件满足；预置项维持条件命中即入（现状）
@@ -2594,10 +3196,21 @@ function selectGear(day) {
     var tripSrc = (trip.days > 1 || trip.overNight) && it.c && (it.c.f === 'tripMode' || JSON.stringify(it.c).indexOf('tripMode') >= 0) ? '多日/过夜' : null
     var reason = it.p && it.c == null ? '安全底线（建议必带）' : (hit ? (it.c ? condLabelHit(it.c, ctx) : '常备') : '条件触发')
     if (it.custom) reason = it.c ? '条件：' + condLabel(it.c) : '自定义 · 已有'
+    if (it.conf) reason = '预报分歧，建议带上'   // C6 来源分类 confidence
+    // C5 头灯：天黑未归 red→必需、接近日落 amber→建议；来源 time
+    var src = sourceCategoryOf(it)
+    if ((it.id === 'tool_headlamp' || it.id === 'light_safety_headlamp') && (ctx.returnAfterDark === 'red' || ctx.returnAfterDark === 'amber')) {
+      reason = ctx.returnAfterDark === 'red' ? '返程天黑，头灯必需' : '返程接近日落，建议头灯'
+      src = 'time'
+    }
+    // C5 UV：防晒霜在累计暴露超阈值时给理由（来源 weather）
+    if (it.id === 'health_sunscreen' && ctx.uvCumulative != null && ctx.uvCumulative >= (appConfig.uvThreshold != null ? appConfig.uvThreshold : 60)) {
+      reason = 'UV 累计 ' + Math.round(ctx.uvCumulative) + '，需防晒'
+    }
     var sizeNote = null
     if (it.id === 'safety_bivy') sizeNote = fullSize ? '全尺寸' : '应急级（救生毯+轻量袋）'
     else if (it.id === 'health_fa' || it.id === 'tool_whistle') sizeNote = '全尺寸'
-    out.push({ item: it, reason: reason, tripSrc: tripSrc, sizeNote: sizeNote })
+    out.push({ item: it, reason: reason, tripSrc: tripSrc, sizeNote: sizeNote, hitDays: ev.hitDays || [], margins: ev.margins || [], source: src })
   })
   return { selected: out, fullSize: fullSize }
 }
@@ -2648,13 +3261,38 @@ function switchTripMode(m) {
   updateCardGear()
   toast(m === 'heavy' ? '已切换为重装模式' : (m === 'city' ? '已切换为城市游' : '已切换为轻装单日'))
 }
+/* ---- 装备清单渲染（gck 行，按系统分组；C4 加按天视图/命中标签/来源徽标）---- */
+var gearDaySel = null   // null=全程，0..N-1=某天
+function setGearDay(n) {
+  gearDaySel = (n === '' || n == null) ? null : +n
+  var sel = String(gearDaySel == null ? '' : gearDaySel)
+  document.querySelectorAll('.gday-tab').forEach(function (t) { t.classList.toggle('on', String(t.dataset.d) === sel) })
+  renderGearConfirm()
+}
+function hitLabelOf(g, totalDays) {
+  if (g.item.scope !== 'daily' || !g.hitDays || !g.hitDays.length) return ''
+  return g.hitDays.length >= totalDays ? '每天' : 'Day' + g.hitDays.map(function (d) { return d + 1 }).join('·')
+}
+function srcBadge(source) {
+  var map = { weather: ['blue', '天气'], trip: ['green', '行程'], time: ['orange', '时间'], confidence: ['orange', '不确定'] }
+  var b = map[source] || ['blue', '天气']
+  return '<span class="risk ' + b[0] + '" style="margin-right:4px">' + b[1] + '</span>'
+}
 function renderGearConfirm() {
   var box = $('gearConfirm')
+  if (!box) return
   var res = selectGear()
-  var groups = {}
-  res.selected.forEach(function (g) { (groups[g.item.cat] = groups[g.item.cat] || []).push(g) })
-  var order = Object.keys(groups).sort(function (a, b) { return (a === '安全底线' ? -1 : b === '安全底线' ? 1 : a.localeCompare(b)) })
-  var html = ''
+  var totalDays = (weather && weather.days ? weather.days.length : (perDay && perDay.length ? perDay.length : 0))
+  // 按天页签（多日行程才有）
+  var tabs = ''
+  if (totalDays > 1) {
+    tabs = '<div class="gday-tabs" style="margin-bottom:10px">' +
+      '<button class="gday-tab' + (gearDaySel == null ? ' on' : '') + '" data-d="" onclick="setGearDay(\'\')">全程</button>' +
+      Array.from({ length: totalDays }, function (_, i) {
+        return '<button class="gday-tab' + (gearDaySel === i ? ' on' : '') + '" data-d="' + i + '" onclick="setGearDay(' + i + ')">第' + (i + 1) + '天</button>'
+      }).join('') + '</div>'
+  }
+  var html = tabs
   var mis = heavyMismatchReasons()
   if (mis.length) {
     html += '<div class="gear-hint">当前为<b>轻装</b>模式，但行程' + esc(mis.join('、')) + '，可能需要露营装备（帐篷/睡袋/炊具）。' +
@@ -2663,24 +3301,48 @@ function renderGearConfirm() {
   var wxOk = weather && weather.days.length && weather.days.some(function (d) { return d.tempMin != null || d.tempMax != null })
   if (!wxOk) html += '<div class="gear-hint">天气数据缺失，以下仅为基础装备（依赖天气的装备未列出）</div>'
   html += '<div class="gear-hint" style="color:var(--text-muted)">手动模式：默认不勾选，勾选并填写克重后自动计算总重</div>'
-  html += '<div class="gear-list">'
-  order.forEach(function (cat) {
-    var items = groups[cat]
-    html += '<div class="gear-group"><div class="gh">' + esc(cat) + (cat === '安全底线' ? ' · 建议必带' : '') + '</div><div class="gck-row">'
+  if (gearDaySel != null) {
+    // 按天视图：只列当天要带的（trip 装备每天出现 + 当天命中的 daily 装备），只读 + ✓ + 当日总重
+    var d = gearDaySel
+    var dayDate = (weather && weather.days && weather.days[d] && weather.days[d].date) || ''
+    var items = res.selected.filter(function (g) {
+      if (g.item.scope === 'daily') return (g.hitDays || []).indexOf(d) >= 0
+      return true
+    })
+    html += '<div class="gear-list"><div class="gear-group"><div class="gh">第 ' + (d + 1) + ' 天 · ' + (dayDate ? esc(fmtShort(dayDate)) : '') + '</div><div class="gck-row">'
+    if (!items.length) html += '<span style="font-size:12px;color:var(--text-muted)">该日无额外装备</span>'
     items.forEach(function (g) {
       var reason = (g.tripSrc ? '<span class="gkr-trip">' + esc(g.tripSrc) + '</span> ' : '') + '· ' + esc(g.reason) + (g.sizeNote ? '（' + esc(g.sizeNote) + '）' : '')
-      // 手动模式：默认不勾选 + 克重自填（留空回退目录默认）
-      var checked = !!gearChecked[g.item.id]
-      var wVal = gearWeight[g.item.id] != null ? gearWeight[g.item.id] : ''
-      html += '<div class="gck"><label class="gck-l"><input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="toggleGear(\'' + g.item.id + '\')"> ' + esc(g.item.name) + '</label>' +
-        '<input type="number" class="gkw-input" min="0" step="1" placeholder="克重" value="' + wVal + '" oninput="setGearWeight(\'' + g.item.id + '\',this.value)" aria-label="克重(g)">' +
-        '<span class="gkr">' + reason + '</span></div>'
+      html += '<div class="gck"><span class="gkr">✓</span> <span>' + esc(g.item.name) + '</span><span class="gkr" style="color:var(--text-muted)">' + reason + '</span></div>'
     })
-    html += '</div></div>'
-  })
-  var total = res.selected.filter(function (g) { return gearIsChecked(g.item.id) }).reduce(function (s, g) { return s + itemWeightOf(g) }, 0)
-  html += '<div class="gear-total">总重量 <b id="gearTotalNum">' + (total / 1000).toFixed(2) + '</b> kg · 勾选变动' +
-    (res.fullSize ? ' · 全尺寸底线' : '') + '</div></div>'
+    var dayTotal = items.filter(function (g) { return gearIsChecked(g.item.id) }).reduce(function (s, g) { return s + itemWeightOf(g) }, 0)
+    html += '</div></div><div class="gear-total">第 ' + (d + 1) + ' 天总重 <b>' + (dayTotal / 1000).toFixed(2) + '</b> kg <span style="color:var(--text-muted)">· 按该日天气判定</span></div></div>'
+  } else {
+    // 全程视图（现状分组）+ 命中标签 + 来源徽标
+    var groups = {}
+    res.selected.forEach(function (g) { (groups[g.item.cat] = groups[g.item.cat] || []).push(g) })
+    var order = Object.keys(groups).sort(function (a, b) { return (a === '安全底线' ? -1 : b === '安全底线' ? 1 : a.localeCompare(b)) })
+    html += '<div class="gear-list">'
+    order.forEach(function (cat) {
+      var items = groups[cat]
+      html += '<div class="gear-group"><div class="gh">' + esc(cat) + (cat === '安全底线' ? ' · 建议必带' : '') + '</div><div class="gck-row">'
+      items.forEach(function (g) {
+        var reason = (g.tripSrc ? '<span class="gkr-trip">' + esc(g.tripSrc) + '</span> ' : '') + '· ' + esc(g.reason) + (g.sizeNote ? '（' + esc(g.sizeNote) + '）' : '')
+        var lbl = hitLabelOf(g, totalDays)
+        if (lbl) reason = '<span class="gkr-day" style="color:var(--info)">' + esc(lbl) + '</span> ' + reason
+        // 手动模式：默认不勾选 + 克重自填（留空回退目录默认）
+        var checked = !!gearChecked[g.item.id]
+        var wVal = gearWeight[g.item.id] != null ? gearWeight[g.item.id] : ''
+        html += '<div class="gck"><label class="gck-l"><input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="toggleGear(\'' + g.item.id + '\')"> ' + esc(g.item.name) + '</label>' +
+          '<input type="number" class="gkw-input" min="0" step="1" placeholder="克重" value="' + wVal + '" oninput="setGearWeight(\'' + g.item.id + '\',this.value)" aria-label="克重(g)">' +
+          '<span class="gkr">' + srcBadge(g.source) + reason + '</span></div>'
+      })
+      html += '</div></div>'
+    })
+    var total = res.selected.filter(function (g) { return gearIsChecked(g.item.id) }).reduce(function (s, g) { return s + itemWeightOf(g) }, 0)
+    html += '<div class="gear-total">总重量 <b id="gearTotalNum">' + (total / 1000).toFixed(2) + '</b> kg · 勾选变动' +
+      (res.fullSize ? ' · 全尺寸底线' : '') + '</div></div>'
+  }
   box.innerHTML = html
 }
 
@@ -3040,11 +3702,15 @@ function setCardType(t) {
 function updateCardType() {
   var isWx = card.type === 'weather'
   var isOv = card.type === 'overview'
+  var isDep = card.type === 'departure'
   var cEl = document.querySelector('.card')
   var oEl = $('ovCard')
-  if (cEl) cEl.style.display = isOv ? 'none' : ''
+  var dEl = $('departureCard')
+  if (cEl) cEl.style.display = (isOv || isDep) ? 'none' : ''
   if (oEl) oEl.style.display = isOv ? '' : 'none'
+  if (dEl) dEl.style.display = isDep ? '' : 'none'
   if (isOv) { renderOverviewCard(); return }
+  if (isDep) { renderDepartureCard(); return }
   var gear = $('cardGear'), fcast = $('cardForecast'), risks = $('cardRisks')
   if (gear) gear.style.display = isWx ? 'none' : ''
   if (fcast) fcast.style.display = isWx ? '' : 'none'
@@ -3099,6 +3765,81 @@ function renderOverviewCard() {
     + alertHtml + riskHtml + wxHtml + gearHtml
     + '<div class="ov-foot">天气与装备建议基于数值预报推算，非官方/医疗建议；山区天气多变，请以实时官报为准。</div></div>'
   renderOverviewMap(box.querySelector('.ov-card-map'))
+}
+
+/* C8 风险画像：场景组合（冷/湿/风）一行 + 大风日 + 可信度 */
+function riskProfileText() {
+  if (!weather || !weather.days || !weather.days.length) return ''
+  var zh = { cold: '冷', wet: '湿', wind: '风' }
+  var tags = []
+  ;['cold', 'wet', 'wind'].forEach(function (k) { if (weather.days.some(function (d) { return d.scenes && d.scenes[k] && d.scenes[k].risk })) tags.push(k) })
+  var s = tags.length ? '整段以 ' + tags.map(function (t) { return zh[t] }).join('·') + ' 为主' : ''
+  var windDay = weather.days.find(function (d) { return d.windLevel >= 6 })
+  if (windDay) s += (s ? ' · ' : '') + '大风 Day' + (windDay.dayIndex + 1)
+  if (weather.confidence && weather.confidence !== 'high') s += (s ? ' · ' : '') + (weather.confidence === 'low' ? '预报低可信' : '预报中可信')
+  return s
+}
+/* C8 出发检查卡（总览卡出门变体：无地图大图/免责，加时间安全 + 临界项 + 今天必带 + 风险画像） */
+function renderDepartureCard() {
+  var box = $('departureCard')
+  if (!box) return
+  var loc = tripName()
+  var meta = []
+  if (routeMetrics) meta.push(routeMetrics.distanceKm.toFixed(1) + ' km')
+  if (trip.climbM != null) meta.push('爬升 ' + trip.climbM + 'm')
+  if (trip.hours != null) meta.push(trip.hours + 'h')
+  if (trip.startDate) meta.push(trip.startDate.slice(5, 7) + '/' + trip.startDate.slice(8, 10) + '出发')
+  if (trip.days) meta.push(trip.days + ' 天')
+  var modes = { light: '轻装单日', heavy: '重装', trail: '越野跑', city: '城市游' }
+  if (modes[trip.mode]) meta.push(modes[trip.mode])
+  if (trip.highAlt) meta.push('高海拔')
+  // 时间安全区（C5）
+  var timeHtml = ''
+  if (typeof returnDarkRef === 'function') {
+    var rd = returnDarkRef()
+    if (rd && rd.state !== 'green' && rd.returnTime) {
+      var cls = rd.state === 'red' ? 'red' : 'orange'
+      timeHtml = '<div class="ov-sec"><div class="ov-lab">时间安全</div><span class="risk ' + cls + '">返程 ' + esc(rd.returnTime) + ' · 日落 ' + esc(rd.sunset || '—') + (rd.state === 'red' ? ' · 天黑未归' : ' · 接近日落') + '</span></div>'
+    }
+  }
+  // 预警（快照只记录不占位）
+  var alertHtml = ''
+  if (appConfig.alertSource !== 'off' && alerts && alerts.length) {
+    alertHtml = '<div class="ov-sec ov-alerts">' + alerts.map(function (a) {
+      return '<span class="risk ' + (a.level >= 4 ? 'red' : a.level >= 3 ? 'orange' : 'blue') + '">' + esc(a.snapshot ? '分享时 ' : '') + esc(a.levelName) + '·' + esc(a.typeName) + '</span>'
+    }).join('') + '</div>'
+  }
+  // 风险画像（C4/C6）
+  var profile = riskProfileText()
+  var profileHtml = profile ? '<div class="ov-sec"><div class="ov-lab">风险画像</div><span class="risk orange">' + esc(profile) + '</span></div>' : ''
+  // 天气摘要
+  var wxHtml = ''
+  if (weather && weather.days.length) {
+    var h = Math.max.apply(null, weather.days.map(function (d) { return d.tempMax != null ? d.tempMax : -999 }))
+    var lo = Math.min.apply(null, weather.days.map(function (d) { return d.tempMin != null ? d.tempMin : 999 }))
+    var pp = Math.max.apply(null, weather.days.map(function (d) { return d.precipProb || 0 }))
+    var wl = Math.max.apply(null, weather.days.map(function (d) { return d.windLevel || 0 }))
+    wxHtml = '<div class="ov-sec"><div class="ov-lab">天气摘要</div><span class="ov-tag">' + (lo > 900 ? '—' : Math.round(lo) + '°') + '~' + (h < -900 ? '—' : Math.round(h) + '°') + '</span><span class="ov-tag">降水 ' + pp + '%</span><span class="ov-tag">风 ' + wl + ' 级</span></div>'
+  }
+  // 临界项（C4 margin 小 → 带了不吃亏）+ 今天必带
+  var critical = gearResult.selected.filter(function (g) { return g.margins && g.margins.some(function (m) { return m != null && m < 5 }) })
+  var criticalHtml = critical.length ? '<div class="ov-sec"><div class="ov-lab">临界项 · 带了不吃亏</div>' + critical.map(function (g) { return '<span class="ov-tag">' + esc(g.item.name) + '</span>' }).join('') + '</div>' : ''
+  var todayBring = gearResult.selected.filter(function (g) {
+    if (g.item.scope !== 'daily') return false
+    if (!g.hitDays || !g.hitDays.length) return false
+    return g.hitDays.indexOf(0) >= 0   // 出发日为第 1 天
+  })
+  var todayHtml = todayBring.length ? '<div class="ov-sec"><div class="ov-lab">今天必带</div>' + todayBring.map(function (g) { return '<span class="ov-tag">' + esc(g.item.name) + '</span>' }).join('') + '</div>' : ''
+  // 装备件数/总重
+  var checkedSel = gearResult.selected.filter(function (g) { return gearIsChecked(g.item.id) })
+  var totalW = checkedSel.reduce(function (s, g) { return s + itemWeightOf(g) }, 0)
+  var gearHtml = '<div class="ov-sec"><div class="ov-lab">装备 · ' + checkedSel.length + ' 件 · ' + (totalW / 1000).toFixed(2) + 'kg</div><div class="ov-gcat-grid" style="max-height:180px;overflow:auto">' + checkedSel.map(function (g) { return '<div class="ov-gcat-i"><span>' + esc(g.item.name) + '</span><span class="w">' + itemWeightOf(g) + 'g</span></div>' }).join('') + '</div></div>'
+  var title = (($('cardTitle') && $('cardTitle').textContent || '').trim()) || ((loc || '行程') + ' 出门检查')
+  box.innerHTML = '<div class="ov-body"><div class="ov-brand">SHEEP🐏GEAR · 出发检查</div>'
+    + '<div class="ov-title">' + esc(title) + '</div>'
+    + '<div class="ov-meta">' + esc(meta.join(' · ')) + '</div>'
+    + alertHtml + timeHtml + profileHtml + wxHtml + criticalHtml + todayHtml + gearHtml
+    + '<div class="ov-foot">基于数值预报推算，非官方/医疗建议；出发前请以实时官报为准。</div></div>'
 }
 function renderOverviewMap(wrap) {
   if (!wrap) return
@@ -3318,7 +4059,59 @@ function resetCardEntrance() {
   card.gearFilter = []
 }
 
-/* ---- 导出独立 HTML（内嵌 CARD_DATA，静态渲染，与预览一致）---- */
+/* ---- C7 反打开：行程种子 / 天气快照 / 装备翻转 diff ---- */
+function buildSeed() {
+  var seed = {
+    v: 1, ts: new Date().toISOString(),
+    target: null,
+    trip: { startDate: trip.startDate, days: trip.days, mode: trip.mode, highAlt: trip.highAlt, overNight: trip.overNight, departureTime: trip.departureTime, climbM: trip.climbM, hours: trip.hours },
+    gear: { checked: Object.keys(gearChecked).filter(function (id) { return gearChecked[id] }), weights: gearWeight },
+    custom: appConfig.customGear || []
+  }
+  if (route && route.length > 1) {
+    var th = typeof thinRoute === 'function' ? thinRoute(route, 200, routeSegs) : { pts: route, segEnds: routeSegs }
+    seed.target = { type: 'route', pts: th.pts, segEnds: th.segEnds, name: routeName }
+  } else if (selLoc) {
+    seed.target = { type: 'point', lat: selLoc.lat, lng: selLoc.lng, name: selLoc.name, admin1: selLoc.admin1 || '', ele: selLoc.ele || 0 }
+  }
+  return seed
+}
+function snapshotOf() {
+  return {
+    weather: weather,
+    alerts: (typeof alerts !== 'undefined' && alerts) ? alerts.slice() : [],
+    gear: (gearResult && gearResult.selected) ? gearResult.selected.map(function (g) { return { id: g.item.id, name: g.item.name, reason: g.reason, margins: g.margins || [], hitDays: g.hitDays || [] } }) : [],
+    ts: new Date().toISOString()
+  }
+}
+/* 装备翻转 diff：快照 vs 最新，按 C4 margin 判 真实翻转/临界抖动/无变化 */
+function gearFlipDiff(snapGear, latestGear, marginTh) {
+  marginTh = marginTh == null ? 5 : marginTh
+  var snapById = {}, latestById = {}
+  ;(snapGear || []).forEach(function (g) { snapById[g.id] = g })
+  ;(latestGear || []).forEach(function (g) { latestById[g.id] = g })
+  var ids = {}
+  Object.keys(snapById).concat(Object.keys(latestById)).forEach(function (id) { ids[id] = 1 })
+  var out = []
+  Object.keys(ids).forEach(function (id) {
+    var s = snapById[id], l = latestById[id]
+    if (s && !l) { out.push({ id: id, name: s.name, type: 'removed', note: '已取消（快照 ' + (s.reason || '触发') + ' → 最新未命中）' }); return }
+    if (!s && l) {
+      var m = (l.margins && l.margins.length) ? Math.min.apply(null, l.margins) : null
+      if (m != null && m < marginTh) out.push({ id: id, name: l.name, type: 'critical', note: '⚠ 临界 · 波动即翻转（最新 ' + (l.reason || '触发') + '）' })
+      else out.push({ id: id, name: l.name, type: 'added', note: '新触发（最新 ' + (l.reason || '触发') + '）' })
+    }
+  })
+  return out
+}
+/* 反打开入口脚本（导出页内）：URL seed 优先，超长走 localStorage ?sid=；携带 {seed, snapshot, ts} 包 */
+function reverseOpenScript() {
+  return "function revOpen(){try{var p={seed:SEED,snapshot:SNAP,ts:ST};if(!SEED){return}var s=JSON.stringify(p);" +
+    "if(s.length<3800){window.location.href='SHEEPGEAR.html?seed='+encodeURIComponent(btoa(unescape(encodeURIComponent(s))))}" +
+    "else{var id='sgSeed_'+Math.floor(Math.random()*1e9);localStorage.setItem(id,s);window.location.href='SHEEPGEAR.html?sid='+id}}catch(e){alert('请在浏览器打开 SHEEPGEAR 后从历史/配置恢复')}}"
+}
+
+/* 导出独立 HTML（内嵌 CARD_DATA + SEED + SNAP + ST，静态渲染，与预览一致） */
 var CARD_CSS = '*{box-sizing:border-box}body{margin:0;background:#161616;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;font-family:\'Instrument Sans\',\'Noto Sans SC\',sans-serif;padding:24px 12px}.card{width:680px;max-width:94vw;border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;position:relative;color:#fff}.card-map{position:absolute;inset:0;z-index:0;overflow:hidden}.card-map .atmos{position:absolute;inset:0;pointer-events:none;overflow:hidden}.card-map .atmos i{position:absolute;border-radius:50%}@keyframes mistDrift{0%{transform:translateX(-10px);opacity:0}20%{opacity:.18}80%{opacity:.12}100%{transform:translateX(100vw);opacity:0}}@keyframes cloudDrift{0%{transform:translateX(-25vw);opacity:0}15%{opacity:.6}85%{opacity:.45}100%{transform:translateX(125vw);opacity:0}}@keyframes waveSlide{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}@keyframes bubbleRise{0%{transform:translateY(0) scale(1);opacity:0}20%{opacity:.5}80%{opacity:.5}100%{transform:translateY(-420px) scale(.2);opacity:0}}@keyframes sandDrift{0%{transform:translateX(-20px) translateY(0);opacity:0}10%{opacity:.7}90%{opacity:.4}100%{transform:translateX(120vw) translateY(10px);opacity:0}}@keyframes twinkle{0%,100%{opacity:.3}50%{opacity:1}}@keyframes rainFall{0%{transform:translateY(-50px);opacity:0}15%{opacity:1}100%{transform:translateY(260px);opacity:0}}.atmos.mountain{background:linear-gradient(180deg,transparent 70%,rgba(22,163,74,.04) 85%,rgba(22,163,74,.08) 100%)}.atmos.mountain .pine-line{position:absolute;bottom:0;left:0;width:200%;height:50px;opacity:.14;background-repeat:repeat-x;background-size:300px 50px;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 300 50\'%3E%3Cpath d=\'M0 50V30l15-10 10 15 12-20 15 18 14-25 16 20 10-15 18 22 12-30 14 18 16-20 12 25 15-15 10 10 18-25 16 15 14-10 16 20 10-18 12 12 18-22 15 18 14-15 12 10 10-12 8 8V50z\' fill=\'%23166534\' opacity=\'0.6\'/%3E%3C/svg%3E");animation:waveSlide 20s linear infinite}.atmos.mountain i{background:radial-gradient(circle,rgba(205,220,232,.4),transparent 70%);width:50px;height:16px;border-radius:50%;animation:mistDrift 18s ease-out infinite}.atmos.dawn{background:linear-gradient(180deg,transparent 30%,rgba(200,215,230,.05) 55%,rgba(200,215,230,.10) 75%,rgba(200,215,230,.14) 100%)}.atmos.dawn i{background:radial-gradient(circle,rgba(230,240,250,.25),transparent 70%);width:60px;height:18px;border-radius:50%;animation:mistDrift 20s ease-out infinite}.atmos.dawn .cloud{position:absolute;border-radius:999px;filter:blur(10px);opacity:.5;animation:cloudDrift 45s linear infinite}.atmos.ocean{background:linear-gradient(180deg,transparent 60%,rgba(8,145,178,.07) 75%,rgba(8,145,178,.12) 90%,rgba(8,145,178,.16) 100%)}.atmos.ocean .wave{position:absolute;bottom:0;left:0;width:200%;height:60px;opacity:.3;background-repeat:repeat-x;background-size:200px 60px;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 200 60\'%3E%3Cpath d=\'M0 30c25-15 40 15 65 0s40-15 65 0 40-15 65 0 40 15 65 0V60H0z\' fill=\'%230891b2\'/%3E%3C/svg%3E");animation:waveSlide 8s linear infinite}.atmos.ocean .wave:nth-child(2){bottom:18px;animation-duration:11s;opacity:.2;background-size:160px 50px}.atmos.ocean i{background:radial-gradient(circle,rgba(14,165,233,.55),transparent 70%);animation:bubbleRise 5s ease-out infinite}.atmos.desert i{background:radial-gradient(circle,rgba(238,200,150,.85),transparent 70%);border-radius:50%;animation:sandDrift 8s linear infinite}.atmos.midnight i{width:2px;height:2px;background:#6d28d9;border-radius:50%;animation:twinkle 3s ease-in-out infinite}.card-map .atmos .rain{width:2px;height:22px;background:linear-gradient(180deg,rgba(180,210,235,.7),rgba(180,210,235,.15));animation:rainFall 1.2s linear infinite}.card-map .atmos .sw{position:absolute;inset:0;overflow:hidden}.card .atmos.mountain i{background:radial-gradient(circle,rgba(214,228,240,.92),transparent 70%);animation-duration:7s}.card .atmos.mountain .pine-line{height:35%;background-size:auto 100%}.card .atmos.dawn i{background:radial-gradient(circle,rgba(232,242,250,.92),transparent 70%);width:120px;height:32px;animation-duration:6s}.card .atmos.dawn .cloud{animation-duration:12s;opacity:.7}.card .atmos.ocean .wave{opacity:.7;height:30%;bottom:0;background-size:auto 100%}.card .atmos.ocean .wave:nth-child(2){bottom:10%;opacity:.5;background-size:auto 100%}.card .atmos.ocean i{animation-duration:2.5s;border-color:rgba(190,225,245,.85)}.card .atmos.desert i{background:radial-gradient(circle,rgba(240,205,158,.95),transparent 70%);animation-duration:3s}.card .atmos.desert .dune{position:absolute;left:0;bottom:0;width:200%;height:20%;opacity:.45;background-repeat:repeat-x;background-size:auto 100%;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 200 60\'%3E%3Cpath d=\'M0 40c30-25 50 5 80-8s45 18 70 4 30 12 50 0V60H0z\' fill=\'%23d97706\' opacity=\'0.55\'/%3E%3C/svg%3E");animation:waveSlide 26s linear infinite}.card .atmos.midnight i{width:4px;height:4px;background:#fff;box-shadow:0 0 6px rgba(255,255,255,.8)}.card .atmos .rain{opacity:1}.card-body{position:relative;z-index:1;padding:22px;background:linear-gradient(180deg,rgba(12,12,18,.30) 0%,rgba(12,12,18,.62) 55%,rgba(12,12,18,.90) 100%)}.card-brand{font-family:\'JetBrains Mono\',monospace;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.9)}.card-title{font-family:\'Satoshi\',\'Noto Sans SC\',sans-serif;font-weight:900;font-size:22px;line-height:1.3;margin-top:8px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.45)}.card-meta{font-family:\'JetBrains Mono\',monospace;font-size:11px;color:rgba(255,255,255,.8);margin-top:6px}.card-div{border-top:2px solid rgba(255,255,255,.9);margin:14px 0}.card-wx{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 14px;margin-top:6px}.card-wx .wi{display:flex;flex-direction:column;justify-content:space-between;gap:2px;padding:9px 12px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(255,255,255,.08)}.card-wx .wi b{font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:700;color:#fff;line-height:1.15}.card-wx .wi i{font-style:normal;font-size:10px;color:rgba(255,255,255,.62);letter-spacing:.06em}.card-gear{margin-top:12px}.card-gear .cgh{font-size:10px;letter-spacing:.06em;color:rgba(255,255,255,.55);margin:10px 0 3px;font-family:\'JetBrains Mono\',monospace}.card-gear .cg-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 14px}.card-gear .gi{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px dotted rgba(255,255,255,.3);color:#fff}.card-gear .gi span:first-child{text-shadow:0 1px 2px rgba(0,0,0,.5)}.card-foot{margin-top:12px;font-size:10px;color:rgba(255,255,255,.68)}.card-risks{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.card-risks .rk{font-size:11px;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);color:#fff}.card-forecast{border:1px solid rgba(255,255,255,.16);border-radius:10px;margin-top:12px;overflow:hidden}.cf-row{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid rgba(255,255,255,.1);font-size:12px;color:#fff}.cf-row:last-child{border-bottom:none}.cf-date{font-family:\'JetBrains Mono\',monospace;font-size:10px;color:rgba(255,255,255,.62);width:74px;flex-shrink:0}.cf-cond{flex:1;white-space:nowrap}.cf-val{font-family:\'JetBrains Mono\',monospace;font-size:12px;text-align:right;margin-left:10px}.card-head{display:flex;align-items:stretch;gap:14px}.card-head-l{flex:1;min-width:0}.card-route{position:relative;width:360px;flex-shrink:0;min-height:44px;border:1px solid rgba(255,255,255,.35);border-radius:10px;background:rgba(255,255,255,.05);overflow:hidden}.card-route svg.route-track{position:absolute;inset:0;width:100%;height:100%}.card-gear .ckrow{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;user-select:none}.card-gear .ckrow .tk{color:#E08E3C;font-weight:700;font-size:14px;opacity:0;transform:scale(.5);transition:opacity .15s ease,transform .15s ease}.card-gear .ckrow.on .tk{opacity:1;transform:scale(1)}.card-gear .ckrow.on span:first-child{color:#ffd9a0}.clr{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:11px;color:rgba(255,255,255,.6);font-family:\'JetBrains Mono\',monospace}.clr button{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:999px;padding:4px 12px;font-size:11px;cursor:pointer}'
 
 function buildCardData() {
@@ -3364,23 +4157,29 @@ function buildCardData() {
 }
 /* 导出沙漠沙浪初始化（经典脚本，须在 D 脚本设置 at.className 之后执行）：叠加 WebGL 并移除 CSS 沙粒兜底（保留 .dune） */
 var SAND_INIT = "(function(){var at=document.getElementById('at');if(!at||at.className.indexOf('desert')<0)return;try{var sw=document.createElement('div');sw.className='sw';at.appendChild(sw);new window.GoldenSandWave(sw,{fitToContainer:true,pixelRatioCap:2});var its=at.querySelectorAll('i:not(.rain)');for(var z=0;z<its.length;z++)its[z].remove()}catch(e){}})()"
-function exportCard() {
-  if (card.type === 'overview') { toast('总览卡仅支持存长图 PNG'); return }
-  var data = buildCardData()
+/* 导出独立 HTML：纯函数（输入 CARD_DATA + SEED + 快照 + 时间戳 → HTML 字符串），内嵌反打开入口 */
+function renderShareHtml(data, seed, snapshot, ts) {
   var sandHead = card.scene === 'desert' && typeof SAND_SRC === 'string'
     ? '<script type="module">import * as THREE from \'https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.module.js\';window.THREE=THREE;<\/script><script>' + SAND_SRC + '<\/script>'
     : ''
   var sandInit = card.scene === 'desert' && typeof SAND_SRC === 'string' ? '<script type="module">' + SAND_INIT + '<\/script>' : ''
+  var seedBlock = seed ? 'var SEED=' + JSON.stringify(seed).replace(/</g, '\\u003c') + ';' : 'var SEED=null;'
+  var snapBlock = snapshot ? 'var SNAP=' + JSON.stringify(snapshot).replace(/</g, '\\u003c') + ';' : 'var SNAP=null;'
+  var tsBlock = 'var ST=' + JSON.stringify(ts || null) + ';'
+  // C7 反打开入口：仅含 SEED 时显示（旧导出无 SEED → 隐藏，向后兼容）
+  var revBtn = seed ? '<div style="text-align:center;margin-top:14px"><button onclick="revOpen()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:999px;padding:9px 20px;font-size:13px;cursor:pointer">🔄 在 SHEEPGEAR 中打开</button></div>' : ''
+  var revScript = seed ? '<script>' + reverseOpenScript() + '<\/script>' : ''
   var html = '<!DOCTYPE html><html lang="zh"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SHEEP🐏GEAR · 分享卡</title>' +
     '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
     '<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">' +
     '<link href="https://api.fontshare.com/v2/css?f[]=satoshi@500,700,900&display=swap" rel="stylesheet"><style>' + CARD_CSS + '</style>' + sandHead + '</head><body>' +
+    revBtn +
     '<div class="card"><div class="card-map" id="cm"><div class="atmos" id="at"></div></div><div class="card-body">' +
     '<div class="card-head"><div class="card-head-l"><div class="card-brand" id="brand"></div><div class="card-title" id="title"></div></div><div class="card-route" id="route" style="display:none"></div></div>' +
     '<div class="card-meta" id="meta"></div><div class="card-div"></div>' +
     '<div class="card-risks" id="risks" style="display:none"></div>' +
     '<div class="card-wx" id="wx"></div><div class="card-forecast" id="fc" style="display:none"></div><div class="card-gear" id="gear"></div></div></div>' +
-    '<script>var D=' + JSON.stringify(data).replace(/</g, '\\u003c') + ';' +
+    '<script>var D=' + JSON.stringify(data).replace(/</g, '\\u003c') + ';' + seedBlock + snapBlock + tsBlock +
     "function e(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;')};" +
     "document.getElementById('cm').style.background='linear-gradient('+D.scene.grad+')';" +
     "document.getElementById('brand').textContent=D.brand;document.getElementById('title').textContent=D.title;document.getElementById('meta').textContent=D.meta;" +
@@ -3407,25 +4206,53 @@ function exportCard() {
     "else if(t==='ocean'||t==='desert'){for(var b=18;b--;){var s3=i();s3.style.bottom=(5+Math.random()*45)+'%';s3.style.animationDuration=(2+Math.random()*3)+'s';at.appendChild(s3)}}" +
     "if(D.precip>=40){for(var r=14;r--;){var ri=document.createElement('i');ri.className='rain';ri.style.left=Math.random()*100+'%';ri.style.top=(-60-Math.random()*40)+'px';ri.style.animationDelay=-(Math.random()*1.2)+'s';at.appendChild(ri)}}" +
     "if(D.bg){document.getElementById('cm').style.background='linear-gradient(180deg,rgba(12,12,18,.28),rgba(12,12,18,.58)), url(\\\"'+D.bg+'\\\") center/cover no-repeat'}" +
-    '<\/script>' + sandInit + '</body></html>'
+    '<\/script>' + revScript + sandInit + '</body></html>'
+  return html
+}
+/* C8 出发检查卡 HTML 导出：复用已渲染内容 + 内嵌 SEED（供 C7 反打开） */
+function buildDepartureExport() {
+  var content = $('departureCard') ? $('departureCard').innerHTML : ''
+  var seed = buildSeed()
+  var seedBlock = 'var SEED=' + JSON.stringify(seed).replace(/</g, '\\u003c') + ';'
+  var revBtn = '<div style="text-align:center;margin:14px 0"><button onclick="revOpen()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:999px;padding:9px 20px;font-size:13px;cursor:pointer">🔄 在 SHEEPGEAR 中打开</button></div>'
+  var revScript = '<script>' + reverseOpenScript() + '<\/script>'
+  var css = 'body{margin:0;background:#161616;color:#fff;display:flex;justify-content:center;padding:24px 12px;font-family:system-ui,sans-serif}.ov-body{width:680px;max-width:94vw;padding:22px;background:#1e1e24;border:1px solid rgba(255,255,255,.12);border-radius:14px}.ov-brand{font-size:10px;font-weight:700;letter-spacing:.18em;color:rgba(255,255,255,.9)}.ov-title{font-size:22px;font-weight:900;margin-top:8px}.ov-meta{font-size:11px;color:rgba(255,255,255,.8);margin-top:6px}.ov-sec{margin-top:14px}.ov-lab{font-size:10px;letter-spacing:.06em;color:rgba(255,255,255,.55);margin-bottom:6px}.ov-tag{display:inline-block;font-size:12px;padding:4px 10px;margin:2px 4px 2px 0;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22)}.ov-gcat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 14px}.ov-gcat-i{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px dotted rgba(255,255,255,.3)}.ov-gcat-i .w{color:rgba(255,255,255,.6)}.ov-foot{margin-top:16px;font-size:10px;color:rgba(255,255,255,.68)}.risk{display:inline-block;font-size:11px;padding:3px 9px;border-radius:999px;margin:2px 4px 2px 0}.risk.red{background:#d9534f}.risk.orange{background:#e08e3c}.risk.blue{background:#4a90d9}.risk.green{background:#4a9d5b}'
+  return '<!DOCTYPE html><html lang="zh"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SHEEP🐏GEAR · 出发检查</title><style>' + css + '</style></head><body>' +
+    revBtn + content +
+    '<script>' + seedBlock + reverseOpenScript() + '<\/script></body></html>'
+}
+function exportCard() {
+  if (card.type === 'overview') { toast('总览卡仅支持存长图 PNG'); return }
+  if (card.type === 'departure') {
+    var dh = buildDepartureExport()
+    var w0 = window.open('', '_blank')
+    if (w0) { w0.document.write(dh); w0.document.close() }
+    else toast('浏览器拦截了弹窗，请允许打开新窗口查看')
+    return
+  }
+  var data = buildCardData()
+  var seed = buildSeed()
+  var snap = snapshotOf()
+  var html = renderShareHtml(data, seed, snap, seed.ts)
   var w = window.open('', '_blank')
   if (w) { w.document.write(html); w.document.close() }
   else toast('浏览器拦截了弹窗，请允许打开新窗口查看动画卡片')
 }
 
-/* ---- 存 PNG（html2canvas CDN 动态加载，未加载降级提示；总览卡作用于长图容器）---- */
+/* ---- 存 PNG（html2canvas CDN 动态加载，未加载降级提示；总览/出发检查卡作用于长图容器）---- */
 function savePNG() {
   var isOv = card.type === 'overview'
-  var cardEl = isOv ? $('ovCard') : document.querySelector('.card')
+  var isDep = card.type === 'departure'
+  var cardEl = isOv ? $('ovCard') : (isDep ? $('departureCard') : document.querySelector('.card'))
   if (!cardEl) return
-  var fname = isOv ? 'SHEEP-GEAR-总览卡.png' : 'SHEEP-GEAR-分享卡.png'
+  var fname = isOv ? 'SHEEP-GEAR-总览卡.png' : (isDep ? 'SHEEP-GEAR-出发检查卡.png' : 'SHEEP-GEAR-分享卡.png')
   function render() {
     if (typeof html2canvas === 'undefined') { toast('PNG 渲染库（html2canvas CDN）未加载，请联网后重试'); return }
     var sw = cardEl.querySelector('#cardAtmos .sw')
     if (_sandWave) _sandWave.pause()
     if (sw) sw.style.display = 'none'   // html2canvas 不捕获 WebGL 画布：隐藏让 CSS 兜底层（深金渐变+沙丘）呈现，避免空白
     cardEl.querySelectorAll('.atmos i,.atmos .pine-line,.atmos .wave,.atmos .dune,.atmos .cloud').forEach(function (el) { el.style.animationPlayState = 'paused' })
-    if (isOv && cardEl.offsetHeight > 8000) toast('总览卡较长，导出可能较慢/内存占用高')
+    if ((isOv || isDep) && cardEl.offsetHeight > 8000) toast('内容较长，导出可能较慢/内存占用高')
     html2canvas(cardEl, { backgroundColor: '#161616', scale: 2, useCORS: true }).then(function (canvas) {
       var a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = fname; a.click()
       resume()
@@ -4671,7 +5498,7 @@ window.GoldenSandWave = GoldenSandWave
 var appConfig = null
 var cur = 1, view3 = 'wx', entryMode = 'loc'
 var selLoc = null, route = null, routeSegs = null, routeName = '', routeMetrics = null, routeStartName = ''
-var trip = { startDate: today(), days: 1, climbM: null, hours: null, mode: 'light', highAlt: false, overNight: false }
+var trip = { startDate: today(), days: 1, climbM: null, hours: null, mode: 'light', highAlt: false, overNight: false, departureTime: null }
 var splitPoints = [], weather = null, weatherLoading = false, weatherFromCache = false
 var alerts = [], gearResult = { selected: [], fullSize: false }
 var importedRoute = null   // 导入态快照 { pts, segEnds }
@@ -4704,7 +5531,8 @@ var DEFAULT_CFG = {
   qweather: { host: '', kid: '', projectId: '', hasKey: false },
   weatherIndicators: [], overviewRows: [],
   ownedGear: [], customGear: [], tripMode: 'light', highAltitude: false, cardWeather: [],
-  gearOverrides: {}, weatherPriorityMeta: {}
+  gearOverrides: {}, weatherPriorityMeta: {},
+  freshness: null   // 预报新鲜度阈值（C2）：缺省用 FRESHNESS_DEFAULT.bands
 }
 async function loadConfig() {
   try {
@@ -5150,6 +5978,18 @@ function showRouteProfile() {
     $('totalClimb').textContent = routeMetrics.climbM.toLocaleString() + ' m'
     $('totalHours').textContent = routeMetrics.hours.toFixed(1) + ' h'
   }
+  renderElevProfileCanvas()
+}
+
+/* C3 海拔剖面 canvas：随路线更新/清空/模式切换联动 */
+function renderElevProfileCanvas() {
+  var wrap = $('elevWrap'), cv = $('elevProfile')
+  if (!wrap || !cv) return
+  if (!(route && route.length > 1)) { wrap.style.display = 'none'; return }
+  var data = (typeof elevProfileData === 'function') ? elevProfileData(route, routeSegs, perDay) : null
+  if (!data || !data.points || data.points.length < 2) { wrap.style.display = 'none'; return }
+  renderElevationProfile(cv, data)
+  wrap.style.display = 'block'
 }
 
 /* ================= 5 步向导（A1：步骤线可点；前进校验最小数据） ================= */
@@ -5165,6 +6005,8 @@ async function go(n) {
   })
   window.scrollTo({ top: 0, behavior: 'smooth' })
   renderDestCard()
+  // C8 常驻入口：第 1-4 步显示「🚪 出门检查」
+  var de = $('departureEntry'); if (de) de.style.display = (n >= 1 && n <= 4) ? '' : 'none'
   // 回到第 1 步：面板从 display:none 恢复，重算地图尺寸防“只左上角有图”的错位残留
   // 回到第 1 步：面板从 display:none 恢复，重算地图尺寸并重渲染当前模式（路线 fitBounds / 选点 pin），防"缩放错位/只左上角有图"
   if (n === 1 && placeMap) setTimeout(function () { if (placeMap) { placeMap.invalidateSize(); syncMapForMode() } }, 80)
@@ -5172,6 +6014,7 @@ async function go(n) {
     setView3('wx')
     if (!weather) runWeather()
   }
+  if (n === 2 && typeof syncTripTime === 'function') syncTripTime()
   if (n === 4) {
     if (!weather) { await runWeather() }
     gearResult = selectGear()
@@ -5254,6 +6097,94 @@ async function upsertHistory() {
 }
 
 /* ================= 初始化 ================= */
+/* ---- C7 反打开：restoreFromSeed 反解种子 + 快照立即渲染 + 后台刷新 ---- */
+function syncTripInputs() {
+  var d = $('tripDate'); if (d) d.value = trip.startDate || today()
+  var dd = $('tripDays'); if (dd) dd.value = trip.days
+  var tc = $('tripClimb'); if (tc) tc.value = trip.climbM != null ? trip.climbM : ''
+  var th = $('tripHours'); if (th) th.value = trip.hours != null ? trip.hours : ''
+  var tt = $('tripTime'); if (tt) tt.value = trip.departureTime || ''
+  document.querySelectorAll('#modeChips .chip[data-mode]').forEach(function (c) { c.classList.toggle('on', c.dataset.mode === trip.mode) })
+  var alt = document.querySelector('#modeChips .chip[data-alt]'); if (alt) alt.classList.toggle('on', !!trip.highAlt)
+}
+async function restoreFromSeed(seed, snapshot, ts) {
+  if (!seed || !seed.target) return false
+  // 目标（互斥）
+  if (seed.target.type === 'route' && seed.target.pts && seed.target.pts.length > 1) {
+    route = seed.target.pts
+    routeSegs = seed.target.segEnds && seed.target.segEnds.length ? seed.target.segEnds : [route.length - 1]
+    importedRoute = { pts: route.slice(), segEnds: routeSegs.slice() }
+    routeName = seed.target.name || ''
+    routeMetrics = routeMetricsOf(route, routeSegs)
+    selLoc = null
+    trip.climbM = routeMetrics.climbM; trip.hours = Math.round(routeMetrics.hours * 10) / 10
+    dual('imp')
+    if (typeof showRouteProfile === 'function') showRouteProfile()
+  } else if (seed.target.type === 'point' && seed.target.lat != null) {
+    selLoc = { lat: seed.target.lat, lng: seed.target.lng, name: seed.target.name || '', admin1: seed.target.admin1 || '', ele: seed.target.ele || 0, src: 'seed' }
+    route = null; routeSegs = null; importedRoute = null; routeMetrics = null
+    dual('loc')
+    if (typeof confirmLocation === 'function') confirmLocation(selLoc)
+  }
+  if (seed.trip) {
+    trip.startDate = seed.trip.startDate || today()
+    trip.days = Math.max(1, Math.min(16, seed.trip.days || 1))
+    trip.mode = seed.trip.mode || 'light'
+    trip.highAlt = !!seed.trip.highAlt
+    trip.overNight = !!seed.trip.overNight
+    trip.departureTime = seed.trip.departureTime || null
+    if (seed.trip.climbM != null) trip.climbM = seed.trip.climbM
+    if (seed.trip.hours != null) trip.hours = seed.trip.hours
+    if (typeof autoModeByDays === 'function') autoModeByDays()
+  }
+  if (seed.custom && Array.isArray(seed.custom)) appConfig.customGear = seed.custom
+  if (seed.gear) {
+    gearChecked = {}; gearWeight = {}
+    ;(seed.gear.checked || []).forEach(function (id) { gearChecked[id] = true })
+    if (seed.gear.weights) Object.keys(seed.gear.weights).forEach(function (id) { gearWeight[id] = seed.gear.weights[id] })
+  }
+  syncTripInputs()
+  // 快照立即渲染（0 秒，离线可用）；预警只作记录
+  if (snapshot && snapshot.weather && typeof buildPerDay === 'function') {
+    weather = snapshot.weather
+    weatherFromCache = true
+    var daysN = Math.max(1, Math.min(16, trip.days || 1))
+    splitPoints = route && route.length > 1 ? splitByDays(route, daysN, routeSegs) : (selLoc ? Array.from({ length: daysN }, function (_, i) { return { dayIndex: i, lat: selLoc.lat, lon: selLoc.lng, ele: selLoc.ele, t: i / Math.max(daysN - 1, 1) } }) : [])
+    perDay = buildPerDay(route, routeSegs, splitPoints, weather, null)
+    alerts = []
+    ;(snapshot.alerts || []).forEach(function (a) { alerts.push(Object.assign({ snapshot: true }, a)) })
+    gearResult = selectGear()
+    if (typeof renderAlertCard === 'function') renderAlertCard()
+    if (typeof renderWxList === 'function') renderWxList()
+    if (typeof renderDayIndGrid === 'function') renderDayIndGrid()
+    if (typeof renderDailyLoc === 'function') renderDailyLoc()
+    if (typeof renderGearConfirm === 'function') renderGearConfirm()
+    var ageH = ts ? (Date.now() - new Date(ts).getTime()) / 3600000 : null
+    var fresh = (typeof forecastFreshness === 'function') ? forecastFreshness(ageH, dateDiffDays(today(), trip.startDate)) : { state: 'stale', label: '分享快照' }
+    if (typeof renderWxStatus === 'function') renderWxStatus(fresh)
+  }
+  // 后台用接收者源配置重拉；失败时 C2 兜底保留快照
+  if (typeof runWeather === 'function') runWeather()
+  return true
+}
+function checkReverseOpen() {
+  var q = new URLSearchParams(window.location.search)
+  var pkgStr = q.get('seed') || q.get('sid')
+  if (!pkgStr && q.get('sid')) { try { pkgStr = localStorage.getItem(q.get('sid')); localStorage.removeItem(q.get('sid')) } catch (e) {} }
+  if (!pkgStr) return
+  var pkg = null
+  try { pkg = JSON.parse(decodeURIComponent(pkgStr)) } catch (e) { try { pkg = JSON.parse(pkgStr) } catch (e2) { return } }
+  if (!pkg || !pkg.seed || pkg.seed.v !== 1) return
+  restoreFromSeed(pkg.seed, pkg.snapshot || null, pkg.ts || pkg.seed.ts)
+}
+
+/* C8 出发检查入口：有天气 → 直达⑤步出发检查卡；无天气 → 提示先查 */
+function departureEntryClick() {
+  if (!weather || !weather.days || !weather.days.length) { toast('请先查询天气'); return }
+  go(5)
+  if (typeof setCardType === 'function') setCardType('departure')
+}
+
 async function init() {
   await loadConfig()
   document.body.dataset.theme = appConfig.theme
@@ -5263,6 +6194,7 @@ async function init() {
   $('tripDays').addEventListener('input', function () { trip.days = Math.min(16, Math.max(1, parseInt(this.value) || 1)); trip.overNight = trip.days > 1; autoModeByDays(); invalidateWeather(); if (route && route.length > 1 && placeMap) renderRouteDisplay() })
   $('tripClimb').addEventListener('input', function () { trip.climbM = this.value ? parseFloat(this.value) : null })
   $('tripHours').addEventListener('input', function () { trip.hours = this.value ? parseFloat(this.value) : null })
+  var ttEl = $('tripTime'); if (ttEl) ttEl.addEventListener('change', function () { trip.departureTime = this.value || null; if (weather) { renderWxList(); renderGearConfirm(); updateCardGear() } })
   $('themeSel').addEventListener('change', function () { applyTheme(this.value) })
 
   // 搜索：输入联想 + 外部点击关闭下拉
@@ -5309,6 +6241,9 @@ async function init() {
 
   // 开机自检：后台探测已配置源的真实连通状态（结果写徽标，不弹 toast）
   startupSelfCheck()
+
+  // C7 反打开：URL ?seed=/?sid= → 恢复种子 + 快照渲染 + 后台刷新
+  if (typeof checkReverseOpen === 'function') checkReverseOpen()
 
   console.log('SHEEP🐏GEAR 已加载')
 }
