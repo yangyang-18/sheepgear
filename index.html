@@ -65,9 +65,6 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .dual-tab.on{background:var(--surface);color:var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.25)}
 .drop{margin-top:18px;border:2px dashed var(--border);border-radius:14px;padding:42px 16px;text-align:center;color:var(--text-muted);font-size:14px;background:var(--surface);cursor:pointer}
 .drop:hover{border-color:var(--accent);color:var(--accent)}
-/* 链接导入失败时的拖拽区引导高亮（两步路反爬兜底）*/
-@keyframes dropPulse{0%,100%{border-color:var(--accent)}50%{border-color:var(--warning)}}
-.drop.link-focus{border-color:var(--accent);color:var(--accent);animation:dropPulse .8s ease-in-out 4}
 
 /* 配置弹层（z-index 高于 Leaflet 最大层 1000，避免被地图遮挡）*/
 .cfg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:flex-end;justify-content:center;z-index:1100}
@@ -478,11 +475,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
   <div id="impBlock" style="display:none">
     <div class="drop" id="dropZone">＋ 拖入 GPX/KML/KMZ 文件<br><span style="font-size:12px">或点击选择文件 · 从两步路/Google Earth 导出</span></div>
     <input type="file" id="gpxFile" accept=".gpx,.kml,.kmz,.bin" style="display:none">
-    <div style="margin-top:12px;font-size:12px;color:var(--text-muted)">支持格式：GPX / KML / KMZ，或粘贴直链/分享链接。会自动计算距离、爬升、海拔、预计耗时。路线只读展示，数据以导入为准。</div>
-    <div class="search" style="margin-top:10px">
-      <input type="text" id="linkUrl" placeholder="或粘贴轨迹链接：GPX/KML/KMZ 直链 · 两步路分享链接" aria-label="粘贴轨迹链接" autocomplete="off">
-      <button id="linkBtn" onclick="importFromLink()">链接导入</button>
-    </div>
+    <div style="margin-top:12px;font-size:12px;color:var(--text-muted)">支持格式：GPX / KML / KMZ。会自动计算距离、爬升、海拔、预计耗时。路线只读展示，数据以导入为准。</div>
     <div id="impErr" style="font-size:12px;color:var(--warning);margin-top:8px"></div>
     <div id="routeStart" style="display:none;margin-top:12px;font-size:13px;color:var(--success)">起点：<b id="routeStartName" style="color:var(--text)"></b><button class="btn" style="padding:3px 10px;font-size:11px;margin-left:10px" id="clearRouteBtn" onclick="clearImportedRoute()">✕ 清空路线</button></div>
     <div class="route-profile" id="routeProfile" style="display:none">
@@ -5024,60 +5017,7 @@ function applyTrack(parsed, fbName) {
   throw new Error('gpx.invalid')
 }
 
-/* ================= 链接导入（直链 GPX/KML/KMZ + 两步路分享链接尽力方案） ================= */
-var importingLink = false
-function detectLinkType(url) {
-  var u = String(url || '')
-  if (/2bulu\.com/i.test(u) && /\/track\//i.test(u)) return '2bulu'
-  return 'generic'
-}
-function highlightDropZone() {
-  var dz = $('dropZone')
-  if (!dz) return
-  dz.classList.add('link-focus')
-  setTimeout(function () { dz.classList.remove('link-focus') }, 6000)
-}
-function linkErrorMessage(e, url) {
-  if (detectLinkType(url) === '2bulu') {
-    highlightDropZone()
-    return '两步路分享链接受反爬限制，无法自动读取。请在两步路页面点「导出/下载」，把 KML/GPX 文件拖入上方区域'
-  }
-  var code = (e && e.message) || '', name = (e && e.name) || ''
-  if (code === 'link.too-large') return '文件超过 10MB 上限，请精简后再导入'
-  if (code === 'link.http') return '链接返回异常状态，无法读取轨迹'
-  if (code === 'kmz.no-jszip') return 'KMZ 解析库未加载，请联网后重试'
-  if (code === 'kmz.no-doc') return 'KMZ 内未找到轨迹文件（doc.kml），请确认是有效的 KMZ'
-  if (code === 'gpx.invalid') return '无法识别为 GPX/KML 轨迹，请确认是轨迹文件直链'
-  if (name === 'AbortError' || /abort|timed? ?out/i.test(code)) return '链接读取超时，请检查链接或网络后重试'
-  if (name === 'TypeError' || code === 'Failed to fetch') return '链接读取失败：目标不支持跨域访问或代理不可用'
-  return '链接读取失败：' + (code || '网络错误')
-}
-function importFromLink() {
-  var inp = $('linkUrl')
-  var url = inp ? String(inp.value || '').trim() : ''
-  if (importingLink) return
-  if (!/^https?:\/\/[^\s]+$/i.test(url)) { $('impErr').textContent = '请粘贴以 http:// 或 https:// 开头的链接'; return }
-  $('impErr').textContent = ''
-  importingLink = true
-  var btn = $('linkBtn'); if (btn) btn.disabled = true
-  fetchCORS(url, 15000)
-    .then(function (r) {
-      if (!r.ok) throw new Error('link.http')
-      var len = Number((r.headers && r.headers.get('content-length')) || 0)
-      if (len > 10 * 1024 * 1024) throw new Error('link.too-large')
-      return r.arrayBuffer()
-    })
-    .then(function (buf) {
-      if (buf.byteLength > 10 * 1024 * 1024) throw new Error('link.too-large')
-      return parseTrackSource(buf)
-    })
-    .then(function (parsed) {
-      var fb = (url.split('/').pop() || '').replace(/\.(gpx|kml|kmz)$/i, '')
-      applyTrack(parsed, fb || '链接轨迹')
-    })
-    .catch(function (e) { $('impErr').textContent = linkErrorMessage(e, url) })
-    .then(function () { importingLink = false; if (btn) btn.disabled = false })
-}
+/* ================= 清空导入（imp 模式有路线时显示「✕ 清空路线」） ================= */
 
 /* ---- 清空导入（imp 模式有路线时显示「✕ 清空路线」） ---- */
 function updateClearRouteBtn() {
