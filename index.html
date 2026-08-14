@@ -65,6 +65,9 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .dual-tab.on{background:var(--surface);color:var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.25)}
 .drop{margin-top:18px;border:2px dashed var(--border);border-radius:14px;padding:42px 16px;text-align:center;color:var(--text-muted);font-size:14px;background:var(--surface);cursor:pointer}
 .drop:hover{border-color:var(--accent);color:var(--accent)}
+/* 链接导入失败时的拖拽区引导高亮（两步路反爬兜底）*/
+@keyframes dropPulse{0%,100%{border-color:var(--accent)}50%{border-color:var(--warning)}}
+.drop.link-focus{border-color:var(--accent);color:var(--accent);animation:dropPulse .8s ease-in-out 4}
 
 /* 配置弹层（z-index 高于 Leaflet 最大层 1000，避免被地图遮挡）*/
 .cfg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:flex-end;justify-content:center;z-index:1100}
@@ -464,18 +467,22 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 <!-- ============ 第 1 步：选位置 ============ -->
 <div class="panel active" id="p1">
   <div class="step-h">去哪里？</div>
-  <div class="step-s">没有路线也能用——直接查位置，或拖入一条 GPX 路线。两条路汇到同一条天气→装备管道。</div>
+  <div class="step-s">没有路线也能用——直接查位置，或导入一条 GPX/KML 路线。两条路汇到同一条天气→装备管道。</div>
 
   <div class="dual">
     <div class="dual-tab on" data-d="loc" onclick="dual('loc')">直接查位置</div>
-    <div class="dual-tab" data-d="imp" onclick="dual('imp')">导入 GPX 路线</div>
+    <div class="dual-tab" data-d="imp" onclick="dual('imp')">导入轨迹</div>
   </div>
   <div style="margin-top:12px"><span class="collapse" style="margin-top:0" onclick="openHistory()">🕘 历史记录</span></div>
 
   <div id="impBlock" style="display:none">
-    <div class="drop" id="dropZone">＋ 拖入 .gpx 文件<br><span style="font-size:12px">或点击选择文件 · 从两步路/奥维导出</span></div>
-    <input type="file" id="gpxFile" accept=".gpx,.kml,.bin" style="display:none">
-    <div style="margin-top:12px;font-size:12px;color:var(--text-muted)">支持格式：GPX / KML。会自动计算距离、爬升、海拔、预计耗时。路线只读展示，数据以导入为准。</div>
+    <div class="drop" id="dropZone">＋ 拖入 GPX/KML/KMZ 文件<br><span style="font-size:12px">或点击选择文件 · 从两步路/Google Earth 导出</span></div>
+    <input type="file" id="gpxFile" accept=".gpx,.kml,.kmz,.bin" style="display:none">
+    <div style="margin-top:12px;font-size:12px;color:var(--text-muted)">支持格式：GPX / KML / KMZ，或粘贴直链/分享链接。会自动计算距离、爬升、海拔、预计耗时。路线只读展示，数据以导入为准。</div>
+    <div class="search" style="margin-top:10px">
+      <input type="text" id="linkUrl" placeholder="或粘贴轨迹链接：GPX/KML/KMZ 直链 · 两步路分享链接" aria-label="粘贴轨迹链接" autocomplete="off">
+      <button id="linkBtn" onclick="importFromLink()">链接导入</button>
+    </div>
     <div id="impErr" style="font-size:12px;color:var(--warning);margin-top:8px"></div>
     <div id="routeStart" style="display:none;margin-top:12px;font-size:13px;color:var(--success)">起点：<b id="routeStartName" style="color:var(--text)"></b><button class="btn" style="padding:3px 10px;font-size:11px;margin-left:10px" id="clearRouteBtn" onclick="clearImportedRoute()">✕ 清空路线</button></div>
     <div class="route-profile" id="routeProfile" style="display:none">
@@ -773,6 +780,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
 /* ============ geo.js · 基础工具 / 坐标 / WMO / 场景 / 主题 ============ */
 
@@ -872,17 +880,83 @@ function readPts(parent, sel) {
   return out
 }
 
-/* 解析 GPX/KML 文本 → { name, segs:[[{lat,lon,ele,time}],...] }；畸形抛错。
-   严格按数据分组：每个 trkseg 一段；多 trk 不合并；rte 为一段；<wpt> 路点/兴趣点非路径不入段；
-   KML 每个 LineString/LinearRing 一段。跨段不产生连接（展示/指标由调用方按 segEnds 跳过）。 */
+/* 命名空间无关：按 localName 取后代元素（gx:Track 等带前缀元素在 XML 文档里 querySelector 选择器不兼容） */
+function elmsByLocal(root, name) {
+  var want = String(name).toLowerCase()
+  return Array.prototype.filter.call(root.getElementsByTagName('*'), function (n) { return String(n.localName || n.tagName).toLowerCase() === want })
+}
+
+/* KML 坐标 token：lon,lat[,ele] → {lat,lon,ele}；非法返回 null（逐 token 校验，坏点跳过不整文件报错） */
+function kmlCoord(tok) {
+  var q = String(tok || '').split(',')
+  if (q.length >= 2 && !isNaN(+q[0]) && !isNaN(+q[1])) return { lat: +q[1], lon: +q[0], ele: q[2] != null && q[2] !== '' ? +q[2] : null }
+  return null
+}
+
+/* 解析 KML：LineString/LinearRing（逗号 lon,lat[,ele]）与 gx:Track（空格 lon lat ele + when 配对）各为一段；Point 收进 points */
+function parseKmlDoc(doc) {
+  var segs = [], points = []
+  elmsByLocal(doc, 'linestring').concat(elmsByLocal(doc, 'linearring')).forEach(function (ls) {
+    var c = elmsByLocal(ls, 'coordinates')[0]
+    if (!c) return
+    var p = []
+    String(c.textContent || '').trim().split(/\s+/).forEach(function (tok) {
+      var q = kmlCoord(tok)
+      if (q) p.push({ lat: q.lat, lon: q.lon, ele: q.ele, time: null })
+    })
+    if (p.length) segs.push(p)
+  })
+  elmsByLocal(doc, 'track').forEach(function (trk) {
+    var whens = elmsByLocal(trk, 'when')
+    var p = []
+    elmsByLocal(trk, 'coord').forEach(function (c, i) {
+      var t = String(c.textContent || '').trim().split(/\s+/)
+      if (t.length >= 2 && !isNaN(+t[0]) && !isNaN(+t[1])) {
+        p.push({ lon: +t[0], lat: +t[1], ele: t[2] != null && t[2] !== '' ? +t[2] : null, time: whens[i] ? String(whens[i].textContent || '').trim() || null : null })
+      }
+    })
+    if (p.length) segs.push(p)
+  })
+  elmsByLocal(doc, 'point').forEach(function (pt) {
+    var c = elmsByLocal(pt, 'coordinates')[0]
+    if (!c) return
+    var q = kmlCoord(String(c.textContent || '').trim().split(/\s+/)[0])
+    if (!q) return
+    var pm = pt, nm = ''
+    while (pm && String(pm.localName || pm.tagName).toLowerCase() !== 'placemark') pm = pm.parentNode
+    if (pm) { var n = elmsByLocal(pm, 'name')[0]; nm = n ? String(n.textContent || '').trim() : '' }
+    points.push({ name: nm, lat: q.lat, lon: q.lon, ele: q.ele })
+  })
+  return { segs: segs, points: points }
+}
+
+/* KML 名称回退链：含轨迹段的 Placemark 名 → Document/Folder 名 → 全文首个 <name> */
+function kmlName(doc) {
+  var segTypes = ['linestring', 'linearring', 'track']
+  var pms = elmsByLocal(doc, 'placemark')
+  for (var i = 0; i < pms.length; i++) {
+    var hit = false
+    for (var s = 0; s < segTypes.length; s++) { if (elmsByLocal(pms[i], segTypes[s]).length) { hit = true; break } }
+    if (hit) { var n = elmsByLocal(pms[i], 'name')[0]; if (n && String(n.textContent || '').trim()) return String(n.textContent).trim() }
+  }
+  var docF = elmsByLocal(doc, 'document').concat(elmsByLocal(doc, 'folder'))
+  for (var j = 0; j < docF.length; j++) { var n2 = elmsByLocal(docF[j], 'name')[0]; if (n2 && String(n2.textContent || '').trim()) return String(n2.textContent).trim() }
+  var n3 = elmsByLocal(doc, 'name')[0]
+  return n3 ? String(n3.textContent || '').trim() : ''
+}
+
+/* 解析 GPX/KML 文本 → { name, segs:[[{lat,lon,ele,time}],...], points:[{name,lat,lon,ele}] }；畸形抛错。
+   严格按数据分组：GPX 每个 trkseg 一段；多 trk 不合并；rte 为一段；<wpt> 路点/兴趣点非路径不入段；
+   KML 每个 LineString/LinearRing/gx:Track 一段；<Point> 收进 points（无路线段时由调用方作目的地选点）。
+   跨段不产生连接（展示/指标由调用方按 segEnds 跳过）。 */
 function parseTrack(text) {
   var doc = new DOMParser().parseFromString(text, 'text/xml')
   if (doc.querySelector('parsererror')) throw new Error('gpx.invalid')
   var root = doc.documentElement
   var isGpx = root && String(root.tagName || root.localName || '').toLowerCase() === 'gpx'
   var isKml = root && String(root.localName || '').toLowerCase() === 'kml'
-  var segs = []
   if (isGpx) {
+    var segs = []
     var trks = doc.querySelectorAll('trk')
     if (trks.length) {
       trks.forEach(function (trk) {
@@ -893,23 +967,40 @@ function parseTrack(text) {
     }
     var rte = readPts(doc, 'rtept'); if (rte.length) segs.push(rte)
     // 注：<wpt> 是路点/兴趣点（非路径），不作为路线段，避免画出连接路点的伪路径并误计距离
-  } else if (isKml) {
-    doc.querySelectorAll('LineString, LinearRing').forEach(function (ls) {
-      var c = ls.querySelector('coordinates')
-      if (!c) return
-      var p = []
-      String(c.textContent).trim().split(/\s+/).forEach(function (tok) {
-        var q = tok.split(',')
-        if (q.length >= 2 && !isNaN(+q[0]) && !isNaN(+q[1])) p.push({ lat: +q[1], lon: +q[0], ele: q[2] != null && q[2] !== '' ? +q[2] : null, time: null })
-      })
-      if (p.length) segs.push(p)
-    })
-  } else { throw new Error('gpx.invalid') }
-  if (!segs.reduce(function (a, s) { return a + s.length }, 0)) throw new Error('gpx.invalid')
-  return { name: trackName(String(text), ''), segs: segs }
+    if (!segs.reduce(function (a, s) { return a + s.length }, 0)) throw new Error('gpx.invalid')
+    return { name: trackName(String(text), ''), segs: segs, points: [] }
+  }
+  if (isKml) {
+    var r = parseKmlDoc(doc)
+    if (!r.segs.length && !r.points.length) throw new Error('gpx.invalid')
+    return { name: kmlName(doc), segs: r.segs, points: r.points }
+  }
+  throw new Error('gpx.invalid')
 }
 
 function trackName(text, fb) { var m = String(text || '').match(/<name[^>]*>([^<]+)<\/name>/i); return (m && m[1].trim()) || fb }
+
+/* ---- 轨迹源归一：ArrayBuffer/文本 → parseTrack（zip 魔数 → KMZ 解包 doc.kml）---- */
+function isZipBytes(data) {
+  var u = data instanceof Uint8Array ? data : new Uint8Array(data, 0, 4)
+  return u.length >= 2 && u[0] === 0x50 && u[1] === 0x4b
+}
+function kmzToKml(data) {
+  if (typeof JSZip === 'undefined') return Promise.reject(new Error('kmz.no-jszip'))
+  return JSZip.loadAsync(data).then(function (zip) {
+    var kmlFiles = zip.file(/\.kml$/i)
+    var f = zip.file('doc.kml') || (kmlFiles && kmlFiles[0])
+    if (!f) throw new Error('kmz.no-doc')
+    return f.async('string')
+  })
+}
+/* data: ArrayBuffer|Uint8Array|string → Promise<parseTrack 结果>；zip 内容先解包 */
+function parseTrackSource(data) {
+  var isBuf = data instanceof ArrayBuffer || data instanceof Uint8Array
+  if (isBuf && isZipBytes(data)) return kmzToKml(data).then(function (kml) { return parseTrack(kml) })
+  var text = isBuf ? new TextDecoder('utf-8').decode(data) : String(data)
+  return Promise.resolve().then(function () { return parseTrack(text) })
+}
 
 /* 分段数组 → 平铺点 + 段尾索引（segEnds=每段末尾在平铺数组中的下标） */
 function flattenSegs(segs) {
@@ -4876,45 +4967,116 @@ function handleGpxFile(file) {
   if (file.size > 10 * 1024 * 1024) { $('impErr').textContent = '文件超过 10MB 上限，请精简后再导入'; return }
   var rd = new FileReader()
   rd.onload = function () {
-    try {
-      var parsed = parseTrack(String(rd.result))
-      var flat = flattenSegs(parsed.segs)
-      var th = thinRoute(flat.pts, 5000, flat.segEnds)
-      route = th.pts; routeSegs = th.segEnds
-      importedRoute = { pts: route.slice(), segEnds: routeSegs.slice() }
-      routeName = parsed.name || trackName(String(rd.result), file.name.replace(/\.(gpx|kml|bin)$/i, ''))
-      routeMetrics = routeMetricsOf(route, routeSegs)
-      // 目标互斥：路线为目标，清已选点位
-      selLoc = null
-      var lr = $('locRead'); if (lr) lr.style.display = 'none'
-      var ls = $('locSearch'); if (ls) ls.value = ''
-      if (typeof invalidateWeather === 'function') invalidateWeather()
-      trip.climbM = routeMetrics.climbM
-      trip.hours = Math.round(routeMetrics.hours * 10) / 10
-      if ($('tripClimb')) $('tripClimb').value = routeMetrics.climbM
-      if ($('tripHours')) $('tripHours').value = trip.hours
-      updateClearRouteBtn()
-      // 起点逆地理 → 地名展示（失败降级文件名/坐标，不阻断）；落地后刷新派生展示并写历史（name=坐标地名）
-      reverseGeocode(route[0].lat, route[0].lon).then(function (nm) {
-        routeStartName = nm.found ? nm.name : (routeName || route[0].lat.toFixed(4) + ', ' + route[0].lon.toFixed(4))
-        var rs = $('routeStart')
-        if (rs) { rs.style.display = 'block'; $('routeStartName').textContent = routeStartName }
-        renderDestCard()
-        if (typeof updateCardMeta === 'function') updateCardMeta()
-        upsertHistory()
-      })
-      showRouteProfile()
-      openSharedMap()
-      setTimeout(function () { renderRouteDisplay() }, 120)
-      resetCardEntrance()
-      renderDestCard()
-      toast('✓ 已导入 ' + routeName + '（' + route.length + ' 点）')
-    } catch (e) {
-      $('impErr').textContent = '文件解析失败，请确认是有效的 GPX/KML 文件'
-    }
+    parseTrackSource(rd.result).then(function (parsed) {
+      applyTrack(parsed, file.name.replace(/\.(gpx|kml|kmz|bin)$/i, ''))
+    }).catch(function () {
+      $('impErr').textContent = '文件解析失败，请确认是有效的 GPX/KML/KMZ 文件'
+    })
   }
   rd.onerror = function () { $('impErr').textContent = '文件读取失败，请重试' }
-  rd.readAsText(file)
+  rd.readAsArrayBuffer(file)
+}
+
+/* ---- 共享管线：解析结果 → 路线（segs）或目的地（points）→ 指标/地图/历史（文件与链接导入共用） ---- */
+function applyTrack(parsed, fbName) {
+  if (parsed.segs && parsed.segs.length) {
+    var flat = flattenSegs(parsed.segs)
+    var th = thinRoute(flat.pts, 5000, flat.segEnds)
+    route = th.pts; routeSegs = th.segEnds
+    importedRoute = { pts: route.slice(), segEnds: routeSegs.slice() }
+    routeName = parsed.name || fbName
+    routeMetrics = routeMetricsOf(route, routeSegs)
+    // 目标互斥：路线为目标，清已选点位
+    selLoc = null
+    var lr = $('locRead'); if (lr) lr.style.display = 'none'
+    var ls = $('locSearch'); if (ls) ls.value = ''
+    if (typeof invalidateWeather === 'function') invalidateWeather()
+    trip.climbM = routeMetrics.climbM
+    trip.hours = Math.round(routeMetrics.hours * 10) / 10
+    if ($('tripClimb')) $('tripClimb').value = routeMetrics.climbM
+    if ($('tripHours')) $('tripHours').value = trip.hours
+    updateClearRouteBtn()
+    // 起点逆地理 → 地名展示（失败降级文件名/坐标，不阻断）；落地后刷新派生展示并写历史
+    reverseGeocode(route[0].lat, route[0].lon).then(function (nm) {
+      routeStartName = nm.found ? nm.name : (routeName || route[0].lat.toFixed(4) + ', ' + route[0].lon.toFixed(4))
+      var rs = $('routeStart')
+      if (rs) { rs.style.display = 'block'; $('routeStartName').textContent = routeStartName }
+      renderDestCard()
+      if (typeof updateCardMeta === 'function') updateCardMeta()
+      upsertHistory()
+    })
+    showRouteProfile()
+    openSharedMap()
+    setTimeout(function () { renderRouteDisplay() }, 120)
+    resetCardEntrance()
+    renderDestCard()
+    toast('✓ 已导入 ' + routeName + '（' + route.length + ' 点）')
+    return
+  }
+  // KML Point 目的地：无路线段但有目的地 → 以首个 Point 选点（逆地理回填地名）
+  if (parsed.points && parsed.points.length) {
+    var pt = parsed.points[0]
+    reverseGeocode(pt.lat, pt.lon).then(function (nm) {
+      confirmLocation({ name: pt.name || nm.name || (pt.lat.toFixed(4) + ', ' + pt.lon.toFixed(4)), admin1: nm.admin1 || '', lat: pt.lat, lng: pt.lon, ele: pt.ele || 0, src: 'kml' })
+    })
+    return
+  }
+  throw new Error('gpx.invalid')
+}
+
+/* ================= 链接导入（直链 GPX/KML/KMZ + 两步路分享链接尽力方案） ================= */
+var importingLink = false
+function detectLinkType(url) {
+  var u = String(url || '')
+  if (/2bulu\.com/i.test(u) && /\/track\//i.test(u)) return '2bulu'
+  return 'generic'
+}
+function highlightDropZone() {
+  var dz = $('dropZone')
+  if (!dz) return
+  dz.classList.add('link-focus')
+  setTimeout(function () { dz.classList.remove('link-focus') }, 6000)
+}
+function linkErrorMessage(e, url) {
+  if (detectLinkType(url) === '2bulu') {
+    highlightDropZone()
+    return '两步路分享链接受反爬限制，无法自动读取。请在两步路页面点「导出/下载」，把 KML/GPX 文件拖入上方区域'
+  }
+  var code = (e && e.message) || '', name = (e && e.name) || ''
+  if (code === 'link.too-large') return '文件超过 10MB 上限，请精简后再导入'
+  if (code === 'link.http') return '链接返回异常状态，无法读取轨迹'
+  if (code === 'kmz.no-jszip') return 'KMZ 解析库未加载，请联网后重试'
+  if (code === 'kmz.no-doc') return 'KMZ 内未找到轨迹文件（doc.kml），请确认是有效的 KMZ'
+  if (code === 'gpx.invalid') return '无法识别为 GPX/KML 轨迹，请确认是轨迹文件直链'
+  if (name === 'AbortError' || /abort|timed? ?out/i.test(code)) return '链接读取超时，请检查链接或网络后重试'
+  if (name === 'TypeError' || code === 'Failed to fetch') return '链接读取失败：目标不支持跨域访问或代理不可用'
+  return '链接读取失败：' + (code || '网络错误')
+}
+function importFromLink() {
+  var inp = $('linkUrl')
+  var url = inp ? String(inp.value || '').trim() : ''
+  if (importingLink) return
+  if (!/^https?:\/\/[^\s]+$/i.test(url)) { $('impErr').textContent = '请粘贴以 http:// 或 https:// 开头的链接'; return }
+  $('impErr').textContent = ''
+  importingLink = true
+  var btn = $('linkBtn'); if (btn) btn.disabled = true
+  fetchCORS(url, 15000)
+    .then(function (r) {
+      if (!r.ok) throw new Error('link.http')
+      var len = Number((r.headers && r.headers.get('content-length')) || 0)
+      if (len > 10 * 1024 * 1024) throw new Error('link.too-large')
+      return r.arrayBuffer()
+    })
+    .then(function (buf) {
+      if (buf.byteLength > 10 * 1024 * 1024) throw new Error('link.too-large')
+      return parseTrackSource(buf)
+    })
+    .then(function (parsed) {
+      var fb = (url.split('/').pop() || '').replace(/\.(gpx|kml|kmz)$/i, '')
+      applyTrack(parsed, fb || '链接轨迹')
+    })
+    .catch(function (e) { $('impErr').textContent = linkErrorMessage(e, url) })
+    .then(function () { importingLink = false; if (btn) btn.disabled = false })
 }
 
 /* ---- 清空导入（imp 模式有路线时显示「✕ 清空路线」） ---- */
