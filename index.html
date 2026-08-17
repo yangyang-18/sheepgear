@@ -6628,13 +6628,43 @@ function saveWindyKey(v) {
 /* Windy Map Forecast key（独立于天气源，存配置；外链风场图无需 key） */
 function windyMapKey() { return (appConfig && appConfig.windyMapKey) || '' }
 function saveWindyMapKey(v) { appConfig.windyMapKey = String(v || '').trim(); saveConfig() }
+/* Windy 深链 zoom：单点=9（近景）；路线按跨度自适应（Windy 视野约 360/2^zoom 度，取 2.5× 跨度）。纯函数可测。 */
+function windyFitZoom(lat, route) {
+  if (!route || route.length < 2) return 9
+  var minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity
+  route.forEach(function (p) {
+    if (p.lat < minLat) minLat = p.lat
+    if (p.lat > maxLat) maxLat = p.lat
+    var lo = p.lon != null ? p.lon : p.lng
+    if (lo < minLon) minLon = lo
+    if (lo > maxLon) maxLon = lo
+  })
+  var midLat = (minLat + maxLat) / 2 * Math.PI / 180
+  var spanDeg = Math.max(maxLat - minLat, (maxLon - minLon) * Math.cos(midLat))
+  return Math.max(6, Math.min(11, Math.round(Math.log2(360 / Math.max(spanDeg * 2.5, 0.03)))))
+}
+
 /* 第 1 步「🌬 Windy 风场」：新标签页打开 windy.com 该坐标风场图（公开站点，免 key）。
-   Windy 深链格式实测：`?{lat},{lon},{zoom}`（问号+逗号）可定位；路径逗号格式会被重定向到默认位置。 */
+   Windy 深链格式实测：`?{lat},{lon},{zoom}` 可定位（路径逗号格式会重定向默认位置）。 */
 function openWindyMap() {
-  var lat = selLoc ? selLoc.lat : (route && route.length ? route[0].lat : null)
-  var lon = selLoc ? selLoc.lng : (route && route.length ? (route[0].lon != null ? route[0].lon : route[0].lng) : null)
-  if (lat == null || lon == null) { toast('请先选择地点或导入路线'); return }
-  var url = 'https://www.windy.com/?' + lat.toFixed(3) + ',' + lon.toFixed(3) + ',7'
+  var lat, lon, zoom
+  if (selLoc) {
+    lat = selLoc.lat; lon = selLoc.lng; zoom = 9
+  } else if (route && route.length) {
+    var minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity
+    route.forEach(function (p) {
+      if (p.lat < minLat) minLat = p.lat
+      if (p.lat > maxLat) maxLat = p.lat
+      var lo = p.lon != null ? p.lon : p.lng
+      if (lo < minLon) minLon = lo
+      if (lo > maxLon) maxLon = lo
+    })
+    lat = (minLat + maxLat) / 2; lon = (minLon + maxLon) / 2
+    zoom = windyFitZoom(lat, route)
+  } else {
+    toast('请先选择地点或导入路线'); return
+  }
+  var url = 'https://www.windy.com/?' + lat.toFixed(3) + ',' + lon.toFixed(3) + ',' + zoom
   window.open(url, '_blank')
 }
 /* Windy Map Forecast「接通测试」：Windy 地图插件无法在配置弹层运行，仅校验库可达 + Key 格式 */
