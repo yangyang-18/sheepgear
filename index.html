@@ -1317,6 +1317,34 @@ var OM_ELEV = 'https://api.open-meteo.com/v1/elevation'
 
 /* ---- 山野优先（A+B）：热门户外山库置顶 + 高德 typecode / 特征码 / 山野关键词加权 ---- */
 var HOT_MOUNTAINS = ['武功山', '五台山', '船底顶', '鸡笼顶', '泰山', '华山', '黄山', '庐山', '峨眉山', '四姑娘山', '哈巴雪山', '玉龙雪山', '梅里雪山', '贡嘎', '南岳衡山', '北岳恒山', '嵩山', '太白山', '神农架', '三清山', '武夷山', '雁荡山', '牛背山', '华尖山']
+/* 知名山库权威坐标（别名注入）：保证著名山峰在歧义/地理编码漏掉时置顶
+   （如"泰山"→山东泰山而非台北/广西等行政"泰山"；"华山"→陕西渭南而非各地华山街道）。坐标为各山主峰/山顶约值。 */
+var MOUNTAIN_COORDS = {
+  '泰山': { lat: 36.257, lng: 117.101, admin1: '山东省泰安市' },
+  '华山': { lat: 34.490, lng: 110.089, admin1: '陕西省渭南市' },
+  '黄山': { lat: 30.131, lng: 118.166, admin1: '安徽省黄山市' },
+  '庐山': { lat: 29.562, lng: 115.977, admin1: '江西省九江市' },
+  '峨眉山': { lat: 29.527, lng: 103.332, admin1: '四川省乐山市' },
+  '四姑娘山': { lat: 31.095, lng: 102.889, admin1: '四川省阿坝州小金县' },
+  '哈巴雪山': { lat: 27.334, lng: 100.111, admin1: '云南省香格里拉市' },
+  '玉龙雪山': { lat: 27.098, lng: 100.175, admin1: '云南省丽江市' },
+  '梅里雪山': { lat: 28.439, lng: 98.684, admin1: '云南省德钦县' },
+  '贡嘎': { lat: 29.596, lng: 101.880, admin1: '四川省康定市' },
+  '武功山': { lat: 27.466, lng: 114.169, admin1: '江西省萍乡市' },
+  '五台山': { lat: 39.003, lng: 113.577, admin1: '山西省忻州市' },
+  '船底顶': { lat: 24.470, lng: 113.810, admin1: '广东省韶关市' },
+  '鸡笼顶': { lat: 22.104, lng: 111.641, admin1: '广东省阳春市' },
+  '南岳衡山': { lat: 27.255, lng: 112.735, admin1: '湖南省衡阳市' },
+  '北岳恒山': { lat: 39.669, lng: 113.715, admin1: '山西省浑源县' },
+  '嵩山': { lat: 34.491, lng: 112.938, admin1: '河南省登封市' },
+  '太白山': { lat: 33.956, lng: 107.763, admin1: '陕西省宝鸡市' },
+  '神农架': { lat: 31.436, lng: 110.395, admin1: '湖北省神农架林区' },
+  '三清山': { lat: 28.910, lng: 118.068, admin1: '江西省上饶市' },
+  '武夷山': { lat: 27.643, lng: 117.902, admin1: '福建省南平市' },
+  '雁荡山': { lat: 28.371, lng: 121.062, admin1: '浙江省温州市' },
+  '牛背山': { lat: 29.779, lng: 102.348, admin1: '四川省雅安市' },
+  '华尖山': { lat: 29.778, lng: 102.320, admin1: '四川省泸定县' }
+}
 var WILD_RE = /雪山|山峰|主峰|大峰|二峰|垭口|草甸|峡谷|天池|冰川|高原|森林|露营地|徒步|登山|云海|日出|峰|顶|岭|垭/
 /* 统一山野权重，越高越靠前：curated > 高德·山岳 > 山峰特征码 > 高德·风景名胜 > 山野关键词 > 普通 */
 function classifyPlace(it) {
@@ -1328,6 +1356,18 @@ function classifyPlace(it) {
   if (tc.indexOf('11') === 0) return 80               // 高德 POI · 风景名胜（森林公园/自然保护区/景区）
   if (WILD_RE.test(it.name || '')) return 75          // 山野关键词（跨所有源兜底）
   return 10                                            // 普通地点（城镇/道路/门址）
+}
+
+/* 别名注入：搜索词等于/后缀命中知名山名 → 返回山库权威坐标候选（置顶用）。纯函数，可测。 */
+function mountainAlias(q) {
+  var qn = (q || '').trim(), out = []
+  Object.keys(MOUNTAIN_COORDS).forEach(function (name) {
+    if (qn === name || (qn.length > name.length && qn.indexOf(name) === qn.length - name.length)) {
+      var mc = MOUNTAIN_COORDS[name]
+      out.push({ name: name, admin1: mc.admin1, country: 'CN', lat: mc.lat, lng: mc.lng, ele: mc.ele || 0, src: '山库', rank: 200 })
+    }
+  })
+  return out
 }
 
 /* ---- 多源并行搜索：和风 geo(key) → Open-Meteo(中文) → Photon(山峰) ---- */
@@ -1406,8 +1446,12 @@ function suggest(q) {
       })
     })
     if (!out.length && coarse.length) out = coarse
-    return out.map(function (it) { it.rank = classifyPlace(it); return it })
+    var ranked = out.map(function (it) { it.rank = classifyPlace(it); return it })
       .sort(function (a, b) { return b.rank - a.rank })   // 山野优先；同权重保持源顺序（Array.sort 稳定）
+    // 别名注入：知名山库权威坐标置顶（解决"泰山"等歧义，防地理编码漏掉著名山峰）
+    var aliases = mountainAlias(q)
+    for (var ai = aliases.length - 1; ai >= 0; ai--) ranked.unshift(aliases[ai])
+    return ranked
   })
 }
 
