@@ -6584,12 +6584,13 @@ function saveWindyKey(v) {
 /* Windy Map Forecast key（独立于天气源，存配置；外链风场图无需 key） */
 function windyMapKey() { return (appConfig && appConfig.windyMapKey) || '' }
 function saveWindyMapKey(v) { appConfig.windyMapKey = String(v || '').trim(); saveConfig() }
-/* 第 1 步「🌬 Windy 风场」：新标签页打开 windy.com 该坐标风场图（公开站点，免 key） */
+/* 第 1 步「🌬 Windy 风场」：新标签页打开 windy.com 该坐标风场图（公开站点，免 key）。
+   Windy 深链格式实测：`?{lat},{lon},{zoom}`（问号+逗号）可定位；路径逗号格式会被重定向到默认位置。 */
 function openWindyMap() {
   var lat = selLoc ? selLoc.lat : (route && route.length ? route[0].lat : null)
   var lon = selLoc ? selLoc.lng : (route && route.length ? (route[0].lon != null ? route[0].lon : route[0].lng) : null)
   if (lat == null || lon == null) { toast('请先选择地点或导入路线'); return }
-  var url = 'https://www.windy.com/' + lat.toFixed(3) + ',' + lon.toFixed(3) + ',7'
+  var url = 'https://www.windy.com/?' + lat.toFixed(3) + ',' + lon.toFixed(3) + ',7'
   window.open(url, '_blank')
 }
 /* Windy Map Forecast「接通测试」：Windy 地图插件无法在配置弹层运行，仅校验库可达 + Key 格式 */
