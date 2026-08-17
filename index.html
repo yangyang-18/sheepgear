@@ -6400,12 +6400,6 @@ function toggleTerrain3D() {
 var _wf = { on: false, canvas: null, raf: 0, pts: [], particles: [], bounds: null, ctx: null, size: 7, spacing: 0.18 }
 /* 风级配色（km/h）：绿<16 黄<25 橙<39 红≥39 */
 function wfColor(kmh) { return kmh >= 39 ? '#e5533c' : kmh >= 25 ? '#e8a33d' : kmh >= 16 ? '#e8d34d' : '#5aa86a' }
-/* hex → "r,g,b"（拖尾渐变用） */
-function wfRgb(hex) {
-  var h = String(hex || '').replace('#', '')
-  if (h.length !== 6) return '120,170,120'
-  return parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) + ',' + parseInt(h.slice(4, 6), 16)
-}
 /* 当前查询中心点 */
 function wfCenter() {
   if (selLoc) return { lat: selLoc.lat, lon: selLoc.lng }
@@ -6469,7 +6463,7 @@ function startWindAnim(pts) {
   var gLat0 = pts[0].lat, gLat1 = pts[s * (s - 1)].lat, gLon0 = pts[0].lon, gLon1 = pts[s - 1].lon
   // 粒子：分布在网格内，带小随机抖动
   var particles = []
-  var N = 420
+  var N = 1200   // 粒子密度：1200 粒形成稠密流动（比 420 密约 3 倍，仍保持流畅）
   for (var i = 0; i < N; i++) {
     particles.push({
       lat: gLat0 + Math.random() * (gLat1 - gLat0),
@@ -6508,16 +6502,14 @@ function startWindAnim(pts) {
       if (vx || vy) {
         var vl = Math.sqrt(vx * vx + vy * vy) || 1
         var nx = vx / vl, ny = vy / vl
-        // 拖尾：从尾到头的渐变亮线
-        var g = ctx.createLinearGradient(pt.x, pt.y, pt.x - nx * len, pt.y - ny * len)
-        g.addColorStop(0, color); g.addColorStop(1, 'rgba(' + wfRgb(color) + ',0)')
-        ctx.strokeStyle = g; ctx.lineWidth = 2.6; ctx.lineCap = 'round'
+        // 拖尾：同色实体线（省去每帧渐变，支持高粒子数流畅渲染）
+        ctx.strokeStyle = color; ctx.globalAlpha = 0.55; ctx.lineWidth = 2.4; ctx.lineCap = 'round'
         ctx.beginPath(); ctx.moveTo(pt.x - nx * len, pt.y - ny * len); ctx.lineTo(pt.x, pt.y); ctx.stroke()
       }
       // 头粒子亮圆点
       ctx.fillStyle = color
       ctx.globalAlpha = 1
-      ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.4, 0, 6.2832); ctx.fill()
+      ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.2, 0, 6.2832); ctx.fill()
     })
     _wf.raf = requestAnimationFrame(tick)
   }
