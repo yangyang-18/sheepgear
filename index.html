@@ -6810,11 +6810,28 @@ void main() {
 
 /* ============ Leaflet 桥接层：把 WindGL 叠到 placeMap 局部网格上 ============ */
 var _wfgl = { on: false, gl: null, wind: null, canvas: null, legend: null, raf: 0, pts: [], bounds: null, map: null, last: 0, lastDt: 0.016, nowSec: 0, onResize: null }
-/* 观感可调参数：粒子密度 / 流速（px·m 缩放系数）/ 拖尾淡出（越接近 1 拖尾越长越密）/ 配色上限 km/h（固定基准，保证颜色对应实际风速） */
-var WFGL_NUM = 3000
+/* 观感可调参数：粒子数阶梯曲线（按视野公里数自适应）/ 流速 / 拖尾淡出 / 配色上限 km/h */
+var WFGL_NUM_BASE = 3000   // 5km → 3000 粒子
+var WFGL_STEP = 2000       // 每 +5km → +2000 粒子
+var WFGL_NUM_MAX = 21000   // 封顶（50km → 21000）
 var WFGL_SPEED = 300
 var WFGL_FADE = 0.992
 var WFGL_MAX_KMH = 60   // speed_t=1 对应 60km/h；>60 饱和为红色
+
+/* 按视野公里数计算粒子数：5km→3000，每 +5km→+2000，50km→21000 封顶。
+   网格是视野的 1.3 倍（见 windfield.js 的 spacing 系数），故 km 乘 1.3 让 50km 视野恰好落在 50km 档。 */
+function wfglParticlesForRange() {
+  var map = placeMap
+  if (!map || !map.getBounds) return WFGL_NUM_BASE
+  var b = map.getBounds()
+  var latC = (b.getNorth() + b.getSouth()) / 2
+  var km = Math.max(
+    (b.getNorth() - b.getSouth()) * 111.32,
+    (b.getEast() - b.getWest()) * 111.32 * Math.cos(latC * Math.PI / 180)
+  ) * 1.3
+  var n = WFGL_NUM_BASE + Math.floor((km - 5) / 5) * WFGL_STEP
+  return Math.max(WFGL_NUM_BASE, Math.min(n, WFGL_NUM_MAX))
+}
 
 /* WebGL 可用性探测（不可用 → 上层回退 canvas-2D） */
 function isWebGLReady() {
@@ -6927,6 +6944,13 @@ function wfglTick(now) {
     wfglResize()
   }
   wfglUpdateProjection()
+  // 视野公里数变化 → 粒子数实时自适应（相对变化 >25% 才重建粒子状态，避免缩放过程频繁闪烁）
+  var want = wfglParticlesForRange()
+  var wantSq = Math.pow(Math.ceil(Math.sqrt(want)), 2)
+  var cur = _wfgl.wind.numParticles
+  if (wantSq !== cur && Math.abs(wantSq - cur) > cur * 0.25) {
+    _wfgl.wind.numParticles = want
+  }
   _wfgl.wind.draw()
   _wfgl.raf = requestAnimationFrame(wfglTick)
 }
@@ -6945,7 +6969,7 @@ function startWindGLAnim(pts) {
     return false
   }
   var wind = new WindGL(gl)
-  wind.numParticles = WFGL_NUM        // 粒子数（可调 WFGL_NUM）：密而不糊
+  wind.numParticles = wfglParticlesForRange()   // 粒子数按视野范围自适应（WFGL_NUM_NEAR/FAR）
   wind.fadeOpacity = WFGL_FADE        // 拖尾淡出（可调 WFGL_FADE）
   wind.speedFactor = 1
   wind.setWind(wfglBuildData(pts))
