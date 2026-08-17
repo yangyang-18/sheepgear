@@ -6628,9 +6628,9 @@ function saveWindyKey(v) {
 /* Windy Map Forecast key（独立于天气源，存配置；外链风场图无需 key） */
 function windyMapKey() { return (appConfig && appConfig.windyMapKey) || '' }
 function saveWindyMapKey(v) { appConfig.windyMapKey = String(v || '').trim(); saveConfig() }
-/* Windy 深链 zoom：单点=9（近景）；路线按跨度自适应（Windy 视野约 360/2^zoom 度，取 2.5× 跨度）。纯函数可测。 */
+/* Windy 深链 zoom：单点=11（近景约 50-80km）；路线按跨度自适应（Windy 视野约 360/2^zoom 度，取 2.5× 跨度）。纯函数可测。 */
 function windyFitZoom(lat, route) {
-  if (!route || route.length < 2) return 9
+  if (!route || route.length < 2) return 11
   var minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity
   route.forEach(function (p) {
     if (p.lat < minLat) minLat = p.lat
@@ -6641,15 +6641,15 @@ function windyFitZoom(lat, route) {
   })
   var midLat = (minLat + maxLat) / 2 * Math.PI / 180
   var spanDeg = Math.max(maxLat - minLat, (maxLon - minLon) * Math.cos(midLat))
-  return Math.max(6, Math.min(11, Math.round(Math.log2(360 / Math.max(spanDeg * 2.5, 0.03)))))
+  return Math.max(7, Math.min(12, Math.round(Math.log2(360 / Math.max(spanDeg * 2.5, 0.03)))))
 }
 
 /* 第 1 步「🌬 Windy 风场」：新标签页打开 windy.com 该坐标风场图（公开站点，免 key）。
    Windy 深链格式实测：`?{lat},{lon},{zoom}` 可定位（路径逗号格式会重定向默认位置）。 */
 function openWindyMap() {
-  var lat, lon, zoom
+  var lat, lon
   if (selLoc) {
-    lat = selLoc.lat; lon = selLoc.lng; zoom = 9
+    lat = selLoc.lat; lon = selLoc.lng
   } else if (route && route.length) {
     var minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity
     route.forEach(function (p) {
@@ -6660,10 +6660,10 @@ function openWindyMap() {
       if (lo > maxLon) maxLon = lo
     })
     lat = (minLat + maxLat) / 2; lon = (minLon + maxLon) / 2
-    zoom = windyFitZoom(lat, route)
   } else {
     toast('请先选择地点或导入路线'); return
   }
+  var zoom = windyFitZoom(lat, route || null)
   var url = 'https://www.windy.com/?' + lat.toFixed(3) + ',' + lon.toFixed(3) + ',' + zoom
   window.open(url, '_blank')
 }
@@ -7014,7 +7014,8 @@ function renderRouteDisplay() {
       routeDrawLayers.push(mk.addTo(placeMap))
     })(k)
   }
-  placeMap.fitBounds(boundsArr, { padding: [24, 24] })
+  // 视野保留轨迹周边约 50-80km：fitBounds maxZoom 11（短路线不贴太近，显示区域上下文）
+  placeMap.fitBounds(boundsArr, { padding: [24, 24], maxZoom: 11 })
   showRouteProfile()
 }
 
