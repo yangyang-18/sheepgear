@@ -6391,13 +6391,623 @@ function toggleTerrain3D() {
 }
 </script>
 <script>
-/* ============ js/windfield.js · 动态风场粒子流（Open-Meteo 免 key，canvas 动画） ============
-   第 1 步地图上的风场开关：拉当前位置周边 7×7 网格的 Open-Meteo 逐时风（风速/风向），
-   在 Leaflet 地图上叠加 canvas 粒子流——粒子沿风场方向流动（双线性插值），速度越快越亮/越暖，
-   形成 Windy 式动态风场图。免 key、CORS 已实测、无外部插件。
-   关闭/换位置时停止动画清理画布；失败降级提示，不阻塞。 */
+/* ============ js/windfield-gl.js · WebGL 风场流线（webgl-wind 移植 + Leaflet 桥接） ============
+   把 mapbox/webgl-wind（ISC 许可，https://github.com/mapbox/webgl-wind）移植为本 App 的
+   Windy 式顺滑流线：GPU 粒子（默认 5 万粒）按风速绿→黄→橙→红渐变，叠加轻微闪烁。
+   移植改动：
+   - ES module → plain-script（var/function，贴合本仓库 windfield.js 风格）；
+   - draw.vert 增加 u_proj（UV→NDC 仿射矩阵），把流线叠在 Leaflet 局部网格而非整屏；
+   - update.frag 局部网格三修正：clamp 不环绕全球、网格中心纬度 cos、按当前 zoom 的运动缩放；
+   - draw.frag 增加 u_time 轻微闪烁（alpha 脉动 0.55–1.0）。
+   依赖：全局 placeMap（Leaflet 1.9）、L；数据由 js/windfield.js 的 wfFetchGrid() 提供。
+   WebGL 不可用时由 windfield.js 回退到原 canvas-2D 渲染（isWebGLReady 返回 false）。
+   ------------ 以下 WindGL 类本体源自 mapbox/webgl-wind（ISC），仅作上述适配 ------------ */
+var WindGL = (function () {
+  var DRAW_VERT = `
+precision mediump float;
 
-var _wf = { on: false, canvas: null, raf: 0, pts: [], particles: [], bounds: null, ctx: null, size: 7, spacing: 0.18 }
+attribute float a_index;
+
+uniform sampler2D u_particles;
+uniform float u_particles_res;
+uniform mat3 u_proj;
+
+varying vec2 v_particle_pos;
+
+void main() {
+    vec4 color = texture2D(u_particles, vec2(
+        fract(a_index / u_particles_res),
+        floor(a_index / u_particles_res) / u_particles_res));
+
+    // decode current particle position from the pixel's RGBA value
+    v_particle_pos = vec2(
+        color.r / 255.0 + color.b,
+        color.g / 255.0 + color.a);
+
+    gl_PointSize = 1.0;
+    // u_proj：网格 UV → NDC（每帧由地图投影算出），把流线定位到地图上的网格区域
+    vec3 ndc = u_proj * vec3(v_particle_pos, 1.0);
+    gl_Position = vec4(ndc.xy, 0.0, 1.0);
+}
+`;
+
+  var DRAW_FRAG = `
+precision mediump float;
+
+uniform sampler2D u_wind;
+uniform vec2 u_wind_min;
+uniform vec2 u_wind_max;
+uniform sampler2D u_color_ramp;
+uniform float u_time;
+uniform float u_max_speed;   // 固定风速上限 m/s（绝对配色基准，见 WFGL_MAX_KMH）
+
+varying vec2 v_particle_pos;
+
+void main() {
+    vec2 velocity = mix(u_wind_min, u_wind_max, texture2D(u_wind, v_particle_pos).rg);
+    // 绝对归一化：speed_t = 实际风速 / 固定上限（而非网格最大风速），颜色始终对应 km/h
+    float speed_t = min(1.0, length(velocity) / u_max_speed);
+
+    // color ramp is encoded in a 16x16 texture
+    vec2 ramp_pos = vec2(
+        fract(16.0 * speed_t),
+        floor(16.0 * speed_t) / 16.0);
+
+    vec4 color = texture2D(u_color_ramp, ramp_pos);
+
+    // 轻微闪烁：按时间 + 粒子空间相位脉动 alpha（0.55–1.0），流线整体保持清晰
+    float tw = 0.55 + 0.45 * (0.5 + 0.5 * sin(u_time * 4.0 + (v_particle_pos.x + v_particle_pos.y) * 90.0));
+    gl_FragColor = vec4(color.rgb, color.a * tw);
+}
+`;
+
+  var QUAD_VERT = `
+precision mediump float;
+
+attribute vec2 a_pos;
+
+varying vec2 v_tex_pos;
+
+void main() {
+    v_tex_pos = a_pos;
+    gl_Position = vec4(1.0 - 2.0 * a_pos, 0, 1);
+}
+`;
+
+  var SCREEN_FRAG = `
+precision mediump float;
+
+uniform sampler2D u_screen;
+uniform float u_opacity;
+
+varying vec2 v_tex_pos;
+
+void main() {
+    vec4 color = texture2D(u_screen, 1.0 - v_tex_pos);
+    // a hack to guarantee opacity fade out even with a value close to 1.0
+    gl_FragColor = vec4(floor(255.0 * color * u_opacity) / 255.0);
+}
+`;
+
+  var UPDATE_FRAG = `
+precision highp float;
+
+uniform sampler2D u_particles;
+uniform sampler2D u_wind;
+uniform vec2 u_wind_res;
+uniform vec2 u_wind_min;
+uniform vec2 u_wind_max;
+uniform float u_rand_seed;
+uniform float u_speed_factor;
+uniform float u_drop_rate;
+uniform float u_drop_rate_bump;
+uniform float u_scale;      // 局部网格：m/s → UV/帧 系数（每帧按 zoom 的 px/m 换算）
+uniform float u_cos_lat;    // 网格中心纬度 cos（取代原版全球纬度公式）
+
+varying vec2 v_tex_pos;
+
+// pseudo-random generator
+const vec3 rand_constants = vec3(12.9898, 78.233, 4375.85453);
+float rand(const vec2 co) {
+    float t = dot(rand_constants.xy, co);
+    return fract(sin(t) * (rand_constants.z + t));
+}
+
+// wind speed lookup; use manual bilinear filtering based on 4 adjacent pixels for smooth interpolation
+vec2 lookup_wind(const vec2 uv) {
+    vec2 px = 1.0 / u_wind_res;
+    vec2 vc = (floor(uv * u_wind_res)) * px;
+    vec2 f = fract(uv * u_wind_res);
+    vec2 tl = texture2D(u_wind, vc).rg;
+    vec2 tr = texture2D(u_wind, vc + vec2(px.x, 0)).rg;
+    vec2 bl = texture2D(u_wind, vc + vec2(0, px.y)).rg;
+    vec2 br = texture2D(u_wind, vc + px).rg;
+    return mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y);
+}
+
+void main() {
+    vec4 color = texture2D(u_particles, v_tex_pos);
+    vec2 pos = vec2(
+        color.r / 255.0 + color.b,
+        color.g / 255.0 + color.a); // decode particle position from pixel RGBA
+
+    vec2 velocity = mix(u_wind_min, u_wind_max, lookup_wind(pos));
+    float speed_t = length(velocity) / length(u_wind_max);
+
+    // 局部网格：经度收敛按网格中心纬度 cos 校正（原版是全球纬度公式）
+    vec2 offset = vec2(velocity.x / u_cos_lat, -velocity.y) * u_scale;
+
+    // 局部网格：clamp 到网格内（不环绕全球），撞边粒子随机重投防下风侧堆积
+    vec2 next = pos + offset;
+    vec2 bounded = clamp(next, vec2(0.0), vec2(1.0));
+    bool hit_edge = any(greaterThan(abs(next - bounded), vec2(0.0001)));
+
+    vec2 seed = (pos + v_tex_pos) * u_rand_seed;
+    float drop_rate = u_drop_rate + speed_t * u_drop_rate_bump + (hit_edge ? 0.5 : 0.0);
+    float drop = step(1.0 - drop_rate, rand(seed));
+
+    vec2 random_pos = vec2(
+        rand(seed + 1.3),
+        rand(seed + 2.1));
+    pos = mix(bounded, random_pos, drop);
+
+    // encode the new particle position back into RGBA
+    gl_FragColor = vec4(
+        fract(pos * 255.0),
+        floor(pos * 255.0) / 255.0);
+}
+`;
+
+  function createShader(gl, type, source) {
+    var shader = gl.createShader(type)
+    gl.shaderSource(shader, source)
+    gl.compileShader(shader)
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      throw new Error(gl.getShaderInfoLog(shader))
+    }
+    return shader
+  }
+
+  function createProgram(gl, vertexSource, fragmentSource) {
+    var program = gl.createProgram()
+    var vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexSource)
+    var fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentSource)
+    gl.attachShader(program, vertexShader)
+    gl.attachShader(program, fragmentShader)
+    gl.linkProgram(program)
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(program))
+    }
+    var wrapper = { program: program }
+    var numAttributes = gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES)
+    for (var i = 0; i < numAttributes; i++) {
+      var attribute = gl.getActiveAttrib(program, i)
+      wrapper[attribute.name] = gl.getAttribLocation(program, attribute.name)
+    }
+    var numUniforms = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS)
+    for (var j = 0; j < numUniforms; j++) {
+      var uniform = gl.getActiveUniform(program, j)
+      wrapper[uniform.name] = gl.getUniformLocation(program, uniform.name)
+    }
+    return wrapper
+  }
+
+  function createTexture(gl, filter, data, width, height) {
+    var texture = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
+    if (data instanceof Uint8Array) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data)
+    } else {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, data)
+    }
+    gl.bindTexture(gl.TEXTURE_2D, null)
+    return texture
+  }
+
+  function bindTexture(gl, texture, unit) {
+    gl.activeTexture(gl.TEXTURE0 + unit)
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+  }
+
+  function createBuffer(gl, data) {
+    var buffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW)
+    return buffer
+  }
+
+  function bindAttribute(gl, buffer, attribute, numComponents) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
+    gl.enableVertexAttribArray(attribute)
+    gl.vertexAttribPointer(attribute, numComponents, gl.FLOAT, false, 0, 0)
+  }
+
+  function bindFramebuffer(gl, framebuffer, texture) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer)
+    if (texture) {
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0)
+    }
+  }
+
+  var defaultRampColors = {
+    0.0: '#3288bd',
+    0.1: '#66c2a5',
+    0.2: '#abdda4',
+    0.3: '#e6f598',
+    0.4: '#fee08b',
+    0.5: '#fdae61',
+    0.6: '#f46d43',
+    1.0: '#d53e4f'
+  }
+
+  function getColorRamp(colors) {
+    var canvas = document.createElement('canvas')
+    var ctx = canvas.getContext('2d')
+    canvas.width = 256
+    canvas.height = 1
+    var gradient = ctx.createLinearGradient(0, 0, 256, 0)
+    for (var stop in colors) {
+      gradient.addColorStop(+stop, colors[stop])
+    }
+    ctx.fillStyle = gradient
+    ctx.fillRect(0, 0, 256, 1)
+    return new Uint8Array(ctx.getImageData(0, 0, 256, 1).data)
+  }
+
+  function WindGL(gl) {
+    this.gl = gl
+    this.fadeOpacity = 0.996   // 拖尾淡出速度
+    this.speedFactor = 1       // 运动放大系数（本桥接把缩放算进 u_scale，这里固定 1）
+    this.dropRate = 0.003      // 粒子随机重投概率
+    this.dropRateBump = 0.01   // 随风速增大的重投概率
+    this.proj = null           // 每帧由桥接层更新的 UV→NDC 矩阵
+    this.scale = null          // 每帧更新的 m/s→UV/帧 系数
+    this.cosLat = 1            // 网格中心纬度 cos
+    this.time = 0              // 闪烁用时间
+
+    this.drawProgram = createProgram(gl, DRAW_VERT, DRAW_FRAG)
+    this.screenProgram = createProgram(gl, QUAD_VERT, SCREEN_FRAG)
+    this.updateProgram = createProgram(gl, QUAD_VERT, UPDATE_FRAG)
+
+    this.quadBuffer = createBuffer(gl, new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]))
+    this.framebuffer = gl.createFramebuffer()
+
+    this.setColorRamp(defaultRampColors)
+    this.resize()
+  }
+
+  WindGL.prototype.resize = function () {
+    var gl = this.gl
+    var emptyPixels = new Uint8Array(gl.canvas.width * gl.canvas.height * 4)
+    // screen textures to hold the drawn screen for the previous and the current frame
+    this.backgroundTexture = createTexture(gl, gl.NEAREST, emptyPixels, gl.canvas.width, gl.canvas.height)
+    this.screenTexture = createTexture(gl, gl.NEAREST, emptyPixels, gl.canvas.width, gl.canvas.height)
+  }
+
+  WindGL.prototype.setColorRamp = function (colors) {
+    // lookup texture for colorizing the particles according to their speed
+    this.colorRampTexture = createTexture(this.gl, this.gl.LINEAR, getColorRamp(colors), 16, 16)
+  }
+
+  Object.defineProperty(WindGL.prototype, 'numParticles', {
+    get: function () { return this._numParticles },
+    set: function (numParticles) {
+      var gl = this.gl
+      // we create a square texture where each pixel will hold a particle position encoded as RGBA
+      var particleRes = this.particleStateResolution = Math.ceil(Math.sqrt(numParticles))
+      this._numParticles = particleRes * particleRes
+      var particleState = new Uint8Array(this._numParticles * 4)
+      for (var i = 0; i < particleState.length; i++) {
+        particleState[i] = Math.floor(Math.random() * 256) // randomize the initial particle positions
+      }
+      // textures to hold the particle state for the current and the next frame
+      this.particleStateTexture0 = createTexture(gl, gl.NEAREST, particleState, particleRes, particleRes)
+      this.particleStateTexture1 = createTexture(gl, gl.NEAREST, particleState, particleRes, particleRes)
+      var particleIndices = new Float32Array(this._numParticles)
+      for (var j = 0; j < this._numParticles; j++) particleIndices[j] = j
+      this.particleIndexBuffer = createBuffer(gl, particleIndices)
+    }
+  })
+
+  WindGL.prototype.setWind = function (windData) {
+    this.windData = windData
+    this.windTexture = createTexture(this.gl, this.gl.LINEAR, windData.image)
+  }
+
+  WindGL.prototype.draw = function () {
+    var gl = this.gl
+    gl.disable(gl.DEPTH_TEST)
+    gl.disable(gl.STENCIL_TEST)
+    bindTexture(gl, this.windTexture, 0)
+    bindTexture(gl, this.particleStateTexture0, 1)
+    this.drawScreen()
+    this.updateParticles()
+  }
+
+  WindGL.prototype.drawScreen = function () {
+    var gl = this.gl
+    // draw the screen into a temporary framebuffer to retain it as the background on the next frame
+    bindFramebuffer(gl, this.framebuffer, this.screenTexture)
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+    this.drawTexture(this.backgroundTexture, this.fadeOpacity)
+    this.drawParticles()
+    bindFramebuffer(gl, null)
+    // enable blending to support drawing on top of an existing background (e.g. a map)
+    gl.enable(gl.BLEND)
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+    this.drawTexture(this.screenTexture, 1.0)
+    gl.disable(gl.BLEND)
+    // save the current screen as the background for the next frame
+    var temp = this.backgroundTexture
+    this.backgroundTexture = this.screenTexture
+    this.screenTexture = temp
+  }
+
+  WindGL.prototype.drawTexture = function (texture, opacity) {
+    var gl = this.gl
+    var program = this.screenProgram
+    gl.useProgram(program.program)
+    bindAttribute(gl, this.quadBuffer, program.a_pos, 2)
+    bindTexture(gl, texture, 2)
+    gl.uniform1i(program.u_screen, 2)
+    gl.uniform1f(program.u_opacity, opacity)
+    gl.drawArrays(gl.TRIANGLES, 0, 6)
+  }
+
+  WindGL.prototype.drawParticles = function () {
+    var gl = this.gl
+    var program = this.drawProgram
+    gl.useProgram(program.program)
+    bindAttribute(gl, this.particleIndexBuffer, program.a_index, 1)
+    bindTexture(gl, this.colorRampTexture, 2)
+    gl.uniform1i(program.u_wind, 0)
+    gl.uniform1i(program.u_particles, 1)
+    gl.uniform1i(program.u_color_ramp, 2)
+    gl.uniform1f(program.u_particles_res, this.particleStateResolution)
+    gl.uniform2f(program.u_wind_min, this.windData.uMin, this.windData.vMin)
+    gl.uniform2f(program.u_wind_max, this.windData.uMax, this.windData.vMax)
+    if (this.proj) gl.uniformMatrix3fv(program.u_proj, false, this.proj)
+    gl.uniform1f(program.u_time, this.time || 0)
+    gl.uniform1f(program.u_max_speed, this.maxSpeed || 16.7)
+    // 轻微闪烁需要 alpha 混合（把脉动 alpha 与地图/拖尾背景混合）
+    gl.enable(gl.BLEND)
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+    gl.drawArrays(gl.POINTS, 0, this._numParticles)
+    gl.disable(gl.BLEND)
+  }
+
+  WindGL.prototype.updateParticles = function () {
+    var gl = this.gl
+    bindFramebuffer(gl, this.framebuffer, this.particleStateTexture1)
+    gl.viewport(0, 0, this.particleStateResolution, this.particleStateResolution)
+    var program = this.updateProgram
+    gl.useProgram(program.program)
+    bindAttribute(gl, this.quadBuffer, program.a_pos, 2)
+    gl.uniform1i(program.u_wind, 0)
+    gl.uniform1i(program.u_particles, 1)
+    gl.uniform1f(program.u_rand_seed, Math.random())
+    gl.uniform2f(program.u_wind_res, this.windData.width, this.windData.height)
+    gl.uniform2f(program.u_wind_min, this.windData.uMin, this.windData.vMin)
+    gl.uniform2f(program.u_wind_max, this.windData.uMax, this.windData.vMax)
+    gl.uniform1f(program.u_speed_factor, this.speedFactor)
+    gl.uniform1f(program.u_drop_rate, this.dropRate)
+    gl.uniform1f(program.u_drop_rate_bump, this.dropRateBump)
+    gl.uniform1f(program.u_scale, this.scale || 0.0001)
+    gl.uniform1f(program.u_cos_lat, this.cosLat || 1)
+    gl.drawArrays(gl.TRIANGLES, 0, 6)
+    // swap the particle state textures so the new one becomes the current one
+    var temp = this.particleStateTexture0
+    this.particleStateTexture0 = this.particleStateTexture1
+    this.particleStateTexture1 = temp
+  }
+
+  return WindGL
+})()
+
+/* ============ Leaflet 桥接层：把 WindGL 叠到 placeMap 局部网格上 ============ */
+var _wfgl = { on: false, gl: null, wind: null, canvas: null, legend: null, raf: 0, pts: [], bounds: null, map: null, last: 0, lastDt: 0.016, nowSec: 0, onResize: null }
+/* 观感可调参数：粒子密度 / 流速（px·m 缩放系数）/ 拖尾淡出（越接近 1 拖尾越长越密）/ 配色上限 km/h（固定基准，保证颜色对应实际风速） */
+var WFGL_NUM = 3000
+var WFGL_SPEED = 300
+var WFGL_FADE = 0.992
+var WFGL_MAX_KMH = 60   // speed_t=1 对应 60km/h；>60 饱和为红色
+
+/* WebGL 可用性探测（不可用 → 上层回退 canvas-2D） */
+function isWebGLReady() {
+  try {
+    var c = document.createElement('canvas')
+    return !!(c.getContext('webgl') || c.getContext('experimental-webgl'))
+  } catch (e) { return false }
+}
+
+/* pts → WindGL 风场纹理：行 0=北、列 0=西；u→R、v→G，按 uMin/uMax/vMin/vMax 归一化 */
+function wfglBuildData(pts) {
+  var s = Math.round(Math.sqrt(pts.length))
+  var uMin = Infinity, uMax = -Infinity, vMin = Infinity, vMax = -Infinity
+  for (var i = 0; i < pts.length; i++) {
+    var u = pts[i].u, v = pts[i].v
+    if (u < uMin) uMin = u; if (u > uMax) uMax = u
+    if (v < vMin) vMin = v; if (v > vMax) vMax = v
+  }
+  var canvas = document.createElement('canvas')
+  canvas.width = s; canvas.height = s
+  var ctx = canvas.getContext('2d')
+  var img = ctx.createImageData(s, s)
+  var ur = (uMax - uMin) > 1e-6 ? (uMax - uMin) : 1
+  var vr = (vMax - vMin) > 1e-6 ? (vMax - vMin) : 1
+  for (var r = 0; r < s; r++) for (var c = 0; c < s; c++) {
+    var p = pts[r * s + c]
+    var i4 = (r * s + c) * 4
+    img.data[i4] = Math.max(0, Math.min(255, Math.round((p.u - uMin) / ur * 255)))
+    img.data[i4 + 1] = Math.max(0, Math.min(255, Math.round((p.v - vMin) / vr * 255)))
+    img.data[i4 + 2] = 255
+    img.data[i4 + 3] = 255
+  }
+  return { image: img, width: s, height: s, uMin: uMin, uMax: uMax, vMin: vMin, vMax: vMax }
+}
+
+/* 左下角风级图例（独立 2D 小画布覆盖层，GL 画布透明叠加在地图上） */
+function wfglDrawLegend(ctx, w, h) {
+  var legX = 8, legY = 8, legW = 114, legH = 12
+  ctx.globalAlpha = 0.85
+  ctx.fillStyle = 'rgba(12,16,24,.65)'
+  ctx.fillRect(legX - 4, legY - 4, legW + 8, legH + 28)
+  var stops = [['#a855f7', '<16'], ['#3b82f6', '16-24'], ['#e8a33d', '25-38'], ['#e5533c', '39+']]
+  var segW = legW / stops.length
+  stops.forEach(function (s, i) { ctx.fillStyle = s[0]; ctx.fillRect(legX + i * segW, legY, segW + 0.5, legH) })
+  ctx.fillStyle = '#cbd5e1'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'
+  stops.forEach(function (s, i) { ctx.fillText(s[1], legX + i * segW + segW / 2, legY + legH + 12) })
+  ctx.fillText('km/h', legX + legW / 2, legY + legH + 22)
+  ctx.globalAlpha = 1
+}
+
+function wfglBuildLegend() {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2)
+  var cssW = 138, cssH = 62
+  var c = document.createElement('canvas')
+  c.style.cssText = 'position:absolute;left:0;bottom:0;width:' + cssW + 'px;height:' + cssH + 'px;pointer-events:none;z-index:800'
+  c.width = Math.round(cssW * dpr); c.height = Math.round(cssH * dpr)
+  var ctx = c.getContext('2d')
+  ctx.scale(dpr, dpr)
+  wfglDrawLegend(ctx, cssW, cssH)
+  return c
+}
+
+/* 重设 GL 画布背靠存储（含 devicePixelRatio），并让 WindGL 重建帧缓冲纹理 */
+function wfglResize() {
+  if (!_wfgl.gl || !_wfgl.canvas || !_wfgl.map) return
+  var container = _wfgl.map.getContainer()
+  var dpr = Math.min(window.devicePixelRatio || 1, 2)
+  _wfgl.canvas.width = Math.max(2, Math.round(container.clientWidth * dpr))
+  _wfgl.canvas.height = Math.max(2, Math.round(container.clientHeight * dpr))
+  _wfgl.wind.resize()
+}
+
+/* 每帧投影：网格 3 角 → 容器点 → NDC 仿射；同时更新运动缩放/纬度/时间 uniform */
+function wfglUpdateProjection() {
+  var map = _wfgl.map, pts = _wfgl.pts, b = _wfgl.bounds
+  var container = map.getContainer()
+  var cw = container.clientWidth, ch = container.clientHeight
+  if (cw < 2 || ch < 2) return
+  function ndc(lat, lon) {
+    var p = map.latLngToContainerPoint([lat, lon])
+    return [(p.x / cw) * 2 - 1, 1 - (p.y / ch) * 2]
+  }
+  var nw = ndc(b.gLat0, b.gLon0)   // u=0,v=0 西北
+  var ne = ndc(b.gLat0, b.gLon1)   // u=1,v=0 东北
+  var sw = ndc(b.gLat1, b.gLon0)   // u=0,v=1 西南
+  var a = ne[0] - nw[0], bb = sw[0] - nw[0], c = nw[0]
+  var d = ne[1] - nw[1], e = sw[1] - nw[1], f = nw[1]
+  // mat3 列主序：[a d 0 | b e 0 | c f 1]
+  _wfgl.wind.proj = new Float32Array([a, d, 0, bb, e, 0, c, f, 1])
+  // 运动缩放（可调 WFGL_SPEED）：流速 = WFGL_SPEED px/s 手感 → offset_uv = v·(WFGL_SPEED·ppm·dt)/pxPerUnit
+  var zoom = map.getZoom()
+  var ppm = Math.pow(2, zoom) / (156543 * Math.cos(b.latC * Math.PI / 180))
+  var pxPerU = Math.abs(a) * cw / 2, pxPerV = Math.abs(e) * ch / 2
+  var pxPerUnit = Math.sqrt(pxPerU * pxPerV) || 1
+  _wfgl.wind.scale = WFGL_SPEED * ppm * Math.max(0, _wfgl.lastDt) / pxPerUnit
+  _wfgl.wind.cosLat = Math.cos(b.latC * Math.PI / 180)
+  _wfgl.wind.time = _wfgl.nowSec
+}
+
+function wfglTick(now) {
+  if (!_wfgl.on || !_wfgl.gl) return
+  var dt = Math.min(0.05, (now - _wfgl.last) / 1000)
+  _wfgl.last = now
+  _wfgl.lastDt = dt
+  _wfgl.nowSec = now / 1000
+  // 容器尺寸变化（含隐藏面板显示后）自动重设背靠存储
+  var container = _wfgl.map.getContainer()
+  var dpr = Math.min(window.devicePixelRatio || 1, 2)
+  if (_wfgl.canvas.width !== Math.max(2, Math.round(container.clientWidth * dpr)) || _wfgl.canvas.height !== Math.max(2, Math.round(container.clientHeight * dpr))) {
+    wfglResize()
+  }
+  wfglUpdateProjection()
+  _wfgl.wind.draw()
+  _wfgl.raf = requestAnimationFrame(wfglTick)
+}
+
+/* 启动 WebGL 流线；WebGL 不可用时返回 false（上层走 canvas-2D） */
+function startWindGLAnim(pts) {
+  clearWindGL()
+  var map = placeMap, container = map.getContainer()
+  var canvas = document.createElement('canvas')
+  canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:800'
+  container.appendChild(canvas)
+  var gl = null
+  try { gl = canvas.getContext('webgl', { alpha: true, antialias: false, depth: false, stencil: false }) } catch (e) { gl = null }
+  if (!gl) {
+    if (canvas.parentNode) canvas.parentNode.removeChild(canvas)
+    return false
+  }
+  var wind = new WindGL(gl)
+  wind.numParticles = WFGL_NUM        // 粒子数（可调 WFGL_NUM）：密而不糊
+  wind.fadeOpacity = WFGL_FADE        // 拖尾淡出（可调 WFGL_FADE）
+  wind.speedFactor = 1
+  wind.setWind(wfglBuildData(pts))
+  // 绝对配色：固定 km/h 档位（对齐 2D 版 wfColor：<16 绿 / 16-24 黄 / 25-38 橙 / 39+ 红），与 WFGL_MAX_KMH 一致
+  wind.maxSpeed = WFGL_MAX_KMH / 3.6
+  var ramp = {}
+  ramp['0.0'] = '#a855f7'                                        // 紫 (<16km/h)
+  ramp[(16 / WFGL_MAX_KMH).toFixed(3)] = '#3b82f6'               // 蓝 (16-24)
+  ramp[(25 / WFGL_MAX_KMH).toFixed(3)] = '#e8a33d'               // 橙 (25-38)
+  ramp[(39 / WFGL_MAX_KMH).toFixed(3)] = '#e5533c'               // 红 (39+)
+  ramp['1.0'] = '#e5533c'
+  wind.setColorRamp(ramp)
+
+  var s = Math.round(Math.sqrt(pts.length))
+  _wfgl.on = true
+  _wfgl.gl = gl
+  _wfgl.canvas = canvas
+  _wfgl.wind = wind
+  _wfgl.pts = pts
+  _wfgl.map = map
+  _wfgl.bounds = { gLat0: pts[0].lat, gLat1: pts[s * (s - 1)].lat, gLon0: pts[0].lon, gLon1: pts[s - 1].lon, latC: (pts[0].lat + pts[s * (s - 1)].lat) / 2 }
+  _wfgl.last = performance.now()
+  wfglResize()
+  _wfgl.legend = wfglBuildLegend()
+  container.appendChild(_wfgl.legend)
+  _wfgl.onResize = wfglResize
+  if (window.addEventListener) window.addEventListener('resize', _wfgl.onResize)
+  _wfgl.raf = requestAnimationFrame(wfglTick)
+  return true
+}
+
+/* 关闭 WebGL 流线：停帧、释放上下文（避免多次开关耗尽浏览器 WebGL 上下文）、清画布与图例 */
+function clearWindGL() {
+  if (_wfgl.raf) cancelAnimationFrame(_wfgl.raf)
+  _wfgl.raf = 0
+  if (_wfgl.onResize && window.removeEventListener) window.removeEventListener('resize', _wfgl.onResize)
+  _wfgl.onResize = null
+  if (_wfgl.gl && _wfgl.gl.getExtension) {
+    try { var ext = _wfgl.gl.getExtension('WEBGL_lose_context'); if (ext) ext.loseContext() } catch (e) {}
+  }
+  if (_wfgl.canvas && _wfgl.canvas.parentNode) _wfgl.canvas.parentNode.removeChild(_wfgl.canvas)
+  if (_wfgl.legend && _wfgl.legend.parentNode) _wfgl.legend.parentNode.removeChild(_wfgl.legend)
+  _wfgl.on = false
+  _wfgl.gl = null
+  _wfgl.wind = null
+  _wfgl.canvas = null
+  _wfgl.legend = null
+  _wfgl.pts = []
+  _wfgl.bounds = null
+  _wfgl.map = null
+}
+
+</script>
+<script>
+/* ============ js/windfield.js · 风场图开关与数据（Open-Meteo 免 key） ============
+   第 1 步地图上的风场开关：拉当前位置周边 7×7 网格的 Open-Meteo 逐时风（风速/风向），
+   渲染优先走 WebGL 流线（js/windfield-gl.js，Windy 式顺滑流线 + 轻微闪烁），
+   WebGL 不可用时回退本文件的 canvas-2D 粒子流（双线性插值、速度越亮越暖）。
+   免 key、CORS 已实测、无外部插件。关闭/换位置时停止动画清理画布；失败降级提示，不阻塞。 */
+
+var _wf = { on: false, mode: null, canvas: null, raf: 0, pts: [], particles: [], bounds: null, ctx: null, size: 7, spacing: 0.18 }
+/* mode: 'gl'（WebGL 流线，windfield-gl.js）| '2d'（canvas-2D 粒子，本文件）| null */
 /* 风级配色（km/h）：绿<16 黄<25 橙<39 红≥39 */
 function wfColor(kmh) { return kmh >= 39 ? '#e5533c' : kmh >= 25 ? '#e8a33d' : kmh >= 16 ? '#e8d34d' : '#5aa86a' }
 /* 当前查询中心点 */
@@ -6553,17 +7163,31 @@ function toggleWindField() {
     if (_wf.on) return   // 期间已关闭则丢弃
     var ok = pts.filter(Boolean)
     if (!ok.length) { toast('风场拉取失败，请重试'); return }
-    startWindAnim(ok)
-    toast('风场已显示 · 动态粒子 · ' + ok.length + ' 网格点')
+    // 优先 WebGL 流线（windfield-gl.js），不可用/失败时回退 canvas-2D 粒子
+    var usedGL = false
+    if (typeof startWindGLAnim === 'function' && isWebGLReady()) {
+      try { usedGL = startWindGLAnim(ok) } catch (e) { usedGL = false }
+    }
+    if (usedGL) { _wf.mode = 'gl' } else { startWindAnim(ok); _wf.mode = '2d' }
+    _wf.on = true
+    toast(usedGL ? ('风场已显示 · WebGL 流线 · ' + ok.length + ' 网格点') : ('风场已显示 · 动态粒子 · ' + ok.length + ' 网格点'))
   })
 }
 function clearWindField() {
+  if (_wf.mode === 'gl') {
+    // WebGL 流线（windfield-gl.js）：释放上下文 + 清画布/图例
+    if (typeof clearWindGL === 'function') { try { clearWindGL() } catch (e) {} }
+    _wf.mode = null
+    _wf.on = false
+    return
+  }
   if (_wf.raf) cancelAnimationFrame(_wf.raf); _wf.raf = 0
   if (_wf.canvas && _wf.canvas.parentNode) _wf.canvas.parentNode.removeChild(_wf.canvas)
   _wf.canvas = null; _wf.ctx = null; _wf.pts = []; _wf.particles = []; _wf.bounds = null
   if (_wf.resize && window.removeEventListener) window.removeEventListener('resize', _wf.resize)
   _wf.resize = null
   _wf.on = false
+  _wf.mode = null
 }
 /* 位置变化时自动清场（避免旧位置粒子残留） */
 function refreshWindField() { if (_wf.on) { clearWindField(); toggleWindField() } }
