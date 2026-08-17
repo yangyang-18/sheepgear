@@ -1721,7 +1721,7 @@ function makeMapSnapshot(opts) {
 var OM_FCAST = 'https://api.open-meteo.com/v1/forecast'
 var QW_TTL = 30 * 60 * 1000
 var CACHE_TTL = 3 * 60 * 60 * 1000   // 3h（被 C2 forecastFreshness 分档阈值取代，保留作参考常量）
-var WEATHER_CACHE_VER = 10   // 天气缓存 schema 版本：v9=海拔校正；v10=集合预报一致度（ensMaxSpread/precipUncertain，旧缓存无此信号）
+var WEATHER_CACHE_VER = 11   // 天气缓存 schema 版本：v10=集合一致度；v11=逐点集合+风/降水离散（day 级 ensTempSpread/ensWindSpread/ensPrecipSpread）
 var alertStatus = ''   // 预警拉取状态：''=ok/空 | 'fail'=接口不可用
 var LAPSE_RATE = 6.5 / 1000   // 气温垂直递减率（ISA 标准，°C/米）：海拔每升 1000m 降 6.5°C，用于网格→路线海拔校正
 var perDay = []        // 逐日聚合视图（C1 perday-aggregation）：路线逐日切分 + 逐日天气 + 逐时，供逐日类功能消费
@@ -1855,28 +1855,34 @@ function toUnifiedOM(om, srcTag) {
   return { daily: daily, hourly: hourly, elevation: om.elevation != null && om.elevation > 0 ? Math.round(om.elevation) : null, src: srcTag }
 }
 
-/* ---- Open-Meteo 集合预报（best-effort）：真·温度成员离散度，供预报可信度升级。
-       集合 API 返回 daily 变量为 [天][成员]；成员间极差越大 → 该日温度越不确定。失败返回 null（不阻断）。 */
+/* ---- Open-Meteo 集合预报（best-effort）：温度/风/降水的成员离散度，供多源一致度升级。
+       集合 API 返回 daily 变量为 [天][成员]；成员间极差越大 → 该日该变量越不确定。失败返回 null（不阻断）。 */
 function omEnsemble(lat, lng, days) {
   var p = new URLSearchParams({
     latitude: lat, longitude: lng, timezone: 'auto', forecast_days: Math.min(16, days || 1),
-    daily: 'temperature_2m_max,temperature_2m_min'
+    daily: 'temperature_2m_max,temperature_2m_min,wind_speed_10m_max,precipitation_sum'
   })
   return fetch('https://api.open-meteo.com/v1/ensemble?' + p.toString(), { signal: AbortSignal.timeout(15000) })
     .then(function (r) { if (!r.ok) throw new Error('om.ens.http'); return r.json() })
     .then(function (j) {
-      var tmax = j.daily && j.daily.temperature_2m_max, tmin = j.daily && j.daily.temperature_2m_min
+      var d = j.daily || {}
+      var tmax = d.temperature_2m_max, tmin = d.temperature_2m_min
+      var wmax = d.wind_speed_10m_max, psum = d.precipitation_sum
       var spread = []
       if (!Array.isArray(tmax)) return { spread: [] }
       for (var i = 0; i < tmax.length; i++) {
+        var s = { dayIndex: i }
         var maxArr = tmax[i]
-        if (!Array.isArray(maxArr) || !maxArr.length) continue
-        var mx = Math.max.apply(null, maxArr), mn = Math.min.apply(null, maxArr)
-        var minArr = Array.isArray(tmin && tmin[i]) ? tmin[i] : null
-        var mnMax = minArr ? Math.max.apply(null, minArr) : null
-        var mnMn = minArr ? Math.min.apply(null, minArr) : null
-        var s = { dayIndex: i, tempMaxSpread: Math.round((mx - mn) * 10) / 10 }
-        if (mnMn != null && mnMax != null) s.tempMinSpread = Math.round((mnMax - mnMn) * 10) / 10
+        if (Array.isArray(maxArr) && maxArr.length) {
+          var mx = Math.max.apply(null, maxArr), mn = Math.min.apply(null, maxArr)
+          s.tempMaxSpread = Math.round((mx - mn) * 10) / 10
+          var minArr = Array.isArray(tmin && tmin[i]) ? tmin[i] : null
+          if (minArr) { var mnMax = Math.max.apply(null, minArr), mnMn = Math.min.apply(null, minArr); s.tempMinSpread = Math.round((mnMax - mnMn) * 10) / 10 }
+        }
+        var windArr = Array.isArray(wmax && wmax[i]) ? wmax[i] : null
+        if (windArr && windArr.length) s.windMaxSpread = Math.round((Math.max.apply(null, windArr) - Math.min.apply(null, windArr)) * 10) / 10
+        var pArr = Array.isArray(psum && psum[i]) ? psum[i] : null
+        if (pArr && pArr.length) s.precipSumSpread = Math.round((Math.max.apply(null, pArr) - Math.min.apply(null, pArr)) * 10) / 10
         spread.push(s)
       }
       return { spread: spread, src: 'ensemble' }
@@ -1903,16 +1909,29 @@ function consistencyOf(fieldValues, field) {
   }
   return true
 }
-/* 多源一致度合成：低一致字段数 + 不可用源比例 + 覆盖度 + 集合信号（降水概率分歧 / 温度成员离散）。
+/* 集合阈值（可配，缺省默认）：温度极差>4°C / 风极差>15km/h / 降水资源量极差>20mm / 降水中带 40~60% */
+function ensCfg() {
+  var c = (appConfig && appConfig.ensCfg) || {}
+  return {
+    tempC: c.tempC != null ? c.tempC : 4,
+    windKmh: c.windKmh != null ? c.windKmh : 15,
+    precipMm: c.precipMm != null ? c.precipMm : 20,
+    precipBand: (c.precipBand && c.precipBand.length === 2) ? c.precipBand : [40, 60]
+  }
+}
+/* 多源一致度合成：低一致字段数 + 不可用源比例 + 覆盖度 + 集合信号（温度/风/降水离散 + 降水分歧）。
    任何关键字段分歧即低；覆盖度<70% 至少 medium；无分歧信息不降级。 */
-function confLevel(lowCount, unavailableRatio, coverage, precipUncertain, ensSpreadMax) {
+function confLevel(lowCount, unavailableRatio, coverage, precipUncertain, ensTemp, ensWind, ensPrecip, cfg) {
   var cov = coverage == null ? 1 : coverage
+  var c = cfg || ensCfg()
   var s = 0
   if (lowCount >= 1) s += 2
   if (unavailableRatio != null && unavailableRatio >= 0.5) s += 1
   if (cov < 0.7) s += 1
-  if (precipUncertain) s += 1                       // 集合对降水概率真分歧（40~60% 中间带）
-  if (ensSpreadMax != null && ensSpreadMax > 4) s += 1   // 集合温度成员离散 >4°C
+  if (precipUncertain) s += 1
+  if (ensTemp != null && ensTemp > c.tempC) s += 1
+  if (ensWind != null && ensWind > c.windKmh) s += 1
+  if (ensPrecip != null && ensPrecip > c.precipMm) s += 1
   if (s >= 2) return 'low'
   if (s >= 1) return 'medium'
   return 'high'
@@ -2215,7 +2234,7 @@ function syncTripTime() {
   el.value = rise ? fmtTime(rise) : ''
 }
 
-function aggregateDays(pointWeatherList, splitPts, offset, ensSpread) {
+function aggregateDays(pointWeatherList, splitPts, offset, ensList) {
   var days = [], valid = 0
   offset = offset || 0   // 出发日期对齐：预报从「今天」起，偏移到 startDate 对应索引
   for (var k = 0; k < splitPts.length; k++) {
@@ -2263,6 +2282,14 @@ function aggregateDays(pointWeatherList, splitPts, offset, ensSpread) {
     var lowCons = d0.lowConsistency || []
     var unavailArr = (u && u.unavailableSources) || []
     var unavailRatio = (unavailArr.length + ((u && u.srcs && u.srcs.length) || 0)) ? unavailArr.length / (unavailArr.length + ((u && u.srcs && u.srcs.length) || 0)) : 0
+    // 逐日集合信号：该点该天的温度/风/降水资源量成员极差（ensList[k].spread[offset+k]）
+    var _es = (ensList && ensList[k] && ensList[k].spread) ? ensList[k].spread[offset + k] : null
+    var _ensTemp = (_es && _es.tempMaxSpread != null) ? _es.tempMaxSpread : null
+    var _ensWind = (_es && _es.windMaxSpread != null) ? _es.windMaxSpread : null
+    var _ensPrecip = (_es && _es.precipSumSpread != null) ? _es.precipSumSpread : null
+    var _ec = ensCfg()
+    var _dayPrecipU = d0.precipProbMax != null && d0.precipProbMax >= _ec.precipBand[0] && d0.precipProbMax <= _ec.precipBand[1]
+    var _dayConf = confLevel(lowCons.length, unavailRatio, null, _dayPrecipU, _ensTemp, _ensWind, _ensPrecip, _ec)
     days.push({
       date: d0.date || String(k + 1) + '天', dayIndex: k, weatherCode: d0.weatherCode,
       ele: p.ele, lat: p.lat, lon: p.lon,
@@ -2283,7 +2310,7 @@ function aggregateDays(pointWeatherList, splitPts, offset, ensSpread) {
       hourlyCodes: codes, thunder: codes.some(isThunderCode), hail: codes.some(isHailCode),
       windchill: windchillC(cNightMin, d0.windSpeedMax) != null ? round1(windchillC(cNightMin, d0.windSpeedMax)) : null,
       scenes: sceneSummary({ nightAppTemp: cNightApp, nightMin: cNightMin, precipProb: d0.precipProbMax, precipSum: d0.precipSum, windLevel: wd.level, snowfall: d0.snowfallSum }),
-      lowConsistency: lowCons, confidence: confLevel(lowCons.length, unavailRatio, null),
+      lowConsistency: lowCons, confidence: _dayConf, ensTempSpread: _ensTemp, ensWindSpread: _ensWind, ensPrecipSpread: _ensPrecip,
       lapseDelta: lapseApplied ? lapseDelta : null, src: u ? u.srcs.join('→') : ''
     })
   }
@@ -2296,13 +2323,20 @@ function aggregateDays(pointWeatherList, splitPts, offset, ensSpread) {
   })
   var tripUnavail = (unavailN + srcN) ? unavailN / (unavailN + srcN) : 0
   var coverage = splitPts.length ? valid / splitPts.length : 0
-  // 集合信号（升级）：温度成员最大离散 + 降水概率中间带（集合对降水真分歧）
-  var ensMaxSpread = 0
-  if (ensSpread && ensSpread.spread) ensSpread.spread.forEach(function (s) { if (s.tempMaxSpread != null && s.tempMaxSpread > ensMaxSpread) ensMaxSpread = s.tempMaxSpread })
-  var precipUncertain = days.some(function (d) { return d.precipProb != null && d.precipProb >= 40 && d.precipProb <= 60 })
-  var confidence = confLevel(tripLow, tripUnavail, coverage, precipUncertain, ensMaxSpread || null)
+  // 行程级集合信号：全部点/日的 温度/风/降水资源量 成员极差最大值 + 降水中带（集合对降水真分歧）
+  var ensTempMax = 0, ensWindMax = 0, ensPrecipMax = 0
+  if (ensList) ensList.forEach(function (e) {
+    if (e && e.spread) e.spread.forEach(function (s) {
+      if (s.tempMaxSpread != null && s.tempMaxSpread > ensTempMax) ensTempMax = s.tempMaxSpread
+      if (s.windMaxSpread != null && s.windMaxSpread > ensWindMax) ensWindMax = s.windMaxSpread
+      if (s.precipSumSpread != null && s.precipSumSpread > ensPrecipMax) ensPrecipMax = s.precipSumSpread
+    })
+  })
+  var _ec2 = ensCfg()
+  var precipUncertain = days.some(function (d) { return d.precipProb != null && d.precipProb >= _ec2.precipBand[0] && d.precipProb <= _ec2.precipBand[1] })
+  var confidence = confLevel(tripLow, tripUnavail, coverage, precipUncertain, ensTempMax || null, ensWindMax || null, ensPrecipMax || null, _ec2)
   var lapseApplied = days.some(function (d) { return d.lapseDelta != null })
-  return { days: days, coverage: coverage, confidence: confidence, ensMaxSpread: ensMaxSpread || null, precipUncertain: precipUncertain, lapseApplied: lapseApplied, unavailableSources: pointWeatherList.filter(Boolean).reduce(function (a, u) { (u.unavailableSources || []).forEach(function (s) { if (a.indexOf(s) < 0) a.push(s) }); return a }, []) }
+  return { days: days, coverage: coverage, confidence: confidence, ensMaxSpread: ensTempMax || null, ensWindMax: ensWindMax || null, ensPrecipMax: ensPrecipMax || null, precipUncertain: precipUncertain, lapseApplied: lapseApplied, unavailableSources: pointWeatherList.filter(Boolean).reduce(function (a, u) { (u.unavailableSources || []).forEach(function (s) { if (a.indexOf(s) < 0) a.push(s) }); return a }, []) }
 }
 
 /* 逐日聚合（C1 perday-aggregation）：把路线逐日切分 + weather.days + 逐时组装为只读 perDay[]。
@@ -2473,6 +2507,18 @@ function renderDayTable(days, enabled, opts) {
     var caps = [d.scenes.cold, d.scenes.wet, d.scenes.wind].filter(function (s) { return s && s.risk })
     return caps.length ? caps.map(function (c) { return '<span class="risk orange" style="margin:2px 3px">' + esc(c.label) + '</span>' }).join('') : '<span class="dt-none">—</span>'
   })
+  // 多源一致度行（逐日）：✓高 / ⚠中 / ✗低，高不显示状态点
+  rows += row('一致度', function (d) {
+    var c = d.confidence || 'high'
+    var ec = ensCfg()
+    var why = []
+    if ((d.ensTempSpread || 0) > ec.tempC) why.push('温度集合离散 ' + Math.round(d.ensTempSpread) + '°C')
+    if ((d.ensWindSpread || 0) > ec.windKmh) why.push('风集合离散 ' + Math.round(d.ensWindSpread) + 'km/h')
+    if ((d.ensPrecipSpread || 0) > ec.precipMm) why.push('降水资源量离散 ' + Math.round(d.ensPrecipSpread) + 'mm')
+    if (why.length) return '<span class="v ' + (c === 'low' ? 'cold' : 'warn') + '">' + (c === 'high' ? '✓ 高' : c === 'medium' ? '⚠ 中' : '✗ 低') + '</span> <span class="dt-none" style="font-size:10px">' + esc(why.join('·')) + '</span>'
+    if (c === 'high') return '<span class="dt-none">—</span>'
+    return '<span class="v ' + (c === 'low' ? 'cold' : 'warn') + '">' + (c === 'medium' ? '⚠ 中' : '✗ 低') + '</span>'
+  })
   inds.forEach(function (it) {
     var label = esc(it.label)
     if (opts.clickable) {
@@ -2585,7 +2631,10 @@ function confidenceDisplay() {
   Object.keys(lows).forEach(function (f) { parts.push(CONF_FIELD_ZH[f] || f) })
   if (weather.unavailableSources && weather.unavailableSources.length) parts.push('源不可用 ' + weather.unavailableSources.join('/'))
   if (weather.precipUncertain) parts.push('集合对降水分歧大（概率 40~60%）')
-  if (weather.ensMaxSpread != null && weather.ensMaxSpread > 4) parts.push('集合离散大（温度 ' + Math.round(weather.ensMaxSpread) + '°C）')
+  var ec = ensCfg()
+  if (weather.ensMaxSpread != null && weather.ensMaxSpread > ec.tempC) parts.push('温度集合离散 ' + Math.round(weather.ensMaxSpread) + '°C')
+  if (weather.ensWindMax != null && weather.ensWindMax > ec.windKmh) parts.push('风集合离散 ' + Math.round(weather.ensWindMax) + 'km/h')
+  if (weather.ensPrecipMax != null && weather.ensPrecipMax > ec.precipMm) parts.push('降水资源量离散 ' + Math.round(weather.ensPrecipMax) + 'mm')
   var reason = parts.length ? '，原因：' + parts.join(' · ') : ''
   var cls = c === 'low' ? 'orange' : 'blue'
   return '<div style="margin-top:8px"><span class="risk ' + cls + '" style="margin-right:6px">多源一致度' + (c === 'low' ? '低' : '中') + '</span><span style="color:var(--text-muted)">' + esc(reason) + '</span></div>' +
@@ -2802,6 +2851,10 @@ async function runWeather() {
       var first = splitPoints[0]
       var allSame = splitPoints.every(function (p) { return p.lat === first.lat && p.lon === first.lon })
       var list = []
+      // 集合预报（best-effort）：逐点并行发起（与主查询并发），温度/风/降水资源量成员离散；失败 null 不阻断
+      var ensJobs = (appConfig.weatherPriority || []).indexOf('open-meteo') >= 0
+        ? (allSame ? [omEnsemble(first.lat, first.lon, need)] : splitPoints.map(function (p) { return omEnsemble(p.lat, p.lon, need) }))
+        : []
       if (allSame) {
         $('wxStatus').textContent = '查询中…（第 1/1 点）'
         setWxProgress(0.1)
@@ -2822,12 +2875,10 @@ async function runWeather() {
         for (var _pe = 0; _pe < splitPoints.length; _pe++) if (!(splitPoints[_pe].ele > 0)) splitPoints[_pe].ele = _srcEle
         if (selLoc && !(selLoc.ele > 0)) selLoc.ele = _srcEle
       }
-      // 集合预报（best-effort）：仅对首点查 OM ensemble，取温度成员离散 → 真·一致度信号；失败不阻断
-      var _ens = null
-      if (list && list[0] && (appConfig.weatherPriority || []).indexOf('open-meteo') >= 0 && splitPoints[0]) {
-        _ens = await omEnsemble(splitPoints[0].lat, splitPoints[0].lon, need)
-      }
-      weather = aggregateDays(list, splitPoints, offset, _ens)
+      // 集合结果：点位目标展开到每天（同一份集合），路线逐点各一份
+      var ensRaw = await Promise.all(ensJobs)
+      var ensList = allSame ? splitPoints.map(function () { return ensRaw[0] }) : ensRaw
+      weather = aggregateDays(list, splitPoints, offset, ensList)
       weatherFromCache = false
       weather.srcs = (list.filter(Boolean)[0] || {}).srcs || ['open-meteo']
       try { await idbSet('weather-cache', ckey, { ver: WEATHER_CACHE_VER, routeHash: key, startDate: startDate, days: days, cachedAt: new Date().toISOString(), weather: weather }) } catch (e) {}
@@ -2910,6 +2961,7 @@ var EQUIPMENT = [
   { id: 'sleep_lamp', name: '帐内小灯', cat: '睡眠', w: 50, m: false, t: 'upgrade', p: false, c: { f: 'tripMode', op: '==', v: 1 } },
   { id: 'sleep_snowskirt', name: '雪裙', cat: '睡眠', w: 120, m: false, t: 'cold', p: false, c: { and: [{ f: 'tripMode', op: '==', v: 1 }, { f: 'tempMin', op: '<', v: 0 }] } },
   { id: 'sleep_repair', name: '帐篷修补包/地钉备用', cat: '睡眠', w: 100, m: false, t: 'cold', p: false, c: { and: [{ f: 'tripMode', op: '==', v: 1 }, { f: 'tempMin', op: '<', v: 0 }] } },
+  { id: 'sleep_windkits', name: '帐篷风绳/加固地钉(风集合离散大)', cat: '睡眠', w: 150, m: false, t: 'base', p: false, c: { and: [{ f: 'tripMode', op: '==', v: 1 }, { f: 'ensWindSpread', op: '>=', v: 15 }] } },
   { id: 'sleep_tent_5s', name: '高山四级帐(暴风雪/极地)', cat: '睡眠', w: 3000, m: false, t: 'cold', p: false, c: { and: [{ f: 'tripMode', op: '==', v: 1 }, { or: [{ f: 'snow', op: '>=', v: 1 }, { f: 'elevation', op: '>', v: 4000 }] }] } },
   { id: 'sleep_bag_duck', name: '鸭毛睡袋(潮湿低海拔/舒适5-15°C)', cat: '睡眠', w: 1000, m: false, t: 'base', p: false, c: { and: [{ f: 'tripMode', op: '==', v: 1 }, { and: [{ f: 'tempMin', op: '>=', v: 5 }, { f: 'tempMin', op: '<=', v: 15 }] }] } },
   { id: 'sleep_pad_silver', name: '银搓泡沫垫(R3.0-3.5)', cat: '睡眠', w: 500, m: false, t: 'upgrade', p: false, c: { and: [{ f: 'tripMode', op: '==', v: 1 }, { and: [{ f: 'tempMin', op: '>=', v: 0 }, { f: 'tempMin', op: '<', v: 15 }] }] } },
@@ -3068,7 +3120,7 @@ function evalCond(c, ctx) {
 }
 function condLabel(c) {
   if (!c) return ''
-  var FM = { precipProb: '降水', tempMax: '最高温', tempMin: '最低温', nightMin: '夜间最低温', windLevel: '风', windSpeed: '风速', uvi: 'UV', elevation: '海拔', snow: '降雪', thunder: '雷暴', tripMode: '模式', overNight: '过夜', humidity: '湿度', visibility: '能见度', windchill: '风寒', days: '天数', highAlt: '高海拔', alertRisk: '预警', hiLow: '高低温', altZone: '海拔区间', precipIntensity: '降水强度', windGust: '阵风', precipSum: '降水量' }
+  var FM = { precipProb: '降水', tempMax: '最高温', tempMin: '最低温', nightMin: '夜间最低温', windLevel: '风', windSpeed: '风速', uvi: 'UV', elevation: '海拔', snow: '降雪', thunder: '雷暴', tripMode: '模式', overNight: '过夜', humidity: '湿度', visibility: '能见度', windchill: '风寒', days: '天数', highAlt: '高海拔', alertRisk: '预警', hiLow: '高低温', altZone: '海拔区间', precipIntensity: '降水强度', windGust: '阵风', precipSum: '降水量', ensWindSpread: '风集合离散', ensTempSpread: '温度集合离散' }
   // 区间（同字段 ≥/≤）→ 「字段 lo~hi」
   if (c.and && c.and.length === 2 && c.and[0].f === c.and[1].f) {
     var a = c.and[0], b = c.and[1]
@@ -3086,7 +3138,7 @@ function condLabel(c) {
 /* 命中值溯源文案：在 condLabel 基础上嵌入实际命中值，如「夜间最低温 2°C<3」 */
 function condLabelHit(c, ctx) {
   if (!c) return ''
-  var FM = { precipProb: '降水', tempMax: '最高温', tempMin: '最低温', nightMin: '夜间最低温', windLevel: '风', windSpeed: '风速', uvi: 'UV', elevation: '海拔', snow: '降雪', thunder: '雷暴', tripMode: '模式', overNight: '过夜', humidity: '湿度', visibility: '能见度', windchill: '风寒', days: '天数', highAlt: '高海拔', alertRisk: '预警', hiLow: '高低温', altZone: '海拔区间', precipIntensity: '降水强度', windGust: '阵风', precipSum: '降水量' }
+  var FM = { precipProb: '降水', tempMax: '最高温', tempMin: '最低温', nightMin: '夜间最低温', windLevel: '风', windSpeed: '风速', uvi: 'UV', elevation: '海拔', snow: '降雪', thunder: '雷暴', tripMode: '模式', overNight: '过夜', humidity: '湿度', visibility: '能见度', windchill: '风寒', days: '天数', highAlt: '高海拔', alertRisk: '预警', hiLow: '高低温', altZone: '海拔区间', precipIntensity: '降水强度', windGust: '阵风', precipSum: '降水量', ensWindSpread: '风集合离散', ensTempSpread: '温度集合离散' }
   var TEMP_FIELDS = { tempMax: 1, tempMin: 1, nightMin: 1, appMax: 1, appMin: 1, nightAppTemp: 1, appDay: 1, windchill: 1, dewPoint: 1, tempMean: 1 }
   var UNIT = { precipProb: '%', humidity: '%', windSpeed: 'km/h', windLevel: '级', elevation: 'm', precipSum: 'mm', uvi: '', windGust: 'km/h' }
   function vOf(f) { var v = ctx[f]; return v == null || isNaN(v) ? null : (Math.round(v * 10) / 10) }
@@ -3164,6 +3216,12 @@ function buildGearCtx(day) {
   var _activeH = ((appConfig.activeWindow && appConfig.activeWindow[1]) || 18) - ((appConfig.activeWindow && appConfig.activeWindow[0]) || 8)
   var _uvC = null
   days.forEach(function (d) { if (d.uvi != null) { var c = d.uvi * _activeH; _uvC = _uvC == null ? c : Math.max(_uvC, c) } })
+  // 集合离散：温度/风成员极差最大值（逐日，供大风加固等装备联动）
+  var _ensWind = 0, _ensTemp = 0
+  days.forEach(function (d) {
+    if (d.ensWindSpread != null && d.ensWindSpread > _ensWind) _ensWind = d.ensWindSpread
+    if (d.ensTempSpread != null && d.ensTempSpread > _ensTemp) _ensTemp = d.ensTempSpread
+  })
   return {
     precipProb: precipProb != null ? precipProb : null, tempMax: tempMax != null ? tempMax : null, tempMin: tempMin != null ? tempMin : null,
     windSpeed: windSpeed || 0, windLevel: windLevel || 0, uvi: uvi || 0, humidity: humidity != null ? humidity : null,
@@ -3172,6 +3230,7 @@ function buildGearCtx(day) {
     precipIntensity: precipIntensity, hiLow: hiLow, tripMode: tripModeNum, overNight: overNight, highAlt: highAlt, alertRisk: alertRisk,
     confidence: _conf, precipLowCons: _precipLow ? 1 : 0,
     returnAfterDark: (_rd && _rd.state) || 'green', uvCumulative: _uvC,
+    ensWindSpread: _ensWind || null, ensTempSpread: _ensTemp || null,
     days: days.length
   }
 }
@@ -5575,7 +5634,8 @@ var DEFAULT_CFG = {
   weatherIndicators: [], overviewRows: [],
   ownedGear: [], customGear: [], tripMode: 'light', highAltitude: false, cardWeather: [],
   gearOverrides: {}, weatherPriorityMeta: {},
-  freshness: null   // 预报新鲜度阈值（C2）：缺省用 FRESHNESS_DEFAULT.bands
+  freshness: null,   // 预报新鲜度阈值（C2）：缺省用 FRESHNESS_DEFAULT.bands
+  ensCfg: null       // 集合一致度阈值（C6 升级）：缺省 {tempC:4, windKmh:15, precipMm:20, precipBand:[40,60]}
 }
 async function loadConfig() {
   try {
