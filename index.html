@@ -6366,6 +6366,12 @@ function toggleTerrain3D() {
 var _wf = { on: false, canvas: null, raf: 0, pts: [], particles: [], bounds: null, ctx: null, size: 7, spacing: 0.18 }
 /* 风级配色（km/h）：绿<16 黄<25 橙<39 红≥39 */
 function wfColor(kmh) { return kmh >= 39 ? '#e5533c' : kmh >= 25 ? '#e8a33d' : kmh >= 16 ? '#e8d34d' : '#5aa86a' }
+/* hex → "r,g,b"（拖尾渐变用） */
+function wfRgb(hex) {
+  var h = String(hex || '').replace('#', '')
+  if (h.length !== 6) return '120,170,120'
+  return parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) + ',' + parseInt(h.slice(4, 6), 16)
+}
 /* 当前查询中心点 */
 function wfCenter() {
   if (selLoc) return { lat: selLoc.lat, lon: selLoc.lng }
@@ -6443,15 +6449,8 @@ function startWindAnim(pts) {
     var dt = Math.min(0.05, (now - last) / 1000); last = now
     var zoom = map.getZoom()
     var ppm = Math.pow(2, zoom) / (156543 * Math.cos(pts[0].lat * Math.PI / 180))   // 米→像素
-    var SPEED = 600   // 视觉放大系数：让 5m/s 风 ≈ 60-100px/s 流动（Windy 式动效）
+    var SPEED = 700   // 视觉放大系数：让风明显流动
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-    // 轻量经纬网格（表示场范围）
-    ctx.strokeStyle = 'rgba(140,180,230,.06)'; ctx.lineWidth = 1
-    for (var gy = 0; gy <= s - 1; gy += 2) {
-      var pA = map.latLngToContainerPoint([gLat0 + (gLat1 - gLat0) * gy / (s - 1), gLon0])
-      var pB = map.latLngToContainerPoint([gLat0 + (gLat1 - gLat0) * gy / (s - 1), gLon1])
-      ctx.beginPath(); ctx.moveTo(pA.x, pA.y); ctx.lineTo(pB.x, pB.y); ctx.stroke()
-    }
     particles.forEach(function (p) {
       if (p.lat < gLat0 || p.lat > gLat1 || p.lon < gLon0 || p.lon > gLon1) {
         p.lat = gLat0 + Math.random() * (gLat1 - gLat0); p.lon = gLon0 + Math.random() * (gLon1 - gLon0)
@@ -6462,15 +6461,29 @@ function startWindAnim(pts) {
       var dLon = w.u * dt * SPEED * ppm / (111320 * cosL)
       p.lat += dLat; p.lon += dLon
       var pt = map.latLngToContainerPoint([p.lat, p.lon])
-      // 流速 → 风级配色 + 亮度；拖尾 = 上一帧到本帧线段（流动感）
+      // 屏幕速度（px/s）→ 拖尾方向
+      var vx = 0, vy = 0
+      if (dt > 0) {
+        var pt0 = map.latLngToContainerPoint([p.lat - dLat, p.lon - dLon])
+        vx = (pt.x - pt0.x) / dt; vy = (pt.y - pt0.y) / dt
+      }
       var spdMs = Math.sqrt(w.u * w.u + w.v * w.v)
       var kmh = spdMs * 3.6
       var color = wfColor(kmh)
-      var alpha = Math.min(0.95, 0.4 + kmh / 40)
-      ctx.strokeStyle = color; ctx.globalAlpha = alpha; ctx.lineWidth = 1.8; ctx.lineCap = 'round'
-      ctx.beginPath(); ctx.moveTo(p.px || pt.x, p.py || pt.y); ctx.lineTo(pt.x, pt.y); ctx.stroke()
+      var len = Math.max(4, Math.min(26, Math.sqrt(vx * vx + vy * vy) * 0.16))
+      if (vx || vy) {
+        var vl = Math.sqrt(vx * vx + vy * vy) || 1
+        var nx = vx / vl, ny = vy / vl
+        // 拖尾：从尾到头的渐变亮线
+        var g = ctx.createLinearGradient(pt.x, pt.y, pt.x - nx * len, pt.y - ny * len)
+        g.addColorStop(0, color); g.addColorStop(1, 'rgba(' + wfRgb(color) + ',0)')
+        ctx.strokeStyle = g; ctx.lineWidth = 2.6; ctx.lineCap = 'round'
+        ctx.beginPath(); ctx.moveTo(pt.x - nx * len, pt.y - ny * len); ctx.lineTo(pt.x, pt.y); ctx.stroke()
+      }
+      // 头粒子亮圆点
+      ctx.fillStyle = color
       ctx.globalAlpha = 1
-      p.px = pt.x; p.py = pt.y
+      ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.4, 0, 6.2832); ctx.fill()
     })
     _wf.raf = requestAnimationFrame(tick)
   }
@@ -6703,9 +6716,9 @@ function saveWindyKey(v) {
 /* Windy Map Forecast key（独立于天气源，存配置；外链风场图无需 key） */
 function windyMapKey() { return (appConfig && appConfig.windyMapKey) || '' }
 function saveWindyMapKey(v) { appConfig.windyMapKey = String(v || '').trim(); saveConfig() }
-/* Windy 深链 zoom：单点=11（近景约 50-80km）；路线按跨度自适应（Windy 视野约 360/2^zoom 度，取 2.5× 跨度）。纯函数可测。 */
+/* Windy 深链 zoom：单点=13（约 10km 近景）；路线按跨度自适应。纯函数可测。 */
 function windyFitZoom(lat, route) {
-  if (!route || route.length < 2) return 11
+  if (!route || route.length < 2) return 13
   var minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity
   route.forEach(function (p) {
     if (p.lat < minLat) minLat = p.lat
@@ -6716,7 +6729,7 @@ function windyFitZoom(lat, route) {
   })
   var midLat = (minLat + maxLat) / 2 * Math.PI / 180
   var spanDeg = Math.max(maxLat - minLat, (maxLon - minLon) * Math.cos(midLat))
-  return Math.max(7, Math.min(12, Math.round(Math.log2(360 / Math.max(spanDeg * 2.5, 0.03)))))
+  return Math.max(8, Math.min(13, Math.round(Math.log2(360 / Math.max(spanDeg * 2.5, 0.03)))))
 }
 
 /* 第 1 步「🌬 Windy 风场」：新标签页打开 windy.com 该坐标风场图（公开站点，免 key）。
