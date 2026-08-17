@@ -1566,10 +1566,10 @@ function initPlaceMap() {
   L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', { subdomains: ['1', '2', '3', '4'], attribution: '© 高德' }).addTo(placeMap)
   if (selLoc) {
     var g0 = wgs84ToGcj02(selLoc.lat, selLoc.lng)
-    placeMap.setView([g0.lat, g0.lng], 12)
+    placeMap.setView([g0.lat, g0.lng], mapZoomForKm(5))   // 默认视野 5km
     placePin({ lat: selLoc.lat, lng: selLoc.lng })
   } else {
-    placeMap.setView([39.9987, 115.784], 12)
+    placeMap.setView([39.9987, 115.784], mapZoomForKm(5))
   }
   placeMap.on('click', function (e) {
     if (entryMode === 'imp' && route && route.length > 1) return   // 路线模式：只读，不选点
@@ -1608,7 +1608,7 @@ function placePin(wgs) {
 function syncPlaceMap(lat, lng) {
   if (!placeMap) return
   var g = wgs84ToGcj02(lat, lng)
-  placeMap.setView([g.lat, g.lng], 12)
+  placeMap.setView([g.lat, g.lng], mapZoomForKm(5))   // 默认视野 5km
   placePin({ lat: lat, lng: lng })
   if (typeof refreshWindField === 'function') refreshWindField()   // 风场随位置移动刷新
 }
@@ -1618,7 +1618,15 @@ function mapZoom(dir) {
   if (!placeMap) return
   if (dir > 0) placeMap.zoomIn(); else placeMap.zoomOut()
 }
-/* 地图视野快捷定位：按目标公里数算 zoom 并居中（W=视口宽 px；mpp=156543×cos(lat)/2^Z → Z=log2(W×156.543×cos(lat)/km)） */
+/* 按目标公里数算地图 zoom（用较短维度=高度作限制；mpp=156543×cos(lat)/2^Z → Z=log2(W×156.543×cos(lat)/km)） */
+function mapZoomForKm(km) {
+  var sz = (placeMap && placeMap.getSize && placeMap.getSize()) || { x: 800, y: 400 }
+  var W = Math.min(sz.x, sz.y) || 400
+  var lat = selLoc ? selLoc.lat : 35
+  var zoom = Math.round(Math.log2(W * 156.543 * Math.cos(lat * Math.PI / 180) / Math.max(km, 1)))
+  return Math.max(6, Math.min(18, zoom))
+}
+/* 地图视野快捷定位：按目标公里数算 zoom 并居中 */
 function mapSetViewKm(km) {
   if (!placeMap) { toast('地图未就绪'); return }
   var lat, lon
@@ -1634,10 +1642,7 @@ function mapSetViewKm(km) {
     })
     lat = (minLat + maxLat) / 2; lon = (minLon + maxLon) / 2
   } else { toast('请先选择地点或导入路线'); return }
-  var sz = (placeMap.getSize && placeMap.getSize()) || { x: 800, y: 400 }
-  var W = Math.min(sz.x, sz.y) || 400   // 用较短的维度（地图高度）作限制，目标公里数落在竖向视野上
-  var zoom = Math.round(Math.log2(W * 156.543 * Math.cos(lat * Math.PI / 180) / Math.max(km, 1)))
-  zoom = Math.max(6, Math.min(18, zoom))
+  var zoom = mapZoomForKm(km)
   var g = wgs84ToGcj02(lat, lon)
   placeMap.setView([g.lat, g.lng], zoom)
   toast('视野约 ' + km + 'km（zoom ' + zoom + '）')
@@ -7131,8 +7136,8 @@ function renderRouteDisplay() {
       routeDrawLayers.push(mk.addTo(placeMap))
     })(k)
   }
-  // 视野保留轨迹周边约 50-80km：fitBounds maxZoom 11（短路线不贴太近，显示区域上下文）
-  placeMap.fitBounds(boundsArr, { padding: [24, 24], maxZoom: 11 })
+  // 默认视野 5km：fitBounds maxZoom 13（短路线不贴太近、显示约 5km 上下文；长路线仍全部可见）
+  placeMap.fitBounds(boundsArr, { padding: [24, 24], maxZoom: 13 })
   showRouteProfile()
 }
 
