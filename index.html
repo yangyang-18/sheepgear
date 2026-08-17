@@ -6357,12 +6357,13 @@ function toggleTerrain3D() {
 }
 </script>
 <script>
-/* ============ js/windfield.js · 风场图（Open-Meteo 免 key，Leaflet 自绘风箭头） ============
-   第 1 步地图上的风场开关：以当前位置为中心拉 5×5 网格的 Open-Meteo 逐时风（风速/风向），
-   在 placeMap 上画彩色风箭头（方向=风向，长度=风速，颜色=风级）。免 key、CORS 已实测、无外部插件。
-   关闭/换位置时清理图层，失败降级提示，不阻塞。 */
+/* ============ js/windfield.js · 动态风场粒子流（Open-Meteo 免 key，canvas 动画） ============
+   第 1 步地图上的风场开关：拉当前位置周边 7×7 网格的 Open-Meteo 逐时风（风速/风向），
+   在 Leaflet 地图上叠加 canvas 粒子流——粒子沿风场方向流动（双线性插值），速度越快越亮/越暖，
+   形成 Windy 式动态风场图。免 key、CORS 已实测、无外部插件。
+   关闭/换位置时停止动画清理画布；失败降级提示，不阻塞。 */
 
-var _wf = { on: false, group: null, timer: 0 }
+var _wf = { on: false, canvas: null, raf: 0, pts: [], particles: [], bounds: null, ctx: null, size: 7, spacing: 0.18 }
 /* 风级配色（km/h）：绿<16 黄<25 橙<39 红≥39 */
 function wfColor(kmh) { return kmh >= 39 ? '#e5533c' : kmh >= 25 ? '#e8a33d' : kmh >= 16 ? '#e8d34d' : '#5aa86a' }
 /* 当前查询中心点 */
@@ -6371,70 +6372,144 @@ function wfCenter() {
   if (route && route.length) return { lat: route[0].lat, lon: route[0].lon != null ? route[0].lon : route[0].lng }
   return null
 }
-/* 拉 5×5 网格（0.4° ≈ 44km 间距，覆盖约 180km 方域）Open-Meteo 逐时风；返回 [{lat,lon,ws,dir}] */
-function wfFetchGrid(cx, cy) {
+/* 拉 size×size 网格（spacing 度间距）Open-Meteo 逐时风；返回 [{lat,lon,ws,dir,u,v}]（u=东向 m/s, v=北向 m/s） */
+function wfFetchGrid(cx, cy, size, spacing) {
+  size = size || _wf.size; spacing = spacing || _wf.spacing
   var jobs = []
-  for (var r = 0; r < 5; r++) for (var c = 0; c < 5; c++) {
-    var lat = (cx + (r - 2) * 0.4).toFixed(2), lon = (cy + (c - 2) * 0.4).toFixed(2)
-    jobs.push(fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&hourly=wind_speed_10m,wind_direction_10m&forecast_days=1&timezone=auto', { signal: AbortSignal.timeout(12000) })
-      .then(function (r) { if (!r.ok) throw 0; return r.json() })
-      .then(function (j) {
-        var h = j.hourly || {}
-        var ws = h.wind_speed_10m, dir = h.wind_direction_10m
-        if (!ws || !ws.length) return null
-        // 取第一个完整时次（0 时次可能为当前时刻）——取今天 12:00 附近作代表
-        var idx = Math.min(ws.length - 1, 12)
-        return { lat: +lat, lon: +lon, ws: ws[idx], dir: dir ? dir[idx] : null }
-      }).catch(function () { return null }))
+  var off = (size - 1) / 2
+  for (var r = 0; r < size; r++) for (var c = 0; c < size; c++) {
+    var lat = (cx + (r - off) * spacing).toFixed(3), lon = (cy + (c - off) * spacing).toFixed(3)
+    ;(function (lat, lon) {   // IIFE 捕获本轮 lat/lon（避免闭包读到循环最终值）
+      jobs.push(fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&hourly=wind_speed_10m,wind_direction_10m&forecast_days=1&timezone=auto', { signal: AbortSignal.timeout(12000) })
+        .then(function (r) { if (!r.ok) throw 0; return r.json() })
+        .then(function (j) {
+          var h = j.hourly || {}
+          var ws = h.wind_speed_10m, dir = h.wind_direction_10m
+          if (!ws || !ws.length || dir == null || !dir.length) return null
+          var idx = Math.min(ws.length - 1, 12)
+          var s = ws[idx], d = dir[idx]
+          if (s == null || d == null) return null
+          // 气象风向 = 风的来向；流向来向+180° → u(东)/v(北) m/s
+          var rad = d * Math.PI / 180
+          return { lat: +lat, lon: +lon, ws: s, dir: d, u: -s * Math.sin(rad), v: -s * Math.cos(rad) }
+        }).catch(function () { return null }))
+    })(lat, lon)
   }
   return Promise.all(jobs)
 }
-/* 在 placeMap 上画风箭头（折线 + 箭头尖端），返回图层 */
-function wfLayer(points) {
-  var g = L.layerGroup()
-  points.forEach(function (p) {
-    if (p.ws == null || p.dir == null) return
-    var kmh = Math.round(p.ws * 3.6)          // m/s → km/h
-    var rad = p.dir * Math.PI / 180
-    // 风从 p 点沿来向（来向角即箭头指向的来源方向；箭头应指向风去的方向 = 风向+180°）
-    var toR = (p.dir + 180) * Math.PI / 180
-    var len = Math.min(0.08, 0.02 + kmh * 0.0016)   // 箭头长度随风速（度），封顶
-    var dl = 0.35, dLo = dl / Math.cos(p.lat * Math.PI / 180)
-    var ex = p.lon + Math.sin(toR) * dLo, ey = p.lat + Math.cos(toR) * dl   // 箭头末端
-    var color = wfColor(kmh)
-    L.polyline([[p.lat, p.lon], [ey, ex]], { color: color, weight: 2, opacity: 0.95 }).addTo(g)
-    // 箭头尖端（两条短线）
-    var ah = 0.02, a1 = toR + Math.PI * 0.75, a2 = toR - Math.PI * 0.75
-    var h1x = ex + Math.sin(a1) * ah * (dl / 0.35), h1y = ey + Math.cos(a1) * ah * (dl / 0.35)
-    var h2x = ex + Math.sin(a2) * ah * (dl / 0.35), h2y = ey + Math.cos(a2) * ah * (dl / 0.35)
-    L.polyline([[ey, ex], [h1y, h1x]], { color: color, weight: 2, opacity: 0.95 }).addTo(g)
-    L.polyline([[ey, ex], [h2y, h2x]], { color: color, weight: 2, opacity: 0.95 }).addTo(g)
-  })
-  return g
+/* 双线性插值取 (lat,lon) 处风矢量；返回 {u,v}（m/s） */
+function wfInterp(pts, lat, lon) {
+  // 用 4 角判定网格结构：pts 为 size×size，按 r 行序存储
+  var s = Math.round(Math.sqrt(pts.length))
+  var gLat0 = pts[0].lat, gLat1 = pts[s * (s - 1)].lat, gLon0 = pts[0].lon, gLon1 = pts[s - 1].lon
+  if (gLat1 === gLat0 || gLon1 === gLon0) return { u: 0, v: 0 }   // 退化网格（同点）防除零
+  var n = (lat - gLat0) / (gLat1 - gLat0), m = (lon - gLon0) / (gLon1 - gLon0)
+  n = Math.max(0, Math.min(s - 1.001, n)); m = Math.max(0, Math.min(s - 1.001, m))
+  var i0 = Math.floor(n), i1 = i0 + 1, j0 = Math.floor(m), j1 = j0 + 1
+  var fn = n - i0, fm = m - j0
+  function g(i, j) { var p = pts[i * s + j]; return p ? p : { u: 0, v: 0 } }
+  var p00 = g(i0, j0), p01 = g(i0, j1), p10 = g(i1, j0), p11 = g(i1, j1)
+  var u = (p00.u * (1 - fn) + p10.u * fn) * (1 - fm) + (p01.u * (1 - fn) + p11.u * fn) * fm
+  var v = (p00.v * (1 - fn) + p10.v * fn) * (1 - fm) + (p01.v * (1 - fn) + p11.v * fn) * fm
+  return { u: u, v: v }
+}
+/* 粒子动画：canvas 覆盖地图容器，粒子沿风场流动（运动轨迹淡出） */
+function startWindAnim(pts) {
+  clearWindField()   // 清旧（含画布）
+  var map = placeMap, container = map.getContainer()
+  var canvas = document.createElement('canvas')
+  canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:800'
+  container.appendChild(canvas)
+  var ctx = canvas.getContext('2d')
+  function resize() {
+    canvas.width = container.clientWidth; canvas.height = container.clientHeight
+  }
+  resize()
+  var s = Math.round(Math.sqrt(pts.length))
+  var gLat0 = pts[0].lat, gLat1 = pts[s * (s - 1)].lat, gLon0 = pts[0].lon, gLon1 = pts[s - 1].lon
+  // 粒子：分布在网格内，带小随机抖动
+  var particles = []
+  var N = 420
+  for (var i = 0; i < N; i++) {
+    particles.push({
+      lat: gLat0 + Math.random() * (gLat1 - gLat0),
+      lon: gLon0 + Math.random() * (gLon1 - gLon0),
+      px: 0, py: 0, hue: Math.random()
+    })
+  }
+  var last = performance.now()
+  function tick(now) {
+    if (!_wf.on || !_wf.canvas) return
+    var dt = Math.min(0.05, (now - last) / 1000); last = now
+    var zoom = map.getZoom()
+    var ppm = Math.pow(2, zoom) / (156543 * Math.cos(pts[0].lat * Math.PI / 180))   // 米→像素
+    var SPEED = 600   // 视觉放大系数：让 5m/s 风 ≈ 60-100px/s 流动（Windy 式动效）
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    // 轻量经纬网格（表示场范围）
+    ctx.strokeStyle = 'rgba(140,180,230,.06)'; ctx.lineWidth = 1
+    for (var gy = 0; gy <= s - 1; gy += 2) {
+      var pA = map.latLngToContainerPoint([gLat0 + (gLat1 - gLat0) * gy / (s - 1), gLon0])
+      var pB = map.latLngToContainerPoint([gLat0 + (gLat1 - gLat0) * gy / (s - 1), gLon1])
+      ctx.beginPath(); ctx.moveTo(pA.x, pA.y); ctx.lineTo(pB.x, pB.y); ctx.stroke()
+    }
+    particles.forEach(function (p) {
+      if (p.lat < gLat0 || p.lat > gLat1 || p.lon < gLon0 || p.lon > gLon1) {
+        p.lat = gLat0 + Math.random() * (gLat1 - gLat0); p.lon = gLon0 + Math.random() * (gLon1 - gLon0)
+      }
+      var w = wfInterp(pts, p.lat, p.lon)
+      var cosL = Math.cos(p.lat * Math.PI / 180)
+      var dLat = w.v * dt * SPEED * ppm / 111320 * 0.9
+      var dLon = w.u * dt * SPEED * ppm / (111320 * cosL)
+      p.lat += dLat; p.lon += dLon
+      var pt = map.latLngToContainerPoint([p.lat, p.lon])
+      // 流速 → 风级配色 + 亮度；拖尾 = 上一帧到本帧线段（流动感）
+      var spdMs = Math.sqrt(w.u * w.u + w.v * w.v)
+      var kmh = spdMs * 3.6
+      var color = wfColor(kmh)
+      var alpha = Math.min(0.95, 0.4 + kmh / 40)
+      ctx.strokeStyle = color; ctx.globalAlpha = alpha; ctx.lineWidth = 1.8; ctx.lineCap = 'round'
+      ctx.beginPath(); ctx.moveTo(p.px || pt.x, p.py || pt.y); ctx.lineTo(pt.x, pt.y); ctx.stroke()
+      ctx.globalAlpha = 1
+      p.px = pt.x; p.py = pt.y
+    })
+    _wf.raf = requestAnimationFrame(tick)
+  }
+  _wf.on = true
+  _wf.canvas = canvas; _wf.ctx = ctx; _wf.pts = pts; _wf.particles = particles; _wf.bounds = { gLat0: gLat0, gLat1: gLat1, gLon0: gLon0, gLon1: gLon1 }
+  _wf.raf = requestAnimationFrame(tick)
+  // 地图移动/缩放时粒子仍在地理空间随动（每帧重投影）；容器尺寸变化重设画布
+  if (window.addEventListener) window.addEventListener('resize', resize)
+  _wf.resize = resize
 }
 /* 风场开关 */
 function toggleWindField() {
-  if (!placeMap) { toast('地图未就绪'); return }
   if (_wf.on) { clearWindField(); return }
   var c = wfCenter()
   if (!c) { toast('请先选择地点或导入路线'); return }
-  if (typeof L === 'undefined') { toast('地图组件未加载'); return }
+  if (typeof placeMap === 'undefined' || typeof L === 'undefined') { toast('地图组件未加载'); return }
+  // 网格覆盖可视区约 1.3 倍：从当前地图视野反推间距（风场填满视野，缩放后粒子仍在地理空间随动）
+  var b = placeMap.getBounds()
+  var spanLat = b.getNorth() - b.getSouth(), spanLon = b.getEast() - b.getWest()
+  var spacing = Math.max(spanLat, spanLon * Math.cos(c.lat * Math.PI / 180)) / (_wf.size - 1) * 1.3
+  spacing = Math.max(0.02, Math.min(2, spacing))
   toast('正在拉取风场…')
-  wfFetchGrid(c.lat, c.lon).then(function (pts) {
-    if (_wf.on) return   // 已关闭则丢弃
+  wfFetchGrid(c.lat, c.lon, _wf.size, spacing).then(function (pts) {
+    if (_wf.on) return   // 期间已关闭则丢弃
     var ok = pts.filter(Boolean)
     if (!ok.length) { toast('风场拉取失败，请重试'); return }
-    _wf.group = wfLayer(ok)
-    _wf.group.addTo(placeMap)
-    _wf.on = true
-    toast('风场已显示 · ' + ok.length + ' 网格点')
+    startWindAnim(ok)
+    toast('风场已显示 · 动态粒子 · ' + ok.length + ' 网格点')
   })
 }
 function clearWindField() {
-  if (_wf.group) { placeMap.removeLayer(_wf.group); _wf.group = null }
+  if (_wf.raf) cancelAnimationFrame(_wf.raf); _wf.raf = 0
+  if (_wf.canvas && _wf.canvas.parentNode) _wf.canvas.parentNode.removeChild(_wf.canvas)
+  _wf.canvas = null; _wf.ctx = null; _wf.pts = []; _wf.particles = []; _wf.bounds = null
+  if (_wf.resize && window.removeEventListener) window.removeEventListener('resize', _wf.resize)
+  _wf.resize = null
   _wf.on = false
 }
-/* 位置变化时自动清场（避免旧位置箭头残留） */
+/* 位置变化时自动清场（避免旧位置粒子残留） */
 function refreshWindField() { if (_wf.on) { clearWindField(); toggleWindField() } }
 
 </script>
