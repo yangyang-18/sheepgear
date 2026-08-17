@@ -575,9 +575,13 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
     <div class="pick-bar" id="pickBar">
       <span class="coord-read" id="pickCoord">尚未选点</span>
     </div>
-    <div class="map-actions" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+    <div class="map-actions" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
       <button class="btn" style="padding:4px 12px;font-size:12px" onclick="toggleWindField()">🌪 风场</button>
       <button class="btn" style="padding:4px 12px;font-size:12px" onclick="openWindyMap()">🌬 Windy 风场图</button>
+      <span style="font-size:11px;color:var(--text-muted)">视野</span>
+      <button class="btn" style="padding:4px 10px;font-size:11px" onclick="mapViewPreset(50)" title="显示约 50km 区域">50km</button>
+      <button class="btn" style="padding:4px 10px;font-size:11px" onclick="mapViewPreset(10)" title="显示约 10km">10km</button>
+      <button class="btn" style="padding:4px 10px;font-size:11px" onclick="mapViewPreset(5)" title="显示约 5km 特写">5km</button>
     </div>
   </div>
   <div id="mapErr" style="display:none"></div>
@@ -1614,6 +1618,31 @@ function mapZoom(dir) {
   if (!placeMap) return
   if (dir > 0) placeMap.zoomIn(); else placeMap.zoomOut()
 }
+/* 地图视野快捷定位：按目标公里数算 zoom 并居中（W=视口宽 px；mpp=156543×cos(lat)/2^Z → Z=log2(W×156.543×cos(lat)/km)） */
+function mapSetViewKm(km) {
+  if (!placeMap) { toast('地图未就绪'); return }
+  var lat, lon
+  if (selLoc) { lat = selLoc.lat; lon = selLoc.lng }
+  else if (route && route.length) {
+    var minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity
+    route.forEach(function (p) {
+      if (p.lat < minLat) minLat = p.lat
+      if (p.lat > maxLat) maxLat = p.lat
+      var lo = p.lon != null ? p.lon : p.lng
+      if (lo < minLon) minLon = lo
+      if (lo > maxLon) maxLon = lo
+    })
+    lat = (minLat + maxLat) / 2; lon = (minLon + maxLon) / 2
+  } else { toast('请先选择地点或导入路线'); return }
+  var sz = (placeMap.getSize && placeMap.getSize()) || { x: 800, y: 400 }
+  var W = Math.min(sz.x, sz.y) || 400   // 用较短的维度（地图高度）作限制，目标公里数落在竖向视野上
+  var zoom = Math.round(Math.log2(W * 156.543 * Math.cos(lat * Math.PI / 180) / Math.max(km, 1)))
+  zoom = Math.max(6, Math.min(18, zoom))
+  var g = wgs84ToGcj02(lat, lon)
+  placeMap.setView([g.lat, g.lng], zoom)
+  toast('视野约 ' + km + 'km（zoom ' + zoom + '）')
+}
+function mapViewPreset(km) { mapSetViewKm(km) }
 
 /* ---- 定位到当前位置（地图选点区按钮；GPS 失败提示，不静默）---- */
 function locateMe() {
