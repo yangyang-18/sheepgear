@@ -288,6 +288,21 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .gear-group .gkr{font-size:10px;flex-basis:100%;flex-shrink:1;min-width:0;white-space:normal;line-height:1.5;margin-left:16px}
 .gear-group .gkr .gkr-trip{color:var(--accent);font-weight:700}
 .gear-total b{font-family:var(--f-m);color:var(--accent);font-size:16px}
+/* 分享卡 QR 码（live） */
+.card-qr{position:absolute;top:14px;right:14px;z-index:3}
+.card-qr img{width:64px;height:64px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.45);background:#fff;padding:4px}
+.card-qr-none{font-size:10px;color:var(--text-muted);background:var(--surface-2);padding:4px 8px;border-radius:6px}
+/* 3D 路线地形 */
+#terrain3d .t3d-no{padding:16px 12px;border:1px dashed var(--border);border-radius:12px;color:var(--text-muted);font-size:12px;text-align:center}
+.t3d-ui{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.t3d-tip{font-size:11px;color:var(--text-muted)}
+.t3d-reset{background:var(--surface-2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:3px 12px;font-size:12px;cursor:pointer}
+#terrain3d canvas{border:1px solid var(--border);border-radius:12px}
+.gear-wa{border-top:1px dashed var(--border);padding:12px 4px 0;margin-top:2px}
+.gear-wa .wa-h{font-size:12px;color:var(--text-muted);margin-bottom:8px}
+.wa-row{display:flex;align-items:center;gap:8px}
+.wa-row .wa-fill{transition:width .25s ease}
+.wa-sug{line-height:1.5}
 .ind-cfg{display:none;border:1px dashed var(--border);border-radius:10px;padding:10px;margin-top:8px}
 .ind-cfg.open{display:block}
 .ind-cfg .gck{font-size:11px}
@@ -384,6 +399,9 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 .mt-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .mt-name{font-family:var(--f-d);font-weight:700;font-size:16px}
 .mt-loc{font-size:12px;color:var(--text-muted);font-family:var(--f-m);margin-top:2px}
+/* 决策合成：第 2 步难度徽标 */
+.mt-diff{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mt-diff .dif-reason{font-size:12px;color:var(--text-muted);cursor:help}
 
 /* ===== 地图选点坐标框：顶上全透明 → 底部半透明（不遮底图，非纯不透明） ===== */
 .pick-bar{background:var(--surface);background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 45%, color-mix(in srgb, var(--surface) 55%, transparent) 100%)}
@@ -422,6 +440,8 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 .ov-meta{font-family:var(--f-m);font-size:11px;color:var(--text-muted);margin-top:6px}
 .ov-sec{margin-top:16px}
 .ov-lab{font-size:11px;color:var(--text-muted);letter-spacing:.08em;font-family:var(--f-m);margin-bottom:8px;border-top:1px solid var(--border);padding-top:12px}
+/* 决策合成：出发检查卡 Go/No-Go 结论区突出 */
+.ov-sec.ov-go .risk{font-size:15px;font-weight:700}
 .ov-risks,.ov-alerts{display:flex;gap:6px;flex-wrap:wrap}
 /* 总览卡装备：大类(cat)每块一个框、并排多列，框内列装备名+重量 */
 .ov-gcat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;align-items:start}
@@ -518,6 +538,8 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
     <div class="elev-wrap" id="elevWrap" style="display:none">
       <div class="lab" style="margin:10px 0 4px">海拔剖面</div>
       <div class="elev-scroll"><canvas id="elevProfile" width="720" height="170"></canvas></div>
+      <button class="btn" id="terrainToggle" style="display:none;margin-top:8px;padding:4px 12px;font-size:12px" onclick="toggleTerrain3D()">🗻 3D 地形</button>
+      <div id="terrain3d" style="display:none;margin-top:8px"></div>
     </div>
   </div>
 
@@ -553,6 +575,10 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
     <div class="pick-bar" id="pickBar">
       <span class="coord-read" id="pickCoord">尚未选点</span>
     </div>
+    <div class="map-actions" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <button class="btn" style="padding:4px 12px;font-size:12px" onclick="toggleWindField()">🌪 风场</button>
+      <button class="btn" style="padding:4px 12px;font-size:12px" onclick="openWindyMap()">🌬 Windy 风场图</button>
+    </div>
   </div>
   <div id="mapErr" style="display:none"></div>
 
@@ -566,6 +592,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 
   <div class="region" style="margin-top:0"><div class="region-h">已选目的地</div>
     <div class="mt sel" style="margin-top:0"><div class="mt-top"><div><div class="mt-name" id="destName">—</div><div class="mt-loc" id="destMeta"></div></div><span class="risk green">已选</span></div></div>
+    <div class="mt-diff" id="diffBadge" style="display:none;margin-top:8px"></div>
   </div>
 
   <div class="trip">
@@ -661,6 +688,8 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
           <div class="card-route" id="cardRoute" style="display:none"></div>
         </div>
         <div class="card-meta" id="cardMeta"></div>
+        <div class="card-difficulty" id="cardDifficulty" style="display:none"></div>
+        <div class="card-qr" id="cardQr" style="display:none"></div>
         <div class="card-div"></div>
         <div class="card-risks" id="cardRisks" style="display:none"></div>
         <div class="card-wx" id="cardWx"></div>
@@ -692,6 +721,8 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
           <label><input type="checkbox" checked data-el="title" onchange="updateCardEl()"> 标题</label>
           <label><input type="checkbox" checked data-el="wx" onchange="updateCardEl()"> 天气</label>
           <label><input type="checkbox" checked data-el="gear" onchange="updateCardEl()"> 装备</label>
+          <label><input type="checkbox" checked data-el="difficulty" id="elDiff" onchange="updateCardEl()"> 难度</label>
+          <label><input type="checkbox" data-el="qr" id="elQr" onchange="updateCardEl()"> QR</label>
           <label><input type="checkbox" data-el="route" id="elRoute" style="display:none" onchange="updateCardEl()"> 路线</label>
           <label><input type="checkbox" checked data-el="anim" onchange="updateCardEl()"> 动画背景</label>
         </div>
@@ -733,6 +764,12 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
       <div class="cfg-row"><div>禁纯棉<div class="desc">红线，不可关</div></div><span class="switch on"></span></div>
       <div class="cfg-row"><div>过夜留 5°C 冗余<div class="desc">可调</div></div><select id="cfgMargin" onchange="saveCfgField('overnightMarginC',+this.value)"><option value="3">3°C</option><option value="5" selected>5°C</option><option value="7">7°C</option></select></div>
       <div class="cfg-row"><div>降水概率触发防雨<div class="desc">阈值</div></div><select id="cfgPrecip" onchange="saveCfgField('precipTriggerPct',+this.value)"><option value="30">30%</option><option value="40" selected>40%</option><option value="50">50%</option></select></div>
+      <div class="cfg-row" style="flex-wrap:wrap"><div style="flex:1 0 100%">背包限重阈值<div class="desc">超重预警基准（kg），按行程模式分设</div></div>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px">轻装 <select id="cfgWtLight" onchange="saveCfgWt('light',this.value)"><option value="6">6</option><option value="8" selected>8</option><option value="10">10</option></select></label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px">重装 <select id="cfgWtHeavy" onchange="saveCfgWt('heavy',this.value)"><option value="12">12</option><option value="15" selected>15</option><option value="18">18</option></select></label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px">城市游 <select id="cfgWtCity" onchange="saveCfgWt('city',this.value)"><option value="4">4</option><option value="6" selected>6</option><option value="8">8</option></select></label>
+      </div>
+      <div class="cfg-row"><div>河流流量涉水阈值<div class="desc">河流指标超该值(m³/s)标警告 + 涉水提示</div></div><select id="cfgRiverTh" onchange="saveCfgField('riverFlowThreshold',+this.value)"><option value="50">50</option><option value="100" selected>100</option><option value="200">200</option></select></div>
     </div>
 
     <div class="cfg-sec" data-cfg="gear">
@@ -772,7 +809,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
       <div id="srcList" style="display:flex;flex-direction:column;gap:6px"></div>
       <div class="cfg-row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
         <select id="srcAdd" aria-label="添加天气源" style="width:auto" onchange="srcAddChange(this)"><option value="">＋ 添加天气源…</option></select>
-        <span style="font-size:11px;color:var(--text-muted)">中央气象台免 key · 高德/Meteoblue 需 key · 和风需 JWT</span>
+        <span style="font-size:11px;color:var(--text-muted)">中央气象台免 key · 高德/Meteoblue/Windy 需 key · 和风需 JWT</span>
       </div>
       <div id="srcEditQw" style="display:none;border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
         <div class="cfg-row"><div>和风 API Host<div class="desc">独立 API Host，如 {账号}.{项目}.qweatherapi.com</div></div><input id="qwHost" placeholder="输入 Host" onchange="saveQwField('host',this.value)"></div>
@@ -788,6 +825,14 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
       <div id="srcEditMb" style="display:none;border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
         <div class="cfg-row"><div>Meteoblue API Key<div class="desc">my.meteoblue.com 注册获取；basic 套餐约 7 天，含逐时/逐日/降雪/UV</div></div><input id="mbKey" placeholder="输入 Key" onchange="saveMeteoblueKey(this.value)"></div>
         <div class="cfg-row" style="justify-content:flex-start;gap:8px"><button class="btn" style="padding:4px 12px;font-size:12px" id="keyTest_meteoblue" onclick="testWeatherKey('meteoblue')">接通测试</button><span class="risk orange" id="keyState_meteoblue">未测试</span></div>
+      </div>
+      <div id="srcEditWindy" style="display:none;border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
+        <div class="cfg-row"><div>Windy Point Forecast Key<div class="desc">api.windy.com 申请；GFS 逐时预报（风/阵风/温度/降水/AQI），CORS 可直连；无 ECMWF/降水概率（由其他源补齐）</div></div><input id="windyKey" placeholder="输入 Key" onchange="saveWindyKey(this.value)"></div>
+        <div class="cfg-row" style="justify-content:flex-start;gap:8px"><button class="btn" style="padding:4px 12px;font-size:12px" id="keyTest_windy" onclick="testWeatherKey('windy')">接通测试</button><span class="risk orange" id="keyState_windy">未测试</span></div>
+      </div>
+      <div id="srcEditWindyMap" style="border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
+        <div class="cfg-row"><div>Windy Map Forecast Key<div class="desc">地图插件 key；本 App 不嵌入插件（需 Leaflet1.4.x 且 document.write 被 Chrome 拦截）——第 1 步「🌬 Windy 风场」为新标签页打开 windy.com 风场图（免 key）。此 key 仅存档</div></div><input id="windyMapKey" placeholder="输入 Key" onchange="saveWindyMapKey(this.value)"></div>
+        <div class="cfg-row" style="justify-content:flex-start;gap:8px"><button class="btn" style="padding:4px 12px;font-size:12px" id="keyTest_windymap" onclick="testWindyMapKey()">接通测试</button><span class="risk orange" id="keyState_windymap">未测试</span></div>
       </div>
       <div id="srcEditNmc" style="display:none;border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
         <div class="cfg-row"><div>中央气象台<div class="desc">免 key 直连；预警按省，天气按站号（best-effort）</div></div><span class="risk green">免 key</span></div>
@@ -814,6 +859,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script>
 /* ============ geo.js · 基础工具 / 坐标 / WMO / 场景 / 主题 ============ */
 
@@ -1516,6 +1562,7 @@ function syncPlaceMap(lat, lng) {
   var g = wgs84ToGcj02(lat, lng)
   placeMap.setView([g.lat, g.lng], 12)
   placePin({ lat: lat, lng: lng })
+  if (typeof refreshWindField === 'function') refreshWindField()   // 风场随位置移动刷新
 }
 
 /* ---- 地图缩放（放大/缩小按钮）---- */
@@ -1723,6 +1770,9 @@ function makeMapSnapshot(opts) {
 ﻿/* ============ weather.js · 天气管道（和风+OM 适配器 / cascade / 聚合 / 29项模板 / 渲染 / 预警） ============ */
 
 var OM_FCAST = 'https://api.open-meteo.com/v1/forecast'
+var OM_AIR = 'https://air-quality-api.open-meteo.com/v1/air-quality'
+var OM_MARINE = 'https://marine-api.open-meteo.com/v1/marine'
+var OM_FLOOD = 'https://flood-api.open-meteo.com/v1/flood'
 var QW_TTL = 30 * 60 * 1000
 var CACHE_TTL = 3 * 60 * 60 * 1000   // 3h（被 C2 forecastFreshness 分档阈值取代，保留作参考常量）
 var WEATHER_CACHE_VER = 11   // 天气缓存 schema 版本：v10=集合一致度；v11=逐点集合+风/降水离散（day 级 ensTempSpread/ensWindSpread/ensPrecipSpread）
@@ -1894,6 +1944,70 @@ function omEnsemble(lat, lng, days) {
     .catch(function () { return null })
 }
 
+/* ================= 扩展数据源适配器（weather-ext-sources，best-effort 免 key）：空气质量/海洋/洪水 ================= */
+function omExtJson(url) {
+  return fetch(url, { signal: AbortSignal.timeout(15000) })
+    .then(function (r) { if (!r.ok) throw new Error('om.ext.http'); return r.json() })
+}
+/* 空气：european_aqi（欧标优先）+ pm2_5 + 今日花粉（多种类逐时取 max）；失败返回空 {} */
+function omAirQuality(lat, lng) {
+  var p = new URLSearchParams({
+    latitude: lat, longitude: lng, timezone: 'auto', forecast_days: 1,
+    current: 'european_aqi,us_aqi,pm2_5,pm10,ozone,nitrogen_dioxide,sulphur_dioxide,carbon_monoxide',
+    hourly: 'pm2_5,pm10,ozone,nitrogen_dioxide,sulphur_dioxide,carbon_monoxide,european_aqi,us_aqi,alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen'
+  })
+  return omExtJson(OM_AIR + '?' + p.toString()).then(function (j) {
+    var c = j.current || {}, h = j.hourly || {}
+    var out = {}
+    var aqi = c.european_aqi != null ? Math.round(c.european_aqi) : (c.us_aqi != null ? Math.round(c.us_aqi) : null)
+    if (aqi != null) out.aqi = aqi
+    if (c.pm2_5 != null) out.pm25 = Math.round(c.pm2_5)
+    var pollen = 0, any = false
+    ;['alder_pollen', 'birch_pollen', 'grass_pollen', 'mugwort_pollen', 'olive_pollen', 'ragweed_pollen'].forEach(function (k) {
+      var arr = h[k] || []
+      for (var i = 0; i < arr.length; i++) if (arr[i] != null) { any = true; if (arr[i] > pollen) pollen = arr[i] }
+    })
+    if (any) out.pollen = Math.round(pollen)
+    return out
+  })
+}
+/* 海洋：current 波高/海表温优先，每日兜底；内陆无数据返回空 {} */
+function omMarine(lat, lng) {
+  var p = new URLSearchParams({
+    latitude: lat, longitude: lng, timezone: 'auto', forecast_days: 1,
+    current: 'wave_height,wave_direction,wave_period,wind_wave_height,swell_wave_height,swell_wave_direction,swell_wave_period,sea_surface_temperature',
+    daily: 'wave_height_max,wave_period_max,swell_wave_height_max,wave_direction_dominant,sea_surface_temperature_max'
+  })
+  return omExtJson(OM_MARINE + '?' + p.toString()).then(function (j) {
+    var c = j.current || {}, d = j.daily || {}
+    var out = {}
+    var wh = c.wave_height != null ? c.wave_height : (d.wave_height_max && d.wave_height_max[0] != null ? d.wave_height_max[0] : null)
+    if (wh != null) out.waveHeight = Math.round(wh * 10) / 10
+    var t = c.sea_surface_temperature != null ? c.sea_surface_temperature : (d.sea_surface_temperature_max ? d.sea_surface_temperature_max[0] : null)
+    if (t != null) out.waveTemp = Math.round(t)
+    return out
+  })
+}
+/* 洪水/河流：逐日 river_discharge(m³/s)，取当天值；无数据返回空 {} */
+function omFlood(lat, lng) {
+  var p = new URLSearchParams({ latitude: lat, longitude: lng, timezone: 'auto', forecast_days: 1, daily: 'river_discharge,river_discharge_mean' })
+  return omExtJson(OM_FLOOD + '?' + p.toString()).then(function (j) {
+    var d = j.daily || {}
+    var out = {}
+    var v = d.river_discharge ? d.river_discharge[0] : null
+    if (v != null) out.riverDischarge = Math.round(v * 10) / 10
+    return out
+  })
+}
+/* 逐点扩展数据：三端点 best-effort 并行，成功字段并入；任一端失败仅缺该项（不阻塞、不写字段） */
+function fetchPointExt(lat, lng) {
+  return Promise.allSettled([omAirQuality(lat, lng), omMarine(lat, lng), omFlood(lat, lng)]).then(function (rs) {
+    var out = {}
+    ;[0, 1, 2].forEach(function (i) { if (rs[i].status === 'fulfilled' && rs[i].value) Object.assign(out, rs[i].value) })
+    return out
+  })
+}
+
 /* ================= 多源字段级补齐（cascade）：daily 按 date、hourly 按 time 对齐取先源有值 ================= */
 function pickField(vals) { for (var i = 0; i < vals.length; i++) { var v = vals[i]; if (v == null || v === '') continue; if (typeof v === 'string') return v; if (!isNaN(+v)) return v } return null }
 
@@ -1974,6 +2088,7 @@ function fetchPointWeather(lat, lng, days) {
     else if (id === 'amap') jobs.push(amapDaily(lat, lng, days))
     else if (id === 'meteoblue') jobs.push(mbKey() ? mbForecast(lat, lng).then(function (mb) { return toUnifiedMB(mb, days) }) : Promise.resolve(null))
     else if (id === 'nmc') jobs.push(nmcDaily(lat, lng, days))
+    else if (id === 'windy') jobs.push(windyKey() ? windyPoint(lat, lng).then(function (w) { return toUnifiedWindy(w, days) }) : Promise.resolve(null))
   })
   return Promise.allSettled(jobs).then(function (rs) {
     var ok = rs.filter(function (r) { return r.status === 'fulfilled' && r.value && (r.value.daily || []).length })
@@ -2002,6 +2117,7 @@ function sourceEnabled(id) {
   if (id === 'amap') { var k = (appConfig.weatherPriorityMeta || {}).amap; return !!(k && k.key) }
   if (id === 'meteoblue') return !!mbKey()
   if (id === 'nmc') return true   // 免 key；best-effort（站点解析失败返回空，cascade 跳过）
+  if (id === 'windy') return !!windyKey()
   return false
 }
 
@@ -2120,6 +2236,109 @@ function toUnifiedMB(mb, days) {
 /* ---- 中央气象台天气适配器（best-effort）：免 key、CORS 可用，但按站号查询；站点解析接口未确认 → 返回空，级联跳过 ---- */
 function nmcDaily(lat, lng, days) {
   return Promise.resolve(null)
+}
+
+/* ================= Windy Point Forecast 适配器（需 key，api.windy.com CORS 已实测反射 Origin） =================
+   POST https://api.windy.com/api/point-forecast/v2  → 逐时 ts(ms,UTC) + {参数}-surface 数组。
+   返回本地日期分组的 daily/hourly（本地时区=浏览器时区，与 App 其余日期处理一致）。
+   Windy 无 precipProb/uvi/日出日落/appTemp → 这些字段留空由级联补齐。 */
+function windyKey() { return (appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta.windy && appConfig.weatherPriorityMeta.windy.key) || '' }
+function windyPoint(lat, lng) {
+  var body = JSON.stringify({
+    lat: lat, lon: lng, model: 'gfs',
+    // GFS 模型允许的参数集（visibility/aqi/pm2p5 属于 cams 等其他模型，会 400）
+    parameters: ['wind', 'windGust', 'temp', 'precip', 'snowPrecip', 'rh', 'dewpoint', 'lclouds', 'mclouds', 'hclouds', 'pressure', 'ptype', 'cape'],
+    levels: ['surface'],
+    key: windyKey()
+  })
+  return fetch('https://api.windy.com/api/point-forecast/v2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, signal: AbortSignal.timeout(15000) })
+    .then(function (r) { if (!r.ok) throw new Error('windy.http' + r.status); return r.json() })
+}
+/* Windy 时间戳(ms,UTC) → 浏览器本地日期/小时 */
+function windyLocalDate(ms) { var d = new Date(ms); var m = d.getMonth() + 1, day = d.getDate(); return d.getFullYear() + '-' + (m < 10 ? '0' + m : m) + '-' + (day < 10 ? '0' + day : day) }
+function windyLocalHour(ms) { var d = new Date(ms); return String(d.getHours()).padStart(2, '0') }
+/* 风分量 u/v(m/s) → 风速(km/h) 与来向角（单对数值） */
+function windyUV(uv) {
+  if (!uv || uv.u == null || uv.v == null || isNaN(uv.u) || isNaN(uv.v)) return { speed: null, dir: null }
+  var u = uv.u, v = uv.v
+  var speed = Math.sqrt(u * u + v * v) * 3.6
+  var dir = (Math.atan2(u, v) * 180 / Math.PI + 180) % 360
+  return { speed: speed, dir: dir }
+}
+function windyWmo(precip, snow, clouds) {
+  if (snow > 0) return 71
+  if (precip > 0) return 61
+  if (clouds >= 60) return 3
+  if (clouds >= 20) return 2
+  return 1
+}
+function toUnifiedWindy(w, days) {
+  var ts = w.ts || []
+  if (!ts.length) return null
+  // 真实响应字段：wind_u-surface / wind_v-surface / gust-surface / temp-surface(K) /
+  //   past3hprecip-surface(m, 3h累计) / past3hsnowprecip-surface(m) / rh / dewpoint-surface(K) /
+  //   lclouds|mclouds|hclouds / pressure-surface(Pa)
+  var A = function (k) { return (w[k + '-surface'] != null) ? w[k + '-surface'] : null }
+  function c(v) { return v != null && !isNaN(v) ? v - 273.15 : null }   // K → °C
+  function mm(v) { return v != null && !isNaN(v) ? v * 1000 : null }    // m → mm
+  var arr = ts.map(function (t, i) {
+    var u = A('wind_u') != null ? A('wind_u')[i] : null
+    var vv = A('wind_v') != null ? A('wind_v')[i] : null
+    var uvRes = windyUV({ u: u, v: vv })
+    var precip = mm(A('past3hprecip') != null ? A('past3hprecip')[i] : null)
+    var snow = mm(A('past3hsnowprecip') != null ? A('past3hsnowprecip')[i] : null)
+    var clouds = Math.max(A('lclouds') != null ? A('lclouds')[i] : 0, A('mclouds') != null ? A('mclouds')[i] : 0, A('hclouds') != null ? A('hclouds')[i] : 0)
+    return {
+      date: windyLocalDate(t), hour: windyLocalHour(t),
+      temp: c(A('temp') != null ? A('temp')[i] : null),
+      rh: A('rh') != null ? A('rh')[i] : null,
+      precip: precip, snow: snow,
+      windSpeed: uvRes.speed, windDir: uvRes.dir,
+      gust: A('gust') != null ? A('gust')[i] * 3.6 : null,
+      dew: c(A('dewpoint') != null ? A('dewpoint')[i] : null),
+      clouds: clouds, pressure: A('pressure') != null ? A('pressure')[i] / 100 : null,
+      wmo: windyWmo(precip || 0, snow || 0, clouds)
+    }
+  }).filter(function (h) { return h.temp != null || h.precip != null || h.windSpeed != null })
+  if (!arr.length) return null
+  // 按本地日期分组 → daily + 该日期 hourly
+  var byDate = {}, order = []
+  arr.forEach(function (h) {
+    if (!byDate[h.date]) { byDate[h.date] = []; order.push(h.date) }
+    byDate[h.date].push(h)
+  })
+  var daily = order.map(function (date) {
+    var hs = byDate[date]
+    var temps = hs.map(function (h) { return h.temp }).filter(function (v) { return v != null })
+    var pre = hs.map(function (h) { return h.precip }).filter(function (v) { return v != null })
+    var sn = hs.map(function (h) { return h.snow }).filter(function (v) { return v != null })
+    var ws = hs.map(function (h) { return h.windSpeed }).filter(function (v) { return v != null })
+    var wdirs = hs.map(function (h) { return h.windDir }).filter(function (v) { return v != null })
+    var clouds = hs.map(function (h) { return h.clouds }).filter(function (v) { return v != null })
+    return {
+      date: date, src: 'windy',
+      weatherCode: windyWmo(pre.reduce(function (a, b) { return a + b }, 0), sn.reduce(function (a, b) { return a + b }, 0), clouds.length ? Math.max.apply(null, clouds) : 0),
+      tempMax: temps.length ? Math.max.apply(null, temps) : null,
+      tempMin: temps.length ? Math.min.apply(null, temps) : null,
+      tempMean: temps.length ? temps.reduce(function (a, b) { return a + b }, 0) / temps.length : null,
+      precipSum: pre.length ? Math.round(pre.reduce(function (a, b) { return a + b }, 0) * 10) / 10 : null,
+      snowfallSum: sn.length ? Math.round(sn.reduce(function (a, b) { return a + b }, 0) * 10) / 10 : null,
+      windSpeedMax: ws.length ? Math.round(Math.max.apply(null, ws) * 10) / 10 : null,
+      windDirDominant: wdirs.length ? Math.round(wdirs[wdirs.length - 1]) : null,
+      precipProbMax: null, appMax: null, appMin: null, uviMax: null, sunrise: null, sunset: null
+    }
+  })
+  var keep = {}
+  daily.slice(0, days || daily.length).forEach(function (x) { keep[x.date] = true })
+  var hourly = arr.map(function (h) {
+    return {
+      time: h.date + 'T' + h.hour + ':00',
+      temp: h.temp, appTemp: null, humidity: h.rh, precipProb: null, precip: h.precip,
+      weatherCode: h.wmo, windSpeed: h.windSpeed, windGust: h.gust, windDir: h.windDir,
+      visibility: null, snowfall: h.snow, dewPoint: h.dew, cloudCover: h.clouds, uvi: null
+    }
+  }).filter(function (x) { return keep[String(x.time).slice(0, 10)] })
+  return { daily: daily.slice(0, days || daily.length), hourly: hourly, elevation: null, src: 'windy' }
 }
 
 /* ---- 中央气象台预警直连（免 key，access-control-allow-origin:* 已实测）---- */
@@ -2248,7 +2467,8 @@ function aggregateDays(pointWeatherList, splitPts, offset, ensList) {
     // 逐日口径：precip3h/夜间温/活跃窗口/天气码只用该天逐时，避免多日行程所有天共用同一份逐时模式
     if (d0 && d0.date) hourly = hourly.filter(function (h) { return String(h.time).slice(0, 10) === d0.date })
     if (!d0) {
-      days.push({ date: String(k + 1) + '天', dayIndex: k, lat: p.lat, lon: p.lon, weatherCode: null, ele: p.ele, tempMax: null, tempMin: null, tempMean: null, appMax: null, appMin: null, appDay: null, nightAppTemp: null, nightMin: null, humidity: null, precipProb: null, precipSum: null, precip3h: [], windSpeedMax: null, windLevel: null, windDir: null, windGust: null, uvi: null, cloudCover: null, visibility: null, dewPoint: null, sunrise: null, sunset: null, snowfall: null, hourlyCodes: [], thunder: false, hail: false, windchill: null, scenes: sceneSummary({ nightAppTemp: null, nightMin: null, precipProb: null, precipSum: null, windLevel: null, snowfall: null }), lowConsistency: [], confidence: 'high', src: u ? u.srcs.join('→') : '' })
+      days.push({ date: String(k + 1) + '天', dayIndex: k, lat: p.lat, lon: p.lon, weatherCode: null, ele: p.ele, tempMax: null, tempMin: null, tempMean: null, appMax: null, appMin: null, appDay: null, nightAppTemp: null, nightMin: null, humidity: null, precipProb: null, precipSum: null, precip3h: [], windSpeedMax: null, windLevel: null, windDir: null, windGust: null, uvi: null, cloudCover: null, visibility: null, dewPoint: null, sunrise: null, sunset: null, snowfall: null, hourlyCodes: [], thunder: false, hail: false, windchill: null, scenes: sceneSummary({ nightAppTemp: null, nightMin: null, precipProb: null, precipSum: null, windLevel: null, snowfall: null }), lowConsistency: [], confidence: 'high', src: u ? u.srcs.join('→') : '',
+      aqi: null, pm25: null, pollen: null, waveHeight: null, waveTemp: null, riverDischarge: null })
       continue
     }
     valid++
@@ -2315,7 +2535,12 @@ function aggregateDays(pointWeatherList, splitPts, offset, ensList) {
       windchill: windchillC(cNightMin, d0.windSpeedMax) != null ? round1(windchillC(cNightMin, d0.windSpeedMax)) : null,
       scenes: sceneSummary({ nightAppTemp: cNightApp, nightMin: cNightMin, precipProb: d0.precipProbMax, precipSum: d0.precipSum, windLevel: wd.level, snowfall: d0.snowfallSum }),
       lowConsistency: lowCons, confidence: _dayConf, ensTempSpread: _ensTemp, ensWindSpread: _ensWind, ensPrecipSpread: _ensPrecip,
-      lapseDelta: lapseApplied ? lapseDelta : null, src: u ? u.srcs.join('→') : ''
+      lapseDelta: lapseApplied ? lapseDelta : null, src: u ? u.srcs.join('→') : '',
+      aqi: (u && u.ext && u.ext.aqi != null) ? u.ext.aqi : null, pm25: (u && u.ext && u.ext.pm25 != null) ? u.ext.pm25 : null,
+      pollen: (u && u.ext && u.ext.pollen != null) ? u.ext.pollen : null,
+      waveHeight: (u && u.ext && u.ext.waveHeight != null) ? u.ext.waveHeight : null,
+      waveTemp: (u && u.ext && u.ext.waveTemp != null) ? u.ext.waveTemp : null,
+      riverDischarge: (u && u.ext && u.ext.riverDischarge != null) ? u.ext.riverDischarge : null
     })
   }
   // C6 行程级可信度：全程低一致字段总数 + 全程不可用源比例 + 覆盖度
@@ -2468,7 +2693,15 @@ function resolveItem(id, d) {
     case 'gust': return { value: d.windLevel != null ? d.windLevel + '级' : '—', tone: (d.windLevel || 0) >= 6 ? 'warn' : '' }
     case 'hi_low': return d.tempMax >= 33 ? { value: '高温', tone: 'warn' } : (d.tempMin < 0 ? { value: '低温', tone: 'cold' } : no)
     case 'alt_zone': return { value: ALT_ZONES[altZoneLevel(d.ele)][0], tone: '' }
-    case 'aqi': case 'pollen': case 'wave': case 'river': return no
+    case 'aqi': { if (d.aqi == null) return no; return { value: String(d.aqi) + (d.pm25 != null ? ' · PM' + d.pm25 : ''), tone: d.aqi > 100 ? 'warn' : '' } }
+    case 'pollen': return d.pollen != null ? { value: String(d.pollen), tone: '' } : no
+    case 'wave': { if (d.waveHeight == null) return no; return { value: fmtNum(d.waveHeight) + 'm' + (d.waveTemp != null ? ' · ' + Math.round(d.waveTemp) + '°' : ''), tone: '' } }
+    case 'river': {
+      if (d.riverDischarge == null) return no
+      var _rt = (typeof appConfig !== 'undefined' && appConfig && appConfig.riverFlowThreshold != null) ? appConfig.riverFlowThreshold : 100
+      var _over = d.riverDischarge > _rt
+      return { value: fmtNum(d.riverDischarge) + ' m³/s' + (_over ? ' · 注意涉水' : ''), tone: _over ? 'warn' : '' }
+    }
     default: return no
   }
 }
@@ -2859,6 +3092,8 @@ async function runWeather() {
       var ensJobs = (appConfig.weatherPriority || []).indexOf('open-meteo') >= 0
         ? (allSame ? [omEnsemble(first.lat, first.lon, need)] : splitPoints.map(function (p) { return omEnsemble(p.lat, p.lon, need) }))
         : []
+      // 扩展数据源（best-effort 免 key）：空气/海洋/洪水 逐点并行发起（与主查询并发）；失败不写字段（指标保持 "—"）
+      var _extJobs = allSame ? [fetchPointExt(first.lat, first.lon)] : splitPoints.map(function (p) { return fetchPointExt(p.lat, p.lon) })
       if (allSame) {
         $('wxStatus').textContent = '查询中…（第 1/1 点）'
         setWxProgress(0.1)
@@ -2873,6 +3108,9 @@ async function runWeather() {
         }
         setWxProgress(1)
       }
+      // 扩展结果注入：写进该点天气记录 .ext，aggregateDays 逐日透出；失败(空 {})不写关键字段
+      var _extAll = await Promise.all(_extJobs)
+      for (var _xe = 0; _xe < list.length; _xe++) if (list[_xe]) list[_xe].ext = _extAll[_xe] || null
       // 源海拔兜底：采样点仍缺海拔时用天气源自带海拔（按用户优先级：meteoblue metadata.height / OM forecast elevation），不额外请求
       var _srcEle = (list.filter(Boolean)[0] || {}).elevation
       if (_srcEle != null && _srcEle > 0) {
@@ -3384,6 +3622,34 @@ function srcBadge(source) {
   var b = map[source] || ['blue', '天气']
   return '<span class="risk ' + b[0] + '" style="margin-right:4px">' + b[1] + '</span>'
 }
+/* ---- 决策合成：重量分析块（类别占比 + 超重预警 + 减重建议；仅全程视图）---- */
+function weightAnalysisHtml() {
+  if (typeof packWeightAnalysis !== 'function') return ''
+  var wa = packWeightAnalysis()
+  if (!wa || !wa.total) return ''
+  var h = '<div class="gear-wa" style="margin-top:12px">'
+  var bars = wa.byCat.map(function (c) {
+    var pct = wa.total ? Math.round(c.grams / wa.total * 100) : 0
+    return '<div class="wa-row"><span class="wa-cat" style="flex:0 0 84px">' + esc(c.cat) + '</span>' +
+      '<div class="wa-bar" style="flex:1;height:8px;border-radius:4px;background:var(--border,#333);overflow:hidden"><div class="wa-fill" style="height:100%;width:' + pct + '%;background:var(--accent,#E08E3C)"></div></div>' +
+      '<span class="wa-pct" style="flex:0 0 74px;text-align:right;font-size:11px;color:var(--text-muted)">' + pct + '% · ' + (c.grams / 1000).toFixed(2) + 'kg</span></div>'
+  }).join('')
+  h += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">重量分析 · 按系统占比</div><div style="display:flex;flex-direction:column;gap:4px">' + bars + '</div>'
+  if (wa.over) {
+    var top = wa.byCat[0]
+    h += '<div class="gear-hint" style="color:var(--warning);margin-top:8px">⚠ 超重预警：总重 ' + wa.totalKg.toFixed(2) + 'kg 超过 ' + (wa.limit / 1000).toFixed(0) + 'kg 阈值，超出 ' + wa.exceedKg.toFixed(2) + 'kg' + (top ? '（第一大系统：' + esc(top.cat) + '）' : '') + '</div>'
+  }
+  if (typeof weightSuggestions === 'function') {
+    var sugs = weightSuggestions()
+    if (sugs.length) {
+      h += '<div style="display:flex;flex-direction:column;gap:4px;margin-top:8px">' + sugs.map(function (s) {
+        return '<div class="wa-sug" style="font-size:12px;color:var(--text-muted)">💡 ' + esc(s.name) + ' · 可省 ' + s.saveG + 'g · ' + esc(s.reason) + '</div>'
+      }).join('') + '</div>'
+    }
+  }
+  return h + '</div>'
+}
+
 function renderGearConfirm() {
   var box = $('gearConfirm')
   if (!box) return
@@ -3447,7 +3713,9 @@ function renderGearConfirm() {
     })
     var total = res.selected.filter(function (g) { return gearIsChecked(g.item.id) }).reduce(function (s, g) { return s + itemWeightOf(g) }, 0)
     html += '<div class="gear-total">总重量 <b id="gearTotalNum">' + (total / 1000).toFixed(2) + '</b> kg · 勾选变动' +
-      (res.fullSize ? ' · 全尺寸底线' : '') + '</div></div>'
+      (res.fullSize ? ' · 全尺寸底线' : '') + '</div>'
+    html += weightAnalysisHtml()
+    html += '</div>'
   }
   box.innerHTML = html
 }
@@ -3886,6 +4154,17 @@ function riskProfileText() {
   return s
 }
 /* C8 出发检查卡（总览卡出门变体：无地图大图/免责，加时间安全 + 临界项 + 今天必带 + 风险画像） */
+/* ---- 决策合成：Go/No-Go 结论区（出发检查卡，风险画像上方）---- */
+function gngHtml() {
+  if (typeof goNoGo !== 'function') return ''
+  var g = goNoGo()
+  var cls = g.verdict === 'stop' ? 'red' : g.verdict === 'caution' ? 'orange' : 'green'
+  var rows = g.items.map(function (it) {
+    var c = it.state === 'red' ? 'red' : it.state === 'orange' ? 'orange' : 'green'
+    return '<div class="ov-sec"><div class="ov-lab">' + esc(it.label) + '</div><span class="risk ' + c + '">' + esc(it.note) + '</span></div>'
+  }).join('')
+  return '<div class="ov-sec ov-go"><div class="ov-lab">出发建议</div><span class="risk ' + cls + '" style="font-size:15px;font-weight:700">' + esc(g.label) + '</span></div>' + rows
+}
 function renderDepartureCard() {
   var box = $('departureCard')
   if (!box) return
@@ -3918,6 +4197,8 @@ function renderDepartureCard() {
   // 风险画像（C4/C6）
   var profile = riskProfileText()
   var profileHtml = profile ? '<div class="ov-sec"><div class="ov-lab">风险画像</div><span class="risk orange">' + esc(profile) + '</span></div>' : ''
+  // Go/No-Go 出发建议（决策合成：预警/可信度/返程天黑/装备完成度）——风险画像上方
+  var gngHtml_ = gngHtml()
   // 天气摘要
   var wxHtml = ''
   if (weather && weather.days.length) {
@@ -3944,7 +4225,7 @@ function renderDepartureCard() {
   box.innerHTML = '<div class="ov-body"><div class="ov-brand">SHEEP🐏GEAR · 出发检查</div>'
     + '<div class="ov-title">' + esc(title) + '</div>'
     + '<div class="ov-meta">' + esc(meta.join(' · ')) + '</div>'
-    + alertHtml + timeHtml + profileHtml + wxHtml + criticalHtml + todayHtml + gearHtml
+    + alertHtml + timeHtml + gngHtml_ + profileHtml + wxHtml + criticalHtml + todayHtml + gearHtml
     + '<div class="ov-foot">基于数值预报推算，非官方/医疗建议；出发前请以实时官报为准。</div></div>'
 }
 function renderOverviewMap(wrap) {
@@ -4037,6 +4318,25 @@ function updateCardEl() {
     if (el) el.style.display = c.checked ? '' : 'none'
   })
   renderCardRoute()
+  updateCardQr()
+}
+/* 决策合成/分享：QR 码元素（勾选则生成紧凑种子 QR；超容量/库缺失提示） */
+function updateCardQr() {
+  var el = $('cardQr')
+  if (!el) return
+  var on = $('elQr') && $('elQr').checked
+  if (!on) { el.style.display = 'none'; el.innerHTML = ''; return }
+  if (typeof qrForCard === 'function') {
+    var data = qrForCard()
+    if (data) {
+      el.innerHTML = '<img class="card-qr-img" src="' + data + '" alt="扫码打开同路线">'
+      el.title = '扫码在 SHEEPGEAR 中打开同一条路线'
+      el.style.display = ''
+    } else {
+      el.innerHTML = '<span class="card-qr-none">QR 不可用</span>'
+      el.style.display = ''
+    }
+  }
 }
 function updateCardMeta() {
   var loc = tripName()
@@ -4048,6 +4348,12 @@ function updateCardMeta() {
   if (trip.hours != null) meta.push(trip.hours + 'h')
   if (trip.startDate) meta.push(trip.startDate.slice(5, 7) + '/' + trip.startDate.slice(8, 10) + '日')
   $('cardMeta').textContent = meta.join(' · ')
+  // 决策合成：难度元素（勾选显示，未勾选由 updateCardEl 隐藏）
+  var dEl = $('cardDifficulty')
+  if (dEl) {
+    var dd = (typeof tripDifficulty === 'function') ? tripDifficulty() : null
+    if (dd) { dEl.textContent = dd.stars + ' · ' + dd.label; dEl.title = dd.reason } else { dEl.textContent = '' }
+  }
   updateTitlePlaceholder()
 }
 function renderCard() {
@@ -4218,7 +4524,7 @@ function reverseOpenScript() {
 }
 
 /* 导出独立 HTML（内嵌 CARD_DATA + SEED + SNAP + ST，静态渲染，与预览一致） */
-var CARD_CSS = '*{box-sizing:border-box}body{margin:0;background:#161616;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;font-family:\'Instrument Sans\',\'Noto Sans SC\',sans-serif;padding:24px 12px}.card{width:680px;max-width:94vw;border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;position:relative;color:#fff}.card-map{position:absolute;inset:0;z-index:0;overflow:hidden}.card-map .atmos{position:absolute;inset:0;pointer-events:none;overflow:hidden}.card-map .atmos i{position:absolute;border-radius:50%}@keyframes mistDrift{0%{transform:translateX(-10px);opacity:0}20%{opacity:.18}80%{opacity:.12}100%{transform:translateX(100vw);opacity:0}}@keyframes cloudDrift{0%{transform:translateX(-25vw);opacity:0}15%{opacity:.6}85%{opacity:.45}100%{transform:translateX(125vw);opacity:0}}@keyframes waveSlide{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}@keyframes bubbleRise{0%{transform:translateY(0) scale(1);opacity:0}20%{opacity:.5}80%{opacity:.5}100%{transform:translateY(-420px) scale(.2);opacity:0}}@keyframes sandDrift{0%{transform:translateX(-20px) translateY(0);opacity:0}10%{opacity:.7}90%{opacity:.4}100%{transform:translateX(120vw) translateY(10px);opacity:0}}@keyframes twinkle{0%,100%{opacity:.3}50%{opacity:1}}@keyframes rainFall{0%{transform:translateY(-50px);opacity:0}15%{opacity:1}100%{transform:translateY(260px);opacity:0}}.atmos.mountain{background:linear-gradient(180deg,transparent 70%,rgba(22,163,74,.04) 85%,rgba(22,163,74,.08) 100%)}.atmos.mountain .pine-line{position:absolute;bottom:0;left:0;width:200%;height:50px;opacity:.14;background-repeat:repeat-x;background-size:300px 50px;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 300 50\'%3E%3Cpath d=\'M0 50V30l15-10 10 15 12-20 15 18 14-25 16 20 10-15 18 22 12-30 14 18 16-20 12 25 15-15 10 10 18-25 16 15 14-10 16 20 10-18 12 12 18-22 15 18 14-15 12 10 10-12 8 8V50z\' fill=\'%23166534\' opacity=\'0.6\'/%3E%3C/svg%3E");animation:waveSlide 20s linear infinite}.atmos.mountain i{background:radial-gradient(circle,rgba(205,220,232,.4),transparent 70%);width:50px;height:16px;border-radius:50%;animation:mistDrift 18s ease-out infinite}.atmos.dawn{background:linear-gradient(180deg,transparent 30%,rgba(200,215,230,.05) 55%,rgba(200,215,230,.10) 75%,rgba(200,215,230,.14) 100%)}.atmos.dawn i{background:radial-gradient(circle,rgba(230,240,250,.25),transparent 70%);width:60px;height:18px;border-radius:50%;animation:mistDrift 20s ease-out infinite}.atmos.dawn .cloud{position:absolute;border-radius:999px;filter:blur(10px);opacity:.5;animation:cloudDrift 45s linear infinite}.atmos.ocean{background:linear-gradient(180deg,transparent 60%,rgba(8,145,178,.07) 75%,rgba(8,145,178,.12) 90%,rgba(8,145,178,.16) 100%)}.atmos.ocean .wave{position:absolute;bottom:0;left:0;width:200%;height:60px;opacity:.3;background-repeat:repeat-x;background-size:200px 60px;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 200 60\'%3E%3Cpath d=\'M0 30c25-15 40 15 65 0s40-15 65 0 40-15 65 0 40 15 65 0V60H0z\' fill=\'%230891b2\'/%3E%3C/svg%3E");animation:waveSlide 8s linear infinite}.atmos.ocean .wave:nth-child(2){bottom:18px;animation-duration:11s;opacity:.2;background-size:160px 50px}.atmos.ocean i{background:radial-gradient(circle,rgba(14,165,233,.55),transparent 70%);animation:bubbleRise 5s ease-out infinite}.atmos.desert i{background:radial-gradient(circle,rgba(238,200,150,.85),transparent 70%);border-radius:50%;animation:sandDrift 8s linear infinite}.atmos.midnight i{width:2px;height:2px;background:#6d28d9;border-radius:50%;animation:twinkle 3s ease-in-out infinite}.card-map .atmos .rain{width:2px;height:22px;background:linear-gradient(180deg,rgba(180,210,235,.7),rgba(180,210,235,.15));animation:rainFall 1.2s linear infinite}.card-map .atmos .sw{position:absolute;inset:0;overflow:hidden}.card .atmos.mountain i{background:radial-gradient(circle,rgba(214,228,240,.92),transparent 70%);animation-duration:7s}.card .atmos.mountain .pine-line{height:35%;background-size:auto 100%}.card .atmos.dawn i{background:radial-gradient(circle,rgba(232,242,250,.92),transparent 70%);width:120px;height:32px;animation-duration:6s}.card .atmos.dawn .cloud{animation-duration:12s;opacity:.7}.card .atmos.ocean .wave{opacity:.7;height:30%;bottom:0;background-size:auto 100%}.card .atmos.ocean .wave:nth-child(2){bottom:10%;opacity:.5;background-size:auto 100%}.card .atmos.ocean i{animation-duration:2.5s;border-color:rgba(190,225,245,.85)}.card .atmos.desert i{background:radial-gradient(circle,rgba(240,205,158,.95),transparent 70%);animation-duration:3s}.card .atmos.desert .dune{position:absolute;left:0;bottom:0;width:200%;height:20%;opacity:.45;background-repeat:repeat-x;background-size:auto 100%;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 200 60\'%3E%3Cpath d=\'M0 40c30-25 50 5 80-8s45 18 70 4 30 12 50 0V60H0z\' fill=\'%23d97706\' opacity=\'0.55\'/%3E%3C/svg%3E");animation:waveSlide 26s linear infinite}.card .atmos.midnight i{width:4px;height:4px;background:#fff;box-shadow:0 0 6px rgba(255,255,255,.8)}.card .atmos .rain{opacity:1}.card-body{position:relative;z-index:1;padding:22px;background:linear-gradient(180deg,rgba(12,12,18,.30) 0%,rgba(12,12,18,.62) 55%,rgba(12,12,18,.90) 100%)}.card-brand{font-family:\'JetBrains Mono\',monospace;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.9)}.card-title{font-family:\'Satoshi\',\'Noto Sans SC\',sans-serif;font-weight:900;font-size:22px;line-height:1.3;margin-top:8px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.45)}.card-meta{font-family:\'JetBrains Mono\',monospace;font-size:11px;color:rgba(255,255,255,.8);margin-top:6px}.card-div{border-top:2px solid rgba(255,255,255,.9);margin:14px 0}.card-wx{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 14px;margin-top:6px}.card-wx .wi{display:flex;flex-direction:column;justify-content:space-between;gap:2px;padding:9px 12px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(255,255,255,.08)}.card-wx .wi b{font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:700;color:#fff;line-height:1.15}.card-wx .wi i{font-style:normal;font-size:10px;color:rgba(255,255,255,.62);letter-spacing:.06em}.card-gear{margin-top:12px}.card-gear .cgh{font-size:10px;letter-spacing:.06em;color:rgba(255,255,255,.55);margin:10px 0 3px;font-family:\'JetBrains Mono\',monospace}.card-gear .cg-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 14px}.card-gear .gi{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px dotted rgba(255,255,255,.3);color:#fff}.card-gear .gi span:first-child{text-shadow:0 1px 2px rgba(0,0,0,.5)}.card-foot{margin-top:12px;font-size:10px;color:rgba(255,255,255,.68)}.card-risks{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.card-risks .rk{font-size:11px;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);color:#fff}.card-forecast{border:1px solid rgba(255,255,255,.16);border-radius:10px;margin-top:12px;overflow:hidden}.cf-row{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid rgba(255,255,255,.1);font-size:12px;color:#fff}.cf-row:last-child{border-bottom:none}.cf-date{font-family:\'JetBrains Mono\',monospace;font-size:10px;color:rgba(255,255,255,.62);width:74px;flex-shrink:0}.cf-cond{flex:1;white-space:nowrap}.cf-val{font-family:\'JetBrains Mono\',monospace;font-size:12px;text-align:right;margin-left:10px}.card-head{display:flex;align-items:stretch;gap:14px}.card-head-l{flex:1;min-width:0}.card-route{position:relative;width:360px;flex-shrink:0;min-height:44px;border:1px solid rgba(255,255,255,.35);border-radius:10px;background:rgba(255,255,255,.05);overflow:hidden}.card-route svg.route-track{position:absolute;inset:0;width:100%;height:100%}.card-gear .ckrow{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;user-select:none}.card-gear .ckrow .tk{color:#E08E3C;font-weight:700;font-size:14px;opacity:0;transform:scale(.5);transition:opacity .15s ease,transform .15s ease}.card-gear .ckrow.on .tk{opacity:1;transform:scale(1)}.card-gear .ckrow.on span:first-child{color:#ffd9a0}.clr{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:11px;color:rgba(255,255,255,.6);font-family:\'JetBrains Mono\',monospace}.clr button{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:999px;padding:4px 12px;font-size:11px;cursor:pointer}'
+var CARD_CSS = '*{box-sizing:border-box}body{margin:0;background:#161616;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;font-family:\'Instrument Sans\',\'Noto Sans SC\',sans-serif;padding:24px 12px}.card{width:680px;max-width:94vw;border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;position:relative;color:#fff}.card-map{position:absolute;inset:0;z-index:0;overflow:hidden}.card-map .atmos{position:absolute;inset:0;pointer-events:none;overflow:hidden}.card-map .atmos i{position:absolute;border-radius:50%}@keyframes mistDrift{0%{transform:translateX(-10px);opacity:0}20%{opacity:.18}80%{opacity:.12}100%{transform:translateX(100vw);opacity:0}}@keyframes cloudDrift{0%{transform:translateX(-25vw);opacity:0}15%{opacity:.6}85%{opacity:.45}100%{transform:translateX(125vw);opacity:0}}@keyframes waveSlide{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}@keyframes bubbleRise{0%{transform:translateY(0) scale(1);opacity:0}20%{opacity:.5}80%{opacity:.5}100%{transform:translateY(-420px) scale(.2);opacity:0}}@keyframes sandDrift{0%{transform:translateX(-20px) translateY(0);opacity:0}10%{opacity:.7}90%{opacity:.4}100%{transform:translateX(120vw) translateY(10px);opacity:0}}@keyframes twinkle{0%,100%{opacity:.3}50%{opacity:1}}@keyframes rainFall{0%{transform:translateY(-50px);opacity:0}15%{opacity:1}100%{transform:translateY(260px);opacity:0}}.atmos.mountain{background:linear-gradient(180deg,transparent 70%,rgba(22,163,74,.04) 85%,rgba(22,163,74,.08) 100%)}.atmos.mountain .pine-line{position:absolute;bottom:0;left:0;width:200%;height:50px;opacity:.14;background-repeat:repeat-x;background-size:300px 50px;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 300 50\'%3E%3Cpath d=\'M0 50V30l15-10 10 15 12-20 15 18 14-25 16 20 10-15 18 22 12-30 14 18 16-20 12 25 15-15 10 10 18-25 16 15 14-10 16 20 10-18 12 12 18-22 15 18 14-15 12 10 10-12 8 8V50z\' fill=\'%23166534\' opacity=\'0.6\'/%3E%3C/svg%3E");animation:waveSlide 20s linear infinite}.atmos.mountain i{background:radial-gradient(circle,rgba(205,220,232,.4),transparent 70%);width:50px;height:16px;border-radius:50%;animation:mistDrift 18s ease-out infinite}.atmos.dawn{background:linear-gradient(180deg,transparent 30%,rgba(200,215,230,.05) 55%,rgba(200,215,230,.10) 75%,rgba(200,215,230,.14) 100%)}.atmos.dawn i{background:radial-gradient(circle,rgba(230,240,250,.25),transparent 70%);width:60px;height:18px;border-radius:50%;animation:mistDrift 20s ease-out infinite}.atmos.dawn .cloud{position:absolute;border-radius:999px;filter:blur(10px);opacity:.5;animation:cloudDrift 45s linear infinite}.atmos.ocean{background:linear-gradient(180deg,transparent 60%,rgba(8,145,178,.07) 75%,rgba(8,145,178,.12) 90%,rgba(8,145,178,.16) 100%)}.atmos.ocean .wave{position:absolute;bottom:0;left:0;width:200%;height:60px;opacity:.3;background-repeat:repeat-x;background-size:200px 60px;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 200 60\'%3E%3Cpath d=\'M0 30c25-15 40 15 65 0s40-15 65 0 40-15 65 0 40 15 65 0V60H0z\' fill=\'%230891b2\'/%3E%3C/svg%3E");animation:waveSlide 8s linear infinite}.atmos.ocean .wave:nth-child(2){bottom:18px;animation-duration:11s;opacity:.2;background-size:160px 50px}.atmos.ocean i{background:radial-gradient(circle,rgba(14,165,233,.55),transparent 70%);animation:bubbleRise 5s ease-out infinite}.atmos.desert i{background:radial-gradient(circle,rgba(238,200,150,.85),transparent 70%);border-radius:50%;animation:sandDrift 8s linear infinite}.atmos.midnight i{width:2px;height:2px;background:#6d28d9;border-radius:50%;animation:twinkle 3s ease-in-out infinite}.card-map .atmos .rain{width:2px;height:22px;background:linear-gradient(180deg,rgba(180,210,235,.7),rgba(180,210,235,.15));animation:rainFall 1.2s linear infinite}.card-map .atmos .sw{position:absolute;inset:0;overflow:hidden}.card .atmos.mountain i{background:radial-gradient(circle,rgba(214,228,240,.92),transparent 70%);animation-duration:7s}.card .atmos.mountain .pine-line{height:35%;background-size:auto 100%}.card .atmos.dawn i{background:radial-gradient(circle,rgba(232,242,250,.92),transparent 70%);width:120px;height:32px;animation-duration:6s}.card .atmos.dawn .cloud{animation-duration:12s;opacity:.7}.card .atmos.ocean .wave{opacity:.7;height:30%;bottom:0;background-size:auto 100%}.card .atmos.ocean .wave:nth-child(2){bottom:10%;opacity:.5;background-size:auto 100%}.card .atmos.ocean i{animation-duration:2.5s;border-color:rgba(190,225,245,.85)}.card .atmos.desert i{background:radial-gradient(circle,rgba(240,205,158,.95),transparent 70%);animation-duration:3s}.card .atmos.desert .dune{position:absolute;left:0;bottom:0;width:200%;height:20%;opacity:.45;background-repeat:repeat-x;background-size:auto 100%;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 200 60\'%3E%3Cpath d=\'M0 40c30-25 50 5 80-8s45 18 70 4 30 12 50 0V60H0z\' fill=\'%23d97706\' opacity=\'0.55\'/%3E%3C/svg%3E");animation:waveSlide 26s linear infinite}.card .atmos.midnight i{width:4px;height:4px;background:#fff;box-shadow:0 0 6px rgba(255,255,255,.8)}.card .atmos .rain{opacity:1}.card-body{position:relative;z-index:1;padding:22px;background:linear-gradient(180deg,rgba(12,12,18,.30) 0%,rgba(12,12,18,.62) 55%,rgba(12,12,18,.90) 100%)}.card-brand{font-family:\'JetBrains Mono\',monospace;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.9)}.card-title{font-family:\'Satoshi\',\'Noto Sans SC\',sans-serif;font-weight:900;font-size:22px;line-height:1.3;margin-top:8px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.45)}.card-meta{font-family:\'JetBrains Mono\',monospace;font-size:11px;color:rgba(255,255,255,.8);margin-top:6px}.card-difficulty{font-family:\'JetBrains Mono\',monospace;font-size:11px;color:#E0B378;margin-top:6px;letter-spacing:.04em}.card-qr{position:absolute;top:14px;right:14px;z-index:3}.card-qr img{width:64px;height:64px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.45);background:#fff;padding:4px}.card-qr-none{font-size:10px;color:rgba(255,255,255,.6);background:rgba(0,0,0,.4);padding:4px 8px;border-radius:6px}.card-div{border-top:2px solid rgba(255,255,255,.9);margin:14px 0}.card-wx{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 14px;margin-top:6px}.card-wx .wi{display:flex;flex-direction:column;justify-content:space-between;gap:2px;padding:9px 12px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(255,255,255,.08)}.card-wx .wi b{font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:700;color:#fff;line-height:1.15}.card-wx .wi i{font-style:normal;font-size:10px;color:rgba(255,255,255,.62);letter-spacing:.06em}.card-gear{margin-top:12px}.card-gear .cgh{font-size:10px;letter-spacing:.06em;color:rgba(255,255,255,.55);margin:10px 0 3px;font-family:\'JetBrains Mono\',monospace}.card-gear .cg-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 14px}.card-gear .gi{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px dotted rgba(255,255,255,.3);color:#fff}.card-gear .gi span:first-child{text-shadow:0 1px 2px rgba(0,0,0,.5)}.card-foot{margin-top:12px;font-size:10px;color:rgba(255,255,255,.68)}.card-risks{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.card-risks .rk{font-size:11px;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);color:#fff}.card-forecast{border:1px solid rgba(255,255,255,.16);border-radius:10px;margin-top:12px;overflow:hidden}.cf-row{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid rgba(255,255,255,.1);font-size:12px;color:#fff}.cf-row:last-child{border-bottom:none}.cf-date{font-family:\'JetBrains Mono\',monospace;font-size:10px;color:rgba(255,255,255,.62);width:74px;flex-shrink:0}.cf-cond{flex:1;white-space:nowrap}.cf-val{font-family:\'JetBrains Mono\',monospace;font-size:12px;text-align:right;margin-left:10px}.card-head{display:flex;align-items:stretch;gap:14px}.card-head-l{flex:1;min-width:0}.card-route{position:relative;width:360px;flex-shrink:0;min-height:44px;border:1px solid rgba(255,255,255,.35);border-radius:10px;background:rgba(255,255,255,.05);overflow:hidden}.card-route svg.route-track{position:absolute;inset:0;width:100%;height:100%}.card-gear .ckrow{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;user-select:none}.card-gear .ckrow .tk{color:#E08E3C;font-weight:700;font-size:14px;opacity:0;transform:scale(.5);transition:opacity .15s ease,transform .15s ease}.card-gear .ckrow.on .tk{opacity:1;transform:scale(1)}.card-gear .ckrow.on span:first-child{color:#ffd9a0}.clr{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:11px;color:rgba(255,255,255,.6);font-family:\'JetBrains Mono\',monospace}.clr button{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:999px;padding:4px 12px;font-size:11px;cursor:pointer}'
 
 function buildCardData() {
   var loc = tripName()
@@ -4249,11 +4555,21 @@ function buildCardData() {
     })
   }
   var routeShow = route && route.length > 1 && $('elRoute') && $('elRoute').checked
+  // 决策合成：难度元素（导出/预览一致；未勾选为空串）
+  var diffTxt = ''
+  var elDiffSec = $('elDiff')
+  if (elDiffSec && elDiffSec.checked && typeof tripDifficulty === 'function') { var _dd = tripDifficulty(); diffTxt = _dd.stars + ' · ' + _dd.label }
+  // 分享：QR 码（勾选则生成紧凑种子 dataURL；超容量/库缺失为空串）
+  var qrData = ''
+  var elQSec = $('elQr')
+  if (elQSec && elQSec.checked && typeof qrForCard === 'function') { qrData = qrForCard() || '' }
   return {
     brand: 'SHEEP🐏GEAR · ' + (loc || '行程'),
     title: ($('cardTitle').textContent || '').trim() || (loc || '行程') + ' 该带什么？',
     meta: meta.join(' · '),
     wx: wx, gear: gear, gearTotal: gearTotal,
+    difficulty: diffTxt,
+    qr: qrData,
     type: card.type, risks: risks, forecast: forecast,
     scene: { name: card.scene, grad: tm[card.scene].grad },
     precip: precip, bg: card.bg,
@@ -4282,13 +4598,15 @@ function renderShareHtml(data, seed, snapshot, ts) {
     revBtn +
     '<div class="card"><div class="card-map" id="cm"><div class="atmos" id="at"></div></div><div class="card-body">' +
     '<div class="card-head"><div class="card-head-l"><div class="card-brand" id="brand"></div><div class="card-title" id="title"></div></div><div class="card-route" id="route" style="display:none"></div></div>' +
-    '<div class="card-meta" id="meta"></div><div class="card-div"></div>' +
+    '<div class="card-meta" id="meta"></div><div class="card-difficulty" id="diff" style="display:none"></div><div class="card-qr" id="cardqr" style="display:none"></div><div class="card-div"></div>' +
     '<div class="card-risks" id="risks" style="display:none"></div>' +
     '<div class="card-wx" id="wx"></div><div class="card-forecast" id="fc" style="display:none"></div><div class="card-gear" id="gear"></div></div></div>' +
     '<script>var D=' + JSON.stringify(data).replace(/</g, '\\u003c') + ';' + seedBlock + snapBlock + tsBlock +
     "function e(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;')};" +
     "document.getElementById('cm').style.background='linear-gradient('+D.scene.grad+')';" +
     "document.getElementById('brand').textContent=D.brand;document.getElementById('title').textContent=D.title;document.getElementById('meta').textContent=D.meta;" +
+    "if(D.difficulty){var df=document.getElementById('diff');df.textContent=D.difficulty;df.style.display=''}" +
+    "if(D.qr){var cq=document.getElementById('cardqr');cq.innerHTML='<img src=\"'+D.qr+'\" style=\"width:64px;height:64px;border-radius:6px\">';cq.style.display=''}" +
     "if(D.route){document.getElementById('route').innerHTML=D.route;document.getElementById('route').style.display='';}" +
     "document.getElementById('wx').innerHTML=D.wx.map(function(w){return '<div class=\\\"wi\\\"><b>'+e(w.v)+'</b><i>'+e(w.l)+'</i></div>'}).join('');" +
     "if(D.type==='gear'){var gb=document.getElementById('gear');" +
@@ -5598,6 +5916,485 @@ window.GoldenSandWave = GoldenSandWave
 
 </script>
 <script>
+/* ============ js/decision.js · 决策合成层（纯函数，无副作用） ============
+   把现有分散信号合成为 3 个可直接读的结论：
+     tripDifficulty()      → 行程难度评分 1-5 级 + 标签 + 理由
+     packWeightAnalysis()  → 类别占比 / 超重预警（按行程模式阈值）
+     weightSuggestions()   → 基于天气条件的减重建议（只提示，不自动取消）
+     goNoGo()              → 出发建议 可出发 / 有条件 / 不建议 + 逐项依据
+   消费既有全局：weather / trip / routeMetrics / alerts / perDay /
+   gearResult / gearChecked / gearWeight / effectiveCatalog / evalCond /
+   buildGearCtx / returnDarkRef / altZoneLevel / appConfig（ConfigStorage） */
+
+/* ---------- 1. 行程难度评分（design D2：加权点分启发式） ---------- */
+var DIFF_LABELS = { 1: '轻松', 2: '适中', 3: '较难', 4: '困难', 5: '极难' }
+function difficultyStars(level) { return '★'.repeat(Math.min(5, Math.max(1, level))) + '☆'.repeat(5 - Math.min(5, Math.max(1, level))) }
+
+function tripDifficulty() {
+  var ctx = (typeof buildGearCtx === 'function') ? buildGearCtx() : {}
+  var pts = 0, facets = []
+  var wxOk = !!(weather && weather.days && weather.days.length)
+
+  // 距离
+  var dist = (routeMetrics && routeMetrics.distanceKm) ? routeMetrics.distanceKm : 0
+  var dPts = dist < 10 ? 0 : dist < 20 ? 1 : dist < 30 ? 2 : 3
+  if (dPts) { pts += dPts; facets.push('距离 ' + dist.toFixed(0) + 'km') }
+
+  // 累计爬升
+  var climb = (trip.climbM != null ? trip.climbM : (routeMetrics ? routeMetrics.climbM : 0)) || 0
+  var cPts = climb < 500 ? 0 : climb < 1200 ? 1 : climb < 2000 ? 2 : 3
+  if (cPts) { pts += cPts; facets.push('爬升 ' + climb + 'm') }
+
+  // 海拔区间（altZoneLevel 0-4，贡献封顶 2——距离/爬升已占大头，海拔只补一点）
+  var ele = ctx.elevation || (routeMetrics ? routeMetrics.maxEle : 0) || 0
+  var alt = Math.min(altZoneLevel(ele), 2)
+  if (alt >= 1) { pts += alt; facets.push((ele >= 3500 ? '极高海拔' : ele >= 2500 ? '高海拔' : '较高海拔') + ' ' + Math.round(ele) + 'm') }
+
+  // 天气场景：冷/湿/风每个 risky 场景 +1（封顶 2）
+  var scenePts = 0, sceneZh = { cold: '冷', wet: '湿', wind: '大风' }, sceneHits = []
+  if (wxOk) {
+    ;['cold', 'wet', 'wind'].forEach(function (k) {
+      if (weather.days.some(function (d) { return d.scenes && d.scenes[k] && d.scenes[k].risk })) {
+        if (scenePts < 2) { scenePts++; sceneHits.push(sceneZh[k]) }
+      }
+    })
+  }
+  if (scenePts) { pts += scenePts; facets.push(sceneHits.join('、')) }
+
+  // 返程天黑 red
+  var rd = (typeof returnDarkRef === 'function') ? returnDarkRef() : null
+  if (rd && rd.state === 'red') { pts += 1; facets.push('返程天黑') }
+
+  // 红色预警
+  var maxAlert = (typeof alerts !== 'undefined' && alerts && alerts.length) ? Math.max.apply(null, alerts.map(function (a) { return a.level })) : 0
+  if (maxAlert >= 4) { pts += 1; facets.push('红色预警') }
+
+  var level = Math.min(5, Math.max(1, pts <= 2 ? 1 : pts <= 5 ? 2 : pts <= 8 ? 3 : pts <= 11 ? 4 : 5))
+  if (trip.mode === 'city') level = Math.min(level, 2)   // 城市游封顶 2 级
+
+  var reason = facets.slice(0, 2).join(' + ') || (trip.mode === 'city' ? '常规城市行程' : '基础行程')
+  if (!wxOk) reason += (facets.length ? ' · ' : '') + '天气因素未知'
+  return { level: level, label: DIFF_LABELS[level], reason: reason, stars: difficultyStars(level) }
+}
+function difficultyText() { var d = tripDifficulty(); return '难度 ' + d.stars + ' · ' + d.label + '（' + d.reason + '）' }
+
+/* ---------- 2. 装包重量预算（design D3：按模式阈值） ---------- */
+function packWeightLimit() {
+  var m = (appConfig && appConfig.packWeightLimit) || {}
+  var key = trip.mode === 'heavy' ? 'heavy' : (trip.mode === 'city' ? 'city' : 'light')
+  return m[key] != null ? m[key] : (key === 'heavy' ? 15000 : key === 'city' ? 6000 : 8000)
+}
+
+function packWeightAnalysis() {
+  var res = (typeof gearResult !== 'undefined' && gearResult && gearResult.selected) ? gearResult.selected : []
+  var byCat = {}, total = 0
+  res.forEach(function (g) {
+    if (!(typeof gearIsChecked === 'function') || !gearIsChecked(g.item.id)) return
+    var w = (typeof itemWeightOf === 'function') ? itemWeightOf(g) : (g.item.w || 0)
+    var cat = g.item.cat || '其他'
+    byCat[cat] = (byCat[cat] || 0) + w
+    total += w
+  })
+  var arr = Object.keys(byCat).map(function (c) { return { cat: c, grams: byCat[c] } }).sort(function (a, b) { return b.grams - a.grams })
+  var limit = packWeightLimit()
+  var over = total > limit
+  return { total: total, byCat: arr, over: over, limit: limit, exceedKg: over ? (total - limit) / 1000 : 0, totalKg: total / 1000 }
+}
+
+/* ---------- 3. 减重建议（design D4：条件反查 + 显式降档；只提示不自动取消） ---------- */
+function weightSuggestions() {
+  var out = []
+  var ctx = (typeof buildGearCtx === 'function') ? buildGearCtx() : {}
+  function gramsOf(it) { var w = parseFloat(gearWeight[it.id]); return (!isNaN(w) && w >= 0) ? w : (it.w || 0) }
+
+  // ① 条件反查：已勾选但当前条件不满足 → 可省（底线/无条件常备不提示）
+  if (typeof effectiveCatalog === 'function') {
+    effectiveCatalog().forEach(function (it) {
+      if (!gearChecked[it.id]) return
+      if (it.p || !it.c) return
+      if (!evalCond(it.c, ctx)) {
+        out.push({ kind: 'drop', id: it.id, name: it.name, grams: gramsOf(it), saveG: gramsOf(it), reason: '当前条件不满足，可精简' })
+      }
+    })
+  }
+  // ② 显式降档：暖夜睡袋降档 / 全程无降水雨雪具可精简
+  var nightMin = ctx.nightMin
+  if (nightMin != null && nightMin > 5 && gearChecked['sleep_bag']) {
+    var sb = effectiveCatalogCheck('sleep_bag'), duck = effectiveCatalogCheck('sleep_bag_duck')
+    out.push({ kind: 'tierDown', id: 'sleep_bag', name: '睡袋(舒适温标按夜间温)', grams: gramsOf(sb), saveG: Math.max(0, gramsOf(sb) - (duck.w || 0)), reason: '夜间最低 ' + Math.round(nightMin) + '°C，可降档为鸭毛睡袋(5-15°C)/薄睡袋' })
+  }
+  var dryAll = !!(wxDryRun() === true)
+  if (dryAll) {
+    var gait = effectiveCatalogCheck('wear_gaiters'), prn = effectiveCatalogCheck('wear_packable_rain')
+    if (gearChecked['wear_gaiters']) out.push({ kind: 'drop', id: 'wear_gaiters', name: '雪套(冬季雪地/沙地)', grams: gramsOf(gait), saveG: gramsOf(gait), reason: '全程无雪且无雨，雪套可精简' })
+    if (gearChecked['wear_packable_rain']) out.push({ kind: 'drop', id: 'wear_packable_rain', name: '超轻雨衣雨裤(夏季备用)', grams: gramsOf(prn), saveG: gramsOf(prn), reason: '全程降水 0%，雨衣可精简' })
+  }
+  // 去重（按 id+kind）
+  var seen = {}
+  return out.filter(function (s) { var k = s.kind + s.id; if (seen[k]) return false; seen[k] = 1; return true })
+}
+function effectiveCatalogCheck(id) {
+  if (typeof effectiveCatalog !== 'function') return {}
+  return effectiveCatalog().filter(function (it) { return it.id === id })[0] || { w: 0 }
+}
+/* 全程无降水：逐日 precipProb 均存在且 < 触发阈值（沿用 precipTriggerPct） */
+function wxDryRun() {
+  if (!weather || !weather.days || !weather.days.length) return null
+  var trig = (appConfig && appConfig.precipTriggerPct) != null ? appConfig.precipTriggerPct : 40
+  for (var i = 0; i < weather.days.length; i++) {
+    var p = weather.days[i].precipProb
+    if (p == null || p >= trig) return false
+  }
+  return true
+}
+
+/* ---------- 4. Go/No-Go 出发建议（design D5 判定表） ---------- */
+var GNG_LABEL = { go: '可出发', caution: '有条件出发', stop: '不建议出发' }
+function goNoGo() {
+  var items = []
+
+  // 预警（阻塞：红；警告：橙/黄；绿：无；na：未启用）
+  if (appConfig.alertSource === 'off') {
+    items.push({ key: 'alert', state: 'na', label: '预警', note: '预警未启用' })
+  } else if (!(typeof alerts !== 'undefined' && alerts && alerts.length)) {
+    items.push({ key: 'alert', state: 'green', label: '预警', note: '无预警' })
+  } else {
+    var maxAlert = Math.max.apply(null, alerts.map(function (a) { return a.level }))
+    var top = alerts.filter(function (a) { return a.level === maxAlert })[0]
+    if (maxAlert >= 4) items.push({ key: 'alert', state: 'red', label: '预警', note: '红色预警 · ' + (top && top.typeName ? top.typeName : '') })
+    else items.push({ key: 'alert', state: 'orange', label: '预警', note: (maxAlert >= 3 ? '橙色' : '黄/蓝') + '预警' })
+  }
+
+  // 预报可信度（低/中 → 警告级）
+  var conf = (weather && weather.confidence) || 'high'
+  items.push({ key: 'conf', state: conf === 'high' ? 'green' : 'orange', label: '预报可信度', note: conf === 'high' ? '高' : conf === 'low' ? '低' : '中' })
+
+  // 返程天黑（red → 阻塞；amber → 警告）
+  var rd = (typeof returnDarkRef === 'function') ? returnDarkRef() : { state: 'green' }
+  var rs = (rd && rd.state) || 'green'
+  items.push({ key: 'dark', state: rs === 'red' ? 'red' : (rs === 'amber' ? 'orange' : 'green'), label: '返程天黑', note: rs === 'red' ? '天黑未归' : rs === 'amber' ? '接近日落' : '日落前返回' })
+
+  // 装备完成度（缺底线项 → 警告级；只提示不阻塞）
+  var baseIds = (typeof effectiveCatalog === 'function') ? effectiveCatalog().filter(function (it) { return it.p }).map(function (it) { return it.id }) : []
+  var missing = baseIds.filter(function (id) { return !(gearIsChecked && gearIsChecked(id)) && (gearResult && gearResult.selected ? gearResult.selected.some(function (g) { return g.item.id === id }) : false) })
+  items.push({ key: 'gear', state: missing.length ? 'orange' : 'green', label: '装备完成度', note: missing.length ? ('缺底线项：' + missing.map(function (id) { return gearNameOf(id) }).join('、')) : '底线齐全' })
+
+  var red = items.some(function (i) { return i.state === 'red' })
+  var warn = items.some(function (i) { return i.state === 'orange' })
+  var verdict = red ? 'stop' : warn ? 'caution' : 'go'
+  return { verdict: verdict, label: GNG_LABEL[verdict], items: items }
+}
+function gearNameOf(id) {
+  if (typeof effectiveCatalog === 'function') {
+    var it = effectiveCatalog().filter(function (x) { return x.id === id })[0]
+    if (it) return it.name
+  }
+  return id
+}
+</script>
+<script>
+/* ============ js/qr.js · 分享卡 QR 码（qrcode-generator，CDN 加载） ============
+   与 leaflet/three 同模式：运行时从 jsdelivr 加载 MIT 库（单文件导出不受影响——
+   分享卡导出时把 QR 以 dataURL 内嵌，静态卡自包含）。
+   makeQR(text) → dataURL 或 null（库未加载时降级提示）
+   qrSeedText()  → 紧凑行程种子编码的 SHEEPGEAR URL（扫码反打开同路线）
+   降采样路线 ≤20 点；超 QR 容量时返回 null（调用方提示"路线过长无法编码"）。 */
+
+/* 生成二维码 dataURL；text=待编码字符串；size=单元尺寸建议值 */
+function makeQR(text) {
+  var q = (typeof qrcode !== 'undefined') ? qrcode : ((typeof window !== 'undefined' && window.qrcode) || null)
+  if (!q || !text) return null
+  try {
+    var qr = q(0, 'M')        // typeNumber 0=自动版本，纠错 M
+    qr.addData(text)
+    qr.make()
+    return qr.createDataURL(4, 4)   // cellSize 4, margin 4
+  } catch (e) { return null }
+}
+
+/* 紧凑行程种子：仅 {v, target, trip}（无 gear/custom/快照，控制 QR 体积） */
+function compactSeed() {
+  var seed = { v: 1 }
+  if (route && route.length > 1) {
+    var th = (typeof thinRoute === 'function') ? thinRoute(route, 20, routeSegs) : { pts: route.slice(0, 20), segEnds: [Math.min(route.length, 20) - 1] }
+    if (!th.pts || th.pts.length < 2) return null
+    seed.target = { type: 'route', pts: th.pts, segEnds: th.segEnds && th.segEnds.length ? th.segEnds : [th.pts.length - 1] }
+  } else if (selLoc && selLoc.lat != null) {
+    seed.target = { type: 'point', lat: selLoc.lat, lng: selLoc.lng }
+  } else {
+    return null
+  }
+  seed.trip = { startDate: trip.startDate, days: trip.days, mode: trip.mode, highAlt: trip.highAlt, overNight: trip.overNight, departureTime: trip.departureTime || null }
+  return seed
+}
+
+/* 扫码打开的 URL：SHEEPGEAR 当前地址 + ?seed=<URL 编码 JSON>（checkReverseOpen 直接解析） */
+function qrSeedUrl() {
+  var seed = compactSeed()
+  if (!seed) return null
+  var pkg = { seed: seed }
+  var enc = encodeURIComponent(JSON.stringify(pkg))
+  var base = (typeof location !== 'undefined') ? (location.protocol + '//' + location.host + location.pathname) : 'SHEEPGEAR.html'
+  return base + '?seed=' + enc
+}
+
+/* 分享卡 QR 内容（URL）→ dataURL；超容量/无目标/库缺失返回 null */
+function qrForCard() {
+  var url = qrSeedUrl()
+  if (!url) return null
+  return makeQR(url)
+}
+function qrTooLong() { return false }   // 占位：makeQR 失败即视为超容量/库缺失，由调用方区分文案
+
+</script>
+<script>
+/* ============ js/terrain3d.js · 3D 路线地形视图（window.THREE） ============
+   ①步导入路线后，用路线海拔剖面（elevProfileData）做 2.5D 立体地形带：
+   x=距离、y=海拔、z=深度挤出、高程渐变着色 + 路线折线浮于顶脊。
+   手写轨道：拖动旋转 / 滚轮推拉 / 双击或按钮复位；打开懒建 renderer，关闭 dispose 释放 GPU。
+   THREE 未定义 / 海拔样本 <3 / 无路线 → 提示不可用，不崩溃。 */
+
+var _t3d = null   // {renderer, scene, camera, group, raf, rotY, rotX, distZ, cx, cy, cz, el, W, H}
+function terrainPts() {
+  if (!(route && route.length > 1)) return null
+  if (typeof elevProfileData !== 'function') return null
+  var d = elevProfileData(route, routeSegs, perDay)
+  var pts = (d && d.points || []).filter(function (p) { return p.ele != null })
+  return pts.length >= 3 ? { pts: pts, maxEle: d.maxEle, minEle: d.minEle } : null
+}
+function disposeTerrain3D() {
+  if (!_t3d) return
+  var t = _t3d
+  _t3d = null
+  if (t.raf) cancelAnimationFrame(t.raf)
+  if (t.renderer) { t.renderer.dispose(); if (t.el && t.renderer.domElement) { var c = t.el; try { c.removeChild(t.renderer.domElement) } catch (e) {} } }
+  if (t.el) { t.el.innerHTML = '' }
+  if (t.onDown && t.el) t.el.removeEventListener('mousedown', t.onDown)
+  if (t.onMove && t.el) t.el.removeEventListener('mousemove', t.onMove)
+  if (t.onUp) (window.removeEventListener ? window.removeEventListener('mouseup', t.onUp) : null)
+  if (t.onWheel && t.el) t.el.removeEventListener('wheel', t.onWheel)
+  if (t.onDbl && t.el) t.el.removeEventListener('dblclick', t.onDbl)
+}
+/* 打开 3D 视图（懒建 renderer；可多次开关） */
+function openTerrain3D() {
+  var box = document.getElementById('terrain3d')
+  if (!box) return
+  disposeTerrain3D()
+  var TH = (typeof window !== 'undefined' && window.THREE) || (typeof THREE !== 'undefined' ? THREE : null)
+  if (!TH) { box.innerHTML = '<div class="t3d-no">3D 不可用（三维库未加载）</div>'; box.style.display = 'block'; return }
+  var src = terrainPts()
+  if (!src) { box.innerHTML = '<div class="t3d-no">海拔数据不足，无法生成 3D 地形</div>'; box.style.display = 'block'; return }
+  box.innerHTML = '<div class="t3d-ui"><span class="t3d-tip">拖动旋转 · 滚轮缩放 · 双击复位</span><button class="t3d-reset" id="t3dReset">↺ 复位</button></div>'
+  box.style.display = 'block'
+
+  var W = Math.max(320, Math.min(760, box.clientWidth || 680))
+  var H = 300
+  var renderer = new TH.WebGLRenderer({ antialias: true, alpha: true })
+  renderer.setSize(W, H)
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+  box.appendChild(renderer.domElement)
+  renderer.domElement.style.width = '100%'
+  renderer.domElement.style.height = H + 'px'
+
+  var scene = new TH.Scene()
+  scene.background = new TH.Color(0x10141c)
+  var camera = new TH.PerspectiveCamera(45, W / H, 0.1, 1000)
+
+  var pts = src.pts
+  var maxEle = src.maxEle || 1, minEle = src.minEle || 0
+  var xMax = pts[pts.length - 1].distKm || 1
+  var XK = 1, YK = 2 / Math.max(maxEle / 1000, 0.1)   // 竖轴夸张：Y 范围约 0~2
+  var baseY = (minEle / 1000) * YK
+  var DEPTH = 0.9
+  var top = pts.map(function (p) { return { x: p.distKm * XK, y: (p.ele / 1000) * YK } })
+
+  // 地形带：顶脊沿 z 挤出（-DEPTH/2..+DEPTH/2），四侧到基底
+  function v(x, y, z) { return new TH.Vector3(x, y, z) }
+  var geo = new TH.BufferGeometry()
+  var pos = [], col = []
+  function ridge(i, z) { var t = top[i]; pos.push(t.x, t.y, z); return pos.length / 3 - 1 }
+  function base(i, z) { var t = top[i]; pos.push(t.x, baseY, z); return pos.length / 3 - 1 }
+  var idx = []
+  var n = top.length
+  for (var i = 0; i < n - 1; i++) {
+    var a0 = ridge(i, -DEPTH / 2), a1 = ridge(i + 1, -DEPTH / 2), a2 = ridge(i, DEPTH / 2), a3 = ridge(i + 1, DEPTH / 2)
+    var b0 = base(i, -DEPTH / 2), b1 = base(i + 1, -DEPTH / 2), b2 = base(i, DEPTH / 2), b3 = base(i + 1, DEPTH / 2)
+    // 顶面
+    idx.push(a0, a3, a1, a0, a2, a3)
+    // 前面 z=-D
+    idx.push(a0, a1, b1, a0, b1, b0)
+    // 后面 z=+D
+    idx.push(a2, b2, b3, a2, b3, a3)
+  }
+  geo.setIndex(idx)
+  // 顶点色：高程越高越暖/白
+  var colors = new Float32Array(pos.length)
+  for (var ci = 0; ci < pos.length; ci += 3) {
+    var y = pos[ci + 1]
+    var t01 = (y - baseY) / Math.max((top[n - 1].y - baseY) || 1, 0.0001)
+    t01 = Math.max(0, Math.min(1, t01))
+    // 低=绿 → 中=棕 → 高=白
+    var r, g, b2
+    if (t01 < 0.5) { var k = t01 * 2; r = 0.35 + 0.35 * k; g = 0.55 + 0.15 * k; b2 = 0.30 + 0.10 * k }
+    else { var k2 = (t01 - 0.5) * 2; r = 0.70 + 0.25 * k2; g = 0.45 + 0.30 * k2; b2 = 0.35 + 0.45 * k2 }
+    colors[ci] = r; colors[ci + 1] = g; colors[ci + 2] = b2
+  }
+  geo.setAttribute('position', new TH.BufferAttribute(new Float32Array(pos), 3))
+  geo.setAttribute('color', new TH.BufferAttribute(colors, 3))
+  geo.computeVertexNormals()
+  var mat = new TH.MeshPhongMaterial({ vertexColors: true, side: TH.DoubleSide, flatShading: false })
+  var mesh = new TH.Mesh(geo, mat)
+
+  // 路线折线（顶脊）
+  var linePts = top.map(function (t) { return v(t.x, t.y, 0) })
+  var lineGeo = new TH.BufferGeometry().setFromPoints(linePts)
+  var lineMat = new TH.LineBasicMaterial({ color: 0xE08E3C, linewidth: 2 })
+  var line = new TH.Line(lineGeo, lineMat)
+
+  var group = new TH.Group()
+  group.add(mesh); group.add(line)
+  scene.add(group)
+
+  var cx = xMax * XK / 2, cy = (top[0].y + baseY) / 2, cz = 0
+  var rotY = -0.6, rotX = 0.55, distZ = 5
+  scene.add(new TH.AmbientLight(0xffffff, 0.75))
+  var dir = new TH.DirectionalLight(0xffffff, 0.9)
+  dir.position.set(5, 8, 4); scene.add(dir)
+  function updateCam() {
+    camera.position.set(cx + distZ * Math.sin(rotY) * Math.cos(rotX), cy + distZ * Math.sin(rotX), cz + distZ * Math.cos(rotY) * Math.cos(rotX))
+    camera.lookAt(cx, cy, cz)
+  }
+  function resetView() { rotY = -0.6; rotX = 0.55; distZ = 5; updateCam() }
+  resetView()
+
+  var dragging = false, lastX = 0, lastY = 0
+  function onDown(e) { dragging = true; lastX = e.clientX; lastY = e.clientY }
+  function onMove(e) {
+    if (!dragging) return
+    rotY += (e.clientX - lastX) * 0.01
+    rotX += (e.clientY - lastY) * 0.01
+    rotX = Math.max(0.05, Math.min(1.5, rotX))
+    lastX = e.clientX; lastY = e.clientY
+    updateCam()
+  }
+  function onUp() { dragging = false }
+  function onWheel(e) { e.preventDefault(); distZ = Math.max(2.5, Math.min(12, distZ + (e.deltaY > 0 ? 0.6 : -0.6))); updateCam() }
+  function onDbl(e) { e.preventDefault(); resetView() }
+  renderer.domElement.addEventListener('mousedown', onDown)
+  renderer.domElement.addEventListener('mousemove', onMove)
+  window.addEventListener('mouseup', onUp)
+  renderer.domElement.addEventListener('wheel', onWheel, { passive: false })
+  renderer.domElement.addEventListener('dblclick', onDbl)
+  var rst = document.getElementById('t3dReset')
+  if (rst) rst.onclick = resetView
+
+  function tick() {
+    if (!_t3d || !_t3d.renderer) return
+    renderer.render(scene, camera)
+    _t3d.raf = requestAnimationFrame(tick)
+  }
+  _t3d = { renderer: renderer, el: box, raf: 0, onDown: onDown, onMove: onMove, onUp: onUp, onWheel: onWheel, onDbl: onDbl }
+  tick()
+}
+/* ①步切换按钮：有 3D 能力才显示 */
+function refreshTerrainToggle() {
+  var btn = document.getElementById('terrainToggle')
+  if (!btn) return
+  var src = terrainPts()
+  var ok = src && (typeof window !== 'undefined' && (window.THREE || (typeof THREE !== 'undefined')))
+  btn.style.display = ok ? 'inline-block' : 'none'
+  if (!ok && _t3d) disposeTerrain3D()
+}
+function toggleTerrain3D() {
+  var box = document.getElementById('terrain3d')
+  if (!box) return
+  if (_t3d) { disposeTerrain3D(); box.style.display = 'none' }
+  else openTerrain3D()
+}
+</script>
+<script>
+/* ============ js/windfield.js · 风场图（Open-Meteo 免 key，Leaflet 自绘风箭头） ============
+   第 1 步地图上的风场开关：以当前位置为中心拉 5×5 网格的 Open-Meteo 逐时风（风速/风向），
+   在 placeMap 上画彩色风箭头（方向=风向，长度=风速，颜色=风级）。免 key、CORS 已实测、无外部插件。
+   关闭/换位置时清理图层，失败降级提示，不阻塞。 */
+
+var _wf = { on: false, group: null, timer: 0 }
+/* 风级配色（km/h）：绿<16 黄<25 橙<39 红≥39 */
+function wfColor(kmh) { return kmh >= 39 ? '#e5533c' : kmh >= 25 ? '#e8a33d' : kmh >= 16 ? '#e8d34d' : '#5aa86a' }
+/* 当前查询中心点 */
+function wfCenter() {
+  if (selLoc) return { lat: selLoc.lat, lon: selLoc.lng }
+  if (route && route.length) return { lat: route[0].lat, lon: route[0].lon != null ? route[0].lon : route[0].lng }
+  return null
+}
+/* 拉 5×5 网格（0.4° ≈ 44km 间距，覆盖约 180km 方域）Open-Meteo 逐时风；返回 [{lat,lon,ws,dir}] */
+function wfFetchGrid(cx, cy) {
+  var jobs = []
+  for (var r = 0; r < 5; r++) for (var c = 0; c < 5; c++) {
+    var lat = (cx + (r - 2) * 0.4).toFixed(2), lon = (cy + (c - 2) * 0.4).toFixed(2)
+    jobs.push(fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&hourly=wind_speed_10m,wind_direction_10m&forecast_days=1&timezone=auto', { signal: AbortSignal.timeout(12000) })
+      .then(function (r) { if (!r.ok) throw 0; return r.json() })
+      .then(function (j) {
+        var h = j.hourly || {}
+        var ws = h.wind_speed_10m, dir = h.wind_direction_10m
+        if (!ws || !ws.length) return null
+        // 取第一个完整时次（0 时次可能为当前时刻）——取今天 12:00 附近作代表
+        var idx = Math.min(ws.length - 1, 12)
+        return { lat: +lat, lon: +lon, ws: ws[idx], dir: dir ? dir[idx] : null }
+      }).catch(function () { return null }))
+  }
+  return Promise.all(jobs)
+}
+/* 在 placeMap 上画风箭头（折线 + 箭头尖端），返回图层 */
+function wfLayer(points) {
+  var g = L.layerGroup()
+  points.forEach(function (p) {
+    if (p.ws == null || p.dir == null) return
+    var kmh = Math.round(p.ws * 3.6)          // m/s → km/h
+    var rad = p.dir * Math.PI / 180
+    // 风从 p 点沿来向（来向角即箭头指向的来源方向；箭头应指向风去的方向 = 风向+180°）
+    var toR = (p.dir + 180) * Math.PI / 180
+    var len = Math.min(0.08, 0.02 + kmh * 0.0016)   // 箭头长度随风速（度），封顶
+    var dl = 0.35, dLo = dl / Math.cos(p.lat * Math.PI / 180)
+    var ex = p.lon + Math.sin(toR) * dLo, ey = p.lat + Math.cos(toR) * dl   // 箭头末端
+    var color = wfColor(kmh)
+    L.polyline([[p.lat, p.lon], [ey, ex]], { color: color, weight: 2, opacity: 0.95 }).addTo(g)
+    // 箭头尖端（两条短线）
+    var ah = 0.02, a1 = toR + Math.PI * 0.75, a2 = toR - Math.PI * 0.75
+    var h1x = ex + Math.sin(a1) * ah * (dl / 0.35), h1y = ey + Math.cos(a1) * ah * (dl / 0.35)
+    var h2x = ex + Math.sin(a2) * ah * (dl / 0.35), h2y = ey + Math.cos(a2) * ah * (dl / 0.35)
+    L.polyline([[ey, ex], [h1y, h1x]], { color: color, weight: 2, opacity: 0.95 }).addTo(g)
+    L.polyline([[ey, ex], [h2y, h2x]], { color: color, weight: 2, opacity: 0.95 }).addTo(g)
+  })
+  return g
+}
+/* 风场开关 */
+function toggleWindField() {
+  if (!placeMap) { toast('地图未就绪'); return }
+  if (_wf.on) { clearWindField(); return }
+  var c = wfCenter()
+  if (!c) { toast('请先选择地点或导入路线'); return }
+  if (typeof L === 'undefined') { toast('地图组件未加载'); return }
+  toast('正在拉取风场…')
+  wfFetchGrid(c.lat, c.lon).then(function (pts) {
+    if (_wf.on) return   // 已关闭则丢弃
+    var ok = pts.filter(Boolean)
+    if (!ok.length) { toast('风场拉取失败，请重试'); return }
+    _wf.group = wfLayer(ok)
+    _wf.group.addTo(placeMap)
+    _wf.on = true
+    toast('风场已显示 · ' + ok.length + ' 网格点')
+  })
+}
+function clearWindField() {
+  if (_wf.group) { placeMap.removeLayer(_wf.group); _wf.group = null }
+  _wf.on = false
+}
+/* 位置变化时自动清场（避免旧位置箭头残留） */
+function refreshWindField() { if (_wf.on) { clearWindField(); toggleWindField() } }
+
+</script>
+<script>
 ﻿/* ============ app.js · 状态 / IndexedDB 配置·历史 / 5 步向导 / ③步路线地图 / 初始化 ============ */
 
 /* ---- 全局状态（各模块共享）---- */
@@ -5631,8 +6428,10 @@ function idbDel(store, key) { return openDb().then(function (db) { return new Pr
 var DEFAULT_CFG = {
   weatherPriority: ['qweather', 'open-meteo', 'meteoblue', 'amap'],
   alertSource: 'off', activeWindow: [8, 18],
-  overnightMarginC: 5, precipTriggerPct: 40,
+  overnightMarginC: 5, precipTriggerPct: 40, riverFlowThreshold: 100,
+  windyMapKey: '',   // Windy Map Forecast key（外链风场图无需 key，此项仅存配置）
   baseline: { fullSizeOnHeavy: true, fullSizeOnHours: 8, fullSizeOnElevation: 3000 },
+  packWeightLimit: { light: 8000, heavy: 15000, trail: 8000, city: 6000 },
   theme: 'ridge',
   qweather: { host: '', kid: '', projectId: '', hasKey: false },
   weatherIndicators: [], overviewRows: [],
@@ -5651,6 +6450,13 @@ async function loadConfig() {
 }
 function saveConfig() { idbSet('config', 'user', appConfig).catch(function () {}) }
 function saveCfgField(k, v) { appConfig[k] = v; saveConfig(); if (k === 'alertSource') { /* 预警源变更后重新拉取 */ if (weather) renderAlertCard() } }
+/* 决策合成：背包限重阈值（kg → 存 g，ConfigStorage 持久化；变更即刷新第 4 步重量分析） */
+function saveCfgWt(k, kg) {
+  appConfig.packWeightLimit = appConfig.packWeightLimit || {}
+  appConfig.packWeightLimit[k] = Math.round(parseFloat(kg) * 1000) || 8000
+  saveConfig()
+  if (typeof renderGearConfirm === 'function' && $('gearConfirm') && $('gearConfirm').innerHTML) renderGearConfirm()
+}
 function saveQwField(k, v) { appConfig.qweather[k] = v; saveConfig(); syncCfgUi() }
 
 /* ================= 配置弹层 ================= */
@@ -5672,12 +6478,19 @@ function syncCfgUi() {
   if (!appConfig) return
   if ($('cfgMargin')) $('cfgMargin').value = appConfig.overnightMarginC
   if ($('cfgPrecip')) $('cfgPrecip').value = appConfig.precipTriggerPct
+  var _pw = appConfig.packWeightLimit || {}
+  if ($('cfgWtLight')) $('cfgWtLight').value = Math.round((_pw.light != null ? _pw.light : 8000) / 1000)
+  if ($('cfgWtHeavy')) $('cfgWtHeavy').value = Math.round((_pw.heavy != null ? _pw.heavy : 15000) / 1000)
+  if ($('cfgWtCity')) $('cfgWtCity').value = Math.round((_pw.city != null ? _pw.city : 6000) / 1000)
+  if ($('cfgRiverTh')) $('cfgRiverTh').value = appConfig.riverFlowThreshold != null ? appConfig.riverFlowThreshold : 100
   if ($('cfgAlert')) $('cfgAlert').value = appConfig.alertSource
   if ($('qwHost')) $('qwHost').value = appConfig.qweather.host
   if ($('qwKid')) $('qwKid').value = appConfig.qweather.kid
   if ($('qwProjectId')) $('qwProjectId').value = appConfig.qweather.projectId
   if ($('amapKey')) $('amapKey').value = ((appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta.amap) || {}).key || ''
   if ($('mbKey')) $('mbKey').value = ((appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta.meteoblue) || {}).key || ''
+  if ($('windyKey')) $('windyKey').value = ((appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta.windy) || {}).key || ''
+  if ($('windyMapKey')) $('windyMapKey').value = (appConfig.windyMapKey || '')
   if ($('qwKeyStatus')) { $('qwKeyStatus').textContent = appConfig.qweather.hasKey ? '已导入' : '未导入'; $('qwKeyStatus').className = 'risk ' + (appConfig.qweather.hasKey ? 'green' : 'orange') }
   renderSrcList()
   syncSrcEditors()
@@ -5685,7 +6498,7 @@ function syncCfgUi() {
 }
 
 /* ================= 天气源优先级编辑器（增删排序 + 逐源配置 + 启停校验） ================= */
-var SRC_META = { qweather: { label: '和风天气 QWeather', need: '需 JWT' }, 'open-meteo': { label: 'Open-Meteo', need: '免 key' }, nmc: { label: '中央气象台', need: '免 key' }, amap: { label: '高德天气', need: '需 key' }, meteoblue: { label: 'Meteoblue', need: '需 key' } }
+var SRC_META = { qweather: { label: '和风天气 QWeather', need: '需 JWT' }, 'open-meteo': { label: 'Open-Meteo', need: '免 key' }, nmc: { label: '中央气象台', need: '免 key' }, amap: { label: '高德天气', need: '需 key' }, meteoblue: { label: 'Meteoblue', need: '需 key' }, windy: { label: 'Windy Point Forecast', need: '需 key' } }
 function srcEnabledState(id) {
   if (id === 'qweather') return (appConfig.qweather && appConfig.qweather.host) ? '' : '配置不完整，未启用'
   if (id === 'amap') return (appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta.amap && appConfig.weatherPriorityMeta.amap.key) ? '' : '配置不完整，未启用'
@@ -5696,6 +6509,7 @@ function srcConfigInfo(id) {
   if (id === 'qweather') { var q = appConfig.qweather || {}; return 'Host ' + (q.host || '—') + ' · kid ' + (q.kid || '—') + ' · 项目ID ' + (q.projectId || '—') + ' · 私钥 ' + (q.hasKey ? '已导入' : '未导入') }
   if (id === 'amap') { var k = (appConfig.weatherPriorityMeta || {}).amap; return k && k.key ? 'Key ' + String(k.key).slice(0, 6) + '…' : '未配置 Key' }
   if (id === 'meteoblue') { var mb = (appConfig.weatherPriorityMeta || {}).meteoblue; return mb && mb.key ? 'Key ' + String(mb.key).slice(0, 6) + '…' : '未配置 Key' }
+  if (id === 'windy') { var wk = (appConfig.weatherPriorityMeta || {}).windy; return wk && wk.key ? 'Key ' + String(wk.key).slice(0, 6) + '…' : '未配置 Key' }
   return '免 key'
 }
 function renderSrcList() {
@@ -5725,11 +6539,12 @@ function renderSrcList() {
 /* 列表里已有的源：展开对应配置编辑面板；不在列表的隐藏 */
 function syncSrcEditors() {
   var prio = appConfig.weatherPriority || []
-  var qw = $('srcEditQw'), am = $('srcEditAmap'), nm = $('srcEditNmc'), mb = $('srcEditMb')
+  var qw = $('srcEditQw'), am = $('srcEditAmap'), nm = $('srcEditNmc'), mb = $('srcEditMb'), wy = $('srcEditWindy')
   if (qw) qw.style.display = prio.indexOf('qweather') >= 0 ? 'block' : 'none'
   if (am) am.style.display = prio.indexOf('amap') >= 0 ? 'block' : 'none'
   if (nm) nm.style.display = prio.indexOf('nmc') >= 0 ? 'block' : 'none'
   if (mb) mb.style.display = prio.indexOf('meteoblue') >= 0 ? 'block' : 'none'
+  if (wy) wy.style.display = prio.indexOf('windy') >= 0 ? 'block' : 'none'
 }
 function srcAddChange(sel) {
   var id = sel.value
@@ -5760,6 +6575,38 @@ function saveMeteoblueKey(v) {
   if (!appConfig.weatherPriorityMeta) appConfig.weatherPriorityMeta = {}
   appConfig.weatherPriorityMeta.meteoblue = { key: String(v || '').trim() }
   saveConfig(); renderSrcList()
+}
+function saveWindyKey(v) {
+  if (!appConfig.weatherPriorityMeta) appConfig.weatherPriorityMeta = {}
+  appConfig.weatherPriorityMeta.windy = { key: String(v || '').trim() }
+  saveConfig(); renderSrcList()
+}
+/* Windy Map Forecast key（独立于天气源，存配置；外链风场图无需 key） */
+function windyMapKey() { return (appConfig && appConfig.windyMapKey) || '' }
+function saveWindyMapKey(v) { appConfig.windyMapKey = String(v || '').trim(); saveConfig() }
+/* 第 1 步「🌬 Windy 风场」：新标签页打开 windy.com 该坐标风场图（公开站点，免 key） */
+function openWindyMap() {
+  var lat = selLoc ? selLoc.lat : (route && route.length ? route[0].lat : null)
+  var lon = selLoc ? selLoc.lng : (route && route.length ? (route[0].lon != null ? route[0].lon : route[0].lng) : null)
+  if (lat == null || lon == null) { toast('请先选择地点或导入路线'); return }
+  var url = 'https://www.windy.com/' + lat.toFixed(3) + ',' + lon.toFixed(3) + ',7'
+  window.open(url, '_blank')
+}
+/* Windy Map Forecast「接通测试」：Windy 地图插件无法在配置弹层运行，仅校验库可达 + Key 格式 */
+function testWindyMapKey() {
+  var btn = document.getElementById('keyTest_windymap'), st = document.getElementById('keyState_windymap')
+  if (btn) { btn.textContent = '测试中…'; btn.disabled = true }
+  if (st) { st.textContent = '测试中…'; st.className = 'risk orange' }
+  var k = windyMapKey()
+  var p = !k ? Promise.resolve({ ok: false, txt: '未配置 Key' })
+    : fetch('https://api.windy.com/assets/map-forecast/libBoot.js', { method: 'HEAD', signal: AbortSignal.timeout(8000) })
+        .then(function (r) { return { ok: r.ok && /^[A-Za-z0-9]{20,40}$/.test(k), txt: r.ok ? '· Windy 库可达，Key 格式有效' : '· libBoot 库不可达' } })
+        .catch(function () { return { ok: false, txt: '· 网络不可达' } })
+  p.then(function (r) {
+    if (btn) { btn.textContent = r.ok ? '✓ 接通' : '✕ 失败'; btn.disabled = false }
+    if (st) { st.textContent = r.ok ? '✓ 已接通' : ('✕ ' + r.txt); st.className = 'risk ' + (r.ok ? 'green' : 'orange') }
+    toast((r.ok ? '✓ ' : '✕ ') + 'Windy Map Forecast 测试' + (r.ok ? '成功' : '失败') + ' ' + r.txt)
+  })
 }
 /* 「接通 / 测试」按钮：用该源实际请求一个最小查询验证 key 与网络可达 */
 function testWeatherKey(id) {
@@ -5806,12 +6653,23 @@ function probeSource(id) {
         if (j && j.error_message) { resolve({ ok: false, txt: '· ' + String(j.error_message).slice(0, 40) }); return }
         resolve({ ok: !!(j.data_day && j.data_day.time), txt: '· meteoblue 接口可用' + ((j.data_day && j.data_day.time && j.data_day.time.length) ? ('（' + j.data_day.time.length + ' 天）') : '') })
       }).catch(function (e) { resolve({ ok: false, txt: '· ' + String(e && e.message || '网络/CORS 失败') }) })
+    } else if (id === 'windy') {
+      var wk = (appConfig.weatherPriorityMeta || {}).windy && appConfig.weatherPriorityMeta.windy.key
+      if (!wk) { resolve({ ok: false, txt: '未配置 Key' }); return }
+      // 与真实管道同路径：Point Forecast 最小查询（北京测点）
+      fetch('https://api.windy.com/api/point-forecast/v2', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat: 39.9, lon: 116.4, model: 'gfs', parameters: ['wind'], levels: ['surface'], key: wk }),
+        signal: AbortSignal.timeout(8000)
+      }).then(function (r) { return r.json() })
+        .then(function (j) { resolve({ ok: !!(j && j.ts && j.ts.length), txt: (j && j.ts && j.ts.length) ? ('· Windy 接口可用（' + j.ts.length + ' 时次）') : '· 返回异常' }) })
+        .catch(function (e) { resolve({ ok: false, txt: '· ' + String(e && e.message || '网络/CORS 失败') }) })
     } else { resolve({ ok: true, txt: '· 该源无需 Key' }) }
   })
 }
 /* 开机自检：对已配置 key 的源后台跑一遍接通探测，真实状态写到徽标（不弹 toast、不改按钮） */
 function startupSelfCheck() {
-  var ids = (appConfig.weatherPriority || []).filter(function (id) { return id === 'qweather' || id === 'amap' || id === 'meteoblue' })
+  var ids = (appConfig.weatherPriority || []).filter(function (id) { return id === 'qweather' || id === 'amap' || id === 'meteoblue' || id === 'windy' })
   ids.forEach(function (id) {
     var st = document.getElementById('keyState_' + id)
     if (st) { st.textContent = '自检中…'; st.className = 'risk orange' }
@@ -5977,6 +6835,7 @@ function tripName() { return selLoc ? selLoc.name : (routeStartName || routeName
 /* 展示名（含省/兜底占位）：目的地卡、第 2/3 步标题 */
 function displayName() { return selLoc ? selLoc.name + (selLoc.admin1 ? ' · ' + selLoc.admin1 : '') : (routeStartName || routeName || '—') }
 function destText() { return displayName() }
+function diffToneClass(level) { return level >= 4 ? 'red' : level === 3 ? 'orange' : 'green' }
 function renderDestCard() {
   $('destName').textContent = destText()
   var meta = ''
@@ -5985,6 +6844,16 @@ function renderDestCard() {
   $('destMeta').textContent = meta
   $('p2Title').textContent = destText() + ' · 定行程'
   $('p3Title').textContent = destText() + ' · 天气'
+  // 决策合成：难度徽标（级+标签+悬停理由）
+  var db = $('diffBadge')
+  if (db) {
+    var dif = (typeof tripDifficulty === 'function') ? tripDifficulty() : null
+    if (dif && dif.level) {
+      db.style.display = ''
+      db.innerHTML = '<span class="risk ' + diffToneClass(dif.level) + '">难度 ' + esc(dif.stars) + ' · ' + esc(dif.label) + '</span>' +
+        '<span class="dif-reason" title="' + esc(dif.reason) + '">' + esc(dif.reason) + '</span>'
+    } else { db.style.display = 'none' }
+  }
 }
 
 /* ================= 第 2 步 chips ================= */
@@ -6094,9 +6963,10 @@ function renderElevProfileCanvas() {
   if (!wrap || !cv) return
   if (!(route && route.length > 1)) { wrap.style.display = 'none'; return }
   var data = (typeof elevProfileData === 'function') ? elevProfileData(route, routeSegs, perDay) : null
-  if (!data || !data.points || data.points.length < 2) { wrap.style.display = 'none'; return }
+  if (!data || !data.points || data.points.length < 2) { wrap.style.display = 'none'; if (typeof refreshTerrainToggle === 'function') refreshTerrainToggle(); return }
   renderElevationProfile(cv, data)
   wrap.style.display = 'block'
+  if (typeof refreshTerrainToggle === 'function') refreshTerrainToggle()
 }
 
 /* ================= 5 步向导（A1：步骤线可点；前进校验最小数据） ================= */
