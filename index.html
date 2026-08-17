@@ -6498,7 +6498,8 @@ function startWindAnim(pts) {
       var spdMs = Math.sqrt(w.u * w.u + w.v * w.v)
       var kmh = spdMs * 3.6
       var color = wfColor(kmh)
-      var len = Math.max(4, Math.min(26, Math.sqrt(vx * vx + vy * vy) * 0.16))
+      // 拖尾长度随风速：强风长亮线、弱风短点（速度差异化明显）
+      var len = Math.max(3, Math.min(34, Math.sqrt(vx * vx + vy * vy) * 0.22))
       if (vx || vy) {
         var vl = Math.sqrt(vx * vx + vy * vy) || 1
         var nx = vx / vl, ny = vy / vl
@@ -6515,6 +6516,18 @@ function startWindAnim(pts) {
       ctx.globalAlpha = 1
       ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.2, 0, 6.2832); ctx.fill()
     })
+    // 风级图例（左下角）：颜色→风速等级
+    var legX = 10, legY = canvas.height - 48, legW = 118, legH = 12
+    ctx.globalAlpha = 0.85
+    ctx.fillStyle = 'rgba(12,16,24,.65)'
+    ctx.fillRect(legX - 4, legY - 4, legW + 8, legH + 28)
+    var stops = [['#5aa86a', '<16'], ['#e8d34d', '16-24'], ['#e8a33d', '25-38'], ['#e5533c', '39+']]
+    var segW = legW / stops.length
+    stops.forEach(function (s, i) { ctx.fillStyle = s[0]; ctx.fillRect(legX + i * segW, legY, segW + 0.5, legH) })
+    ctx.fillStyle = '#cbd5e1'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'
+    stops.forEach(function (s, i) { ctx.fillText(s[1], legX + i * segW + segW / 2, legY + legH + 12) })
+    ctx.fillText('km/h', legX + legW / 2, legY + legH + 22)
+    ctx.globalAlpha = 1
     _wf.raf = requestAnimationFrame(tick)
   }
   _wf.on = true
