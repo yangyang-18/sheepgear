@@ -1537,14 +1537,27 @@ function renderSuggest(q, results) {
     })
   })
   if (!out.length && coarse.length) out = coarse
+  // 来源优先级：配置高德 key 时高德结果直接置前，山库(curated)次之，其余免 key 源殿后
   var ranked = out.map(function (it) { it.rank = classifyPlace(it); return it })
-    .sort(function (a, b) { return b.rank - a.rank || ((b.ele > 0 ? 1 : 0) - (a.ele > 0 ? 1 : 0)) })   // 山野优先；同权重优先带海拔候选（Open-Meteo 地名高程），其余保持源顺序（Array.sort 稳定）
-  // 别名注入：知名山库权威坐标置顶（解决"泰山"等歧义，防地理编码漏掉著名山峰）
+    .sort(suggestCmp)
+  // 别名注入：知名山库权威坐标（解决"泰山"等歧义，防地理编码漏掉著名山峰）
   var aliases = mountainAlias(q)
   if (aliases.length) ranked = ranked.filter(function (it) { return !it.coarse })   // 已知山野命中：纯行政区域（阳春市/云浮市）是定位噪音，去掉
-  for (var ai = aliases.length - 1; ai >= 0; ai--) ranked.unshift(aliases[ai])
-  renderSrd(ranked.slice(0, 8))
-  return ranked
+  var all = ranked.concat(aliases).sort(suggestCmp)
+  renderSrd(all.slice(0, 8))
+  return all
+}
+/* 下拉排序：来源优先（高德 > 山库 > 其他）→ 山野优先(rank) → 带海拔候选（Open-Meteo 地名高程） */
+function srcPrio(it) {
+  var s = it.src || ''
+  if (s === '高德') return 3
+  if (s === '山库') return 2
+  return 0
+}
+function suggestCmp(a, b) {
+  var sa = srcPrio(a), sb = srcPrio(b)
+  if (sb !== sa) return sb - sa
+  return b.rank - a.rank || ((b.ele > 0 ? 1 : 0) - (a.ele > 0 ? 1 : 0))
 }
 
 /* ---- 下拉渲染 + 事件 ---- */
