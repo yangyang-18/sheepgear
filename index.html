@@ -586,6 +586,12 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
     </div>
   </div>
 
+  <!-- 已选目的地卡：搜索/选点确认后即时展示在地图上方 -->
+  <div class="region" style="margin-top:12px"><div class="region-h">已选目的地</div>
+    <div class="mt sel" style="margin-top:0"><div class="mt-top"><div><div class="mt-name" id="destName">—</div><div class="mt-loc" id="destMeta"></div></div><span class="risk green">已选</span></div></div>
+    <div class="mt-diff" id="diffBadge" style="display:none;margin-top:8px"></div>
+  </div>
+
   <!-- 共享地图：loc 模式=选点针 · imp 模式=只读路线展示 -->
   <div class="mappick">
     <div class="map-pick" id="placeMap">
@@ -618,13 +624,9 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
   </div>
   <div id="mapErr" style="display:none"></div>
 
-  <!-- 定行程（并入第 1 步）：目的地卡 + 行程字段 + 模式 -->
-  <div class="region" style="margin-top:14px"><div class="region-h">定行程 · 已选目的地</div>
-    <div class="mt sel" style="margin-top:0"><div class="mt-top"><div><div class="mt-name" id="destName">—</div><div class="mt-loc" id="destMeta"></div></div><span class="risk green">已选</span></div></div>
-    <div class="mt-diff" id="diffBadge" style="display:none;margin-top:8px"></div>
-  </div>
-
-  <div class="trip" style="margin-top:14px">
+  <!-- 定行程：行程字段 + 模式（目的地卡已上移） -->
+  <div class="region-h" style="margin-top:14px">定行程</div>
+  <div class="trip" style="margin-top:6px">
     <div><label>出发日期</label><input type="date" id="tripDate"></div>
     <div><label>持续天数</label><input type="number" id="tripDays" min="1" max="16" value="1" aria-label="持续天数"></div>
     <div><label>预计爬升（可留空自动取）</label><input id="tripClimb" placeholder="如 1,280 m" aria-label="预计爬升"></div>
