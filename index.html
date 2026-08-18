@@ -94,7 +94,8 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 /* ①步地图（常驻展示，不再折叠） */
 .mappick{display:block;margin-top:12px;border:1px dashed var(--border);border-radius:12px;overflow:hidden}
 .mappick.open{display:block}
-.map-pick{position:relative;height:min(44vh,340px);background:var(--surface-2);cursor:crosshair}
+.map-pick{position:relative;height:min(44vh,340px);background:var(--surface-2);cursor:crosshair;transition:height .25s ease}
+.map-pick.collapsed{height:0;overflow:hidden;cursor:default}
 .map-scale{position:absolute;top:8px;right:8px;z-index:6;display:flex;flex-direction:column;gap:4px}
 .map-scale button{width:28px;height:28px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;font-size:15px;cursor:pointer;line-height:1;font-family:var(--f-m)}
 .map-hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:10px;color:var(--text-muted);font-family:var(--f-m);pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.4);z-index:7}
@@ -528,11 +529,10 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 </header>
 
 <div class="steps" id="steps">
-  <button class="step on" data-step="1" onclick="go(1)">1 路线或目的地</button>
-  <button class="step" data-step="2" onclick="go(2)">2 行程</button>
-  <button class="step" data-step="3" onclick="go(3)">3 天气</button>
-  <button class="step" data-step="4" onclick="go(4)">4 装备清单</button>
-  <button class="step" data-step="5" onclick="go(5)">5 分享卡</button>
+  <button class="step on" data-step="1" onclick="go(1)">1 地点与行程</button>
+  <button class="step" data-step="2" onclick="go(2)">2 天气</button>
+  <button class="step" data-step="3" onclick="go(3)">3 装备清单</button>
+  <button class="step" data-step="4" onclick="go(4)">4 分享卡</button>
 </div>
 
 <div id="departureEntry" class="departure-entry" style="display:none" onclick="departureEntryClick()">🚪 出门检查</div>
@@ -600,6 +600,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
       <span class="coord-read" id="pickCoord">尚未选点</span>
     </div>
     <div class="map-actions" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn" style="padding:4px 12px;font-size:12px" id="mapCollapseBtn" onclick="toggleMainMap()">⏷ 展开地图</button>
       <button class="btn" style="padding:4px 12px;font-size:12px" onclick="openWindyMap()">🌬 Windy 风场图</button>
       <span style="font-size:11px;color:var(--text-muted)">视野</span>
       <button class="btn" style="padding:4px 10px;font-size:11px" onclick="mapViewPreset(50)" title="显示约 50km 区域">50km</button>
@@ -617,20 +618,13 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
   </div>
   <div id="mapErr" style="display:none"></div>
 
-  <div class="nav"><span></span><button class="btn primary" onclick="go(2)">下一步：行程 →</button></div>
-</div>
-
-<!-- ============ 第 2 步：行程 ============ -->
-<div class="panel" id="p2">
-  <div class="step-h" id="p2Title">定行程</div>
-  <div class="step-s">出发日期和天数决定天气采样窗口。过夜与否直接改变保暖底线。</div>
-
-  <div class="region" style="margin-top:0"><div class="region-h">已选目的地</div>
+  <!-- 定行程（并入第 1 步）：目的地卡 + 行程字段 + 模式 -->
+  <div class="region" style="margin-top:14px"><div class="region-h">定行程 · 已选目的地</div>
     <div class="mt sel" style="margin-top:0"><div class="mt-top"><div><div class="mt-name" id="destName">—</div><div class="mt-loc" id="destMeta"></div></div><span class="risk green">已选</span></div></div>
     <div class="mt-diff" id="diffBadge" style="display:none;margin-top:8px"></div>
   </div>
 
-  <div class="trip">
+  <div class="trip" style="margin-top:14px">
     <div><label>出发日期</label><input type="date" id="tripDate"></div>
     <div><label>持续天数</label><input type="number" id="tripDays" min="1" max="16" value="1" aria-label="持续天数"></div>
     <div><label>预计爬升（可留空自动取）</label><input id="tripClimb" placeholder="如 1,280 m" aria-label="预计爬升"></div>
@@ -646,12 +640,12 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
     <span class="chip" data-alt="1" onclick="setHighAlt()">高海拔</span>
   </div>
 
-  <div class="nav"><button class="btn" onclick="go(1)">← 上一步</button><button class="btn primary" onclick="go(3)">下一步：查天气 →</button></div>
+  <div class="nav"><span></span><button class="btn primary" onclick="go(2)">下一步：查天气 →</button></div>
 </div>
 
-<!-- ============ 第 3 步：天气 ============ -->
-<div class="panel" id="p3">
-  <div class="step-h" id="p3Title">天气</div>
+<!-- ============ 第 2 步：天气 ============ -->
+<div class="panel" id="p2">
+  <div class="step-h" id="p2Title">天气</div>
   <div class="step-s">按天采样，逐日查看天气与风险。</div>
 
   <div id="wxStatus" style="font-size:11px;color:var(--text-muted);margin-top:16px;font-family:var(--f-m)"></div>
@@ -687,23 +681,23 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
     <div style="font-size:11px;color:var(--text-muted);margin-top:6px">Windy 官方地图组件（免 key）· 中心：当前选点 / 路线区域</div>
   </div>
 
-  <div class="nav"><button class="btn" onclick="go(2)">← 上一步</button><button class="btn primary" onclick="go(4)">下一步：装备清单 →</button></div>
+  <div class="nav"><button class="btn" onclick="go(1)">← 上一步</button><button class="btn primary" onclick="go(3)">下一步：装备清单 →</button></div>
 </div>
 
-<!-- ============ 第 4 步：装备清单 ============ -->
-<div class="panel" id="p4">
+<!-- ============ 第 3 步：装备清单 ============ -->
+<div class="panel" id="p3">
   <div class="step-h">装备清单</div>
   <div class="step-s">系统已按天气自动勾选，可手动增删。确认后进入分享卡。</div>
   <div id="gearConfirm"></div>
-  <div class="nav"><button class="btn" onclick="go(3)">← 上一步</button><button class="btn primary" onclick="go(5)">下一步：分享卡 →</button></div>
+  <div class="nav"><button class="btn" onclick="go(2)">← 上一步</button><button class="btn primary" onclick="go(4)">下一步：分享卡 →</button></div>
 </div>
 
-<!-- ============ 第 5 步：分享卡 ============ -->
-<div class="panel" id="p5">
+<!-- ============ 第 4 步：分享卡 ============ -->
+<div class="panel" id="p4">
   <div class="step-h">分享卡</div>
-  <div class="step-s">装备已按第 4 步确认。可定制天气指标与展示元素。分享卡动画背景可在此预览。</div>
+  <div class="step-s">装备已按第 3 步确认。可定制天气指标与展示元素。分享卡动画背景可在此预览。</div>
 
-  <div class="nav"><button class="btn" onclick="go(4)">← 上一步</button><span></span></div>
+  <div class="nav"><button class="btn" onclick="go(3)">← 上一步</button><span></span></div>
 
   <div class="card-type-sel" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:16px">
     <button class="scene-btn on" data-type="gear" onclick="setCardType('gear')">🧗 装备清单卡</button>
@@ -1624,6 +1618,12 @@ function initPlaceMap() {
     clearTimeout(_fcT)
     _fcT = setTimeout(function () { if (typeof renderHomeMapFc === 'function') renderHomeMapFc() }, 600)
   })
+  // 主地图默认折叠（appConfig.mapCollapsed 默认 true；折叠只收地图，预报面板保持常开）
+  if (appConfig && appConfig.mapCollapsed !== false) {
+    var _mp = $('placeMap'), _b = $('mapCollapseBtn')
+    if (_mp) _mp.classList.add('collapsed')
+    if (_b) _b.textContent = '⏷ 展开地图'
+  }
   // 容器尺寸变化（面板显隐/视口缩放）自动重算，杜绝“只左上角有图”的错位残留
   if (typeof ResizeObserver !== 'undefined') {
     new ResizeObserver(function () { if (placeMap) placeMap.invalidateSize() }).observe(el)
@@ -6706,6 +6706,7 @@ var DEFAULT_CFG = {
   weatherPriority: ['qweather', 'open-meteo', 'meteoblue', 'amap'],
   alertSource: 'off', activeWindow: [8, 18],
   overnightMarginC: 5, precipTriggerPct: 40, riverFlowThreshold: 100,
+  mapCollapsed: true,   // 第 1 步主选点地图默认折叠（需选点时展开；持久化用户偏好）
   baseline: { fullSizeOnHeavy: true, fullSizeOnHours: 8, fullSizeOnElevation: 3000 },
   packWeightLimit: { light: 8000, heavy: 15000, trail: 8000, city: 6000 },
   theme: 'ridge',
@@ -6870,6 +6871,17 @@ function windyFitZoom(lat, route) {
   var midLat = (minLat + maxLat) / 2 * Math.PI / 180
   var spanDeg = Math.max(maxLat - minLat, (maxLon - minLon) * Math.cos(midLat))
   return Math.max(8, Math.min(13, Math.round(Math.log2(360 / Math.max(spanDeg * 2.5, 0.03)))))
+}
+
+/* 第 1 步主地图折叠/展开（默认折叠；持久化用户偏好；展开后重算尺寸防错位） */
+function toggleMainMap() {
+  var mp = $('placeMap'), btn = $('mapCollapseBtn')
+  if (!mp) return
+  var collapsed = mp.classList.toggle('collapsed')
+  appConfig.mapCollapsed = collapsed
+  saveConfig()
+  if (btn) btn.textContent = collapsed ? '⏷ 展开地图' : '⏶ 收起地图'
+  if (!collapsed && placeMap) setTimeout(function () { if (placeMap) placeMap.invalidateSize() }, 80)
 }
 
 /* 第 1 步「🌬 Windy 风场」：新标签页打开 windy.com 该坐标风场图（公开站点，免 key）。
@@ -7131,8 +7143,7 @@ function renderDestCard() {
   if (selLoc) meta = (selLoc.ele ? Math.round(selLoc.ele).toLocaleString() + 'm · ' : '') + selLoc.lat.toFixed(4) + ', ' + selLoc.lng.toFixed(4)
   else if (routeMetrics) meta = (routeMetrics.maxEle != null ? Math.round(routeMetrics.maxEle).toLocaleString() + 'm · ' : '') + routeMetrics.distanceKm.toFixed(1) + 'km'
   $('destMeta').textContent = meta
-  $('p2Title').textContent = destText() + ' · 定行程'
-  $('p3Title').textContent = destText() + ' · 天气'
+  $('p2Title').textContent = destText() + ' · 天气'
   // 决策合成：难度徽标（级+标签+悬停理由）
   var db = $('diffBadge')
   if (db) {
@@ -7224,7 +7235,7 @@ function renderRouteDisplay() {
     ;(function (k) {
       var g = wgs84ToGcj02(splitPoints[k].lat, splitPoints[k].lon)
       var mk = L.marker([g.lat, g.lng], { icon: L.divIcon({ html: '<div class="mk">' + (k + 1) + '</div>', className: '', iconSize: [22, 22], iconAnchor: [11, 11] }) })
-      mk.on('click', function () { go(3); setView3('ov') })
+      mk.on('click', function () { go(2); setView3('ov') })
       routeDrawLayers.push(mk.addTo(placeMap))
     })(k)
   }
@@ -7277,18 +7288,19 @@ async function go(n) {
   // 回到第 1 步：面板从 display:none 恢复，重算地图尺寸防“只左上角有图”的错位残留
   // 回到第 1 步：面板从 display:none 恢复，重算地图尺寸并重渲染当前模式（路线 fitBounds / 选点 pin），防"缩放错位/只左上角有图"
   if (n === 1 && placeMap) setTimeout(function () { if (placeMap) { placeMap.invalidateSize(); syncMapForMode() } }, 80)
-  if (n === 3) {
+  // ②步天气：进入概览视图 + 出发时刻默认日出同步（输入框在第 1 步，sunrise 需天气）
+  if (n === 2) {
     setView3('wx')
+    if (typeof syncTripTime === 'function') syncTripTime()
     // 不再自动查天气：由「🔍 搜索天气」按钮手动触发（省 Key 配额，天气源请求批量一次跑）
   }
-  if (n === 2 && typeof syncTripTime === 'function') syncTripTime()
-  if (n === 4) {
-    if (!weather) { toast('请先在第 3 步点「🔍 搜索天气」'); go(3); return }
+  if (n === 3) {
+    if (!weather) { toast('请先在第 2 步点「🔍 搜索天气」'); go(2); return }
     gearResult = selectGear()
     renderGearConfirm()
   }
-  if (n === 5) {
-    if (!weather) { toast('请先在第 3 步点「🔍 搜索天气」'); go(3); return }
+  if (n === 4) {
+    if (!weather) { toast('请先在第 2 步点「🔍 搜索天气」'); go(2); return }
     gearResult = selectGear()
     renderCard()
   }
@@ -7462,7 +7474,7 @@ function checkReverseOpen() {
 /* C8 出发检查入口：有天气 → 直达⑤步出发检查卡；无天气 → 提示先查 */
 function departureEntryClick() {
   if (!weather || !weather.days || !weather.days.length) { toast('请先查询天气'); return }
-  go(5)
+  go(4)
   if (typeof setCardType === 'function') setCardType('departure')
 }
 
