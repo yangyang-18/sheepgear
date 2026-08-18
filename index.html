@@ -1424,11 +1424,38 @@ function mountainAlias(q) {
 }
 
 /* ---- 多源并行搜索：和风 geo(key) → Open-Meteo(中文) → Photon(山峰) ---- */
-function omGeocode(q) {
+function omGeoSearch(q) {
   return fetch(OM_GEO + '?name=' + encodeURIComponent(q) + '&count=8&language=zh&format=json', { signal: AbortSignal.timeout(8000) })
     .then(function (r) { if (!r.ok) return []; return r.json() })
     .then(function (d) { return (d.results || []).map(function (x) { return { name: x.name, admin1: x.admin1 || '', country: x.country || '', lat: x.latitude, lng: x.longitude, ele: x.elevation || 0, src: 'Open-Meteo', feature: x.feature_code || '' } }) })
     .catch(function () { return [] })
+}
+function omGeocode(q) {
+  var qn = String(q || '').trim()
+  var jobs = [omGeoSearch(qn)]
+  // 城市歧义兜底：短词且未带行政区/自然词缀时，追加「市」再查一次。实测「珠海」只命中山东·青岛市·珠海村，
+  // 需「珠海市」才返回广东·珠海市（地级市）；行政区首府候选优先于同名村落。
+  if (qn.length <= 4 && !/市|县|区|山|峰|镇|乡|村|湖|河|岛|岭|垭/.test(qn)) jobs.push(omGeoSearch(qn + '市'))
+  return Promise.all(jobs).then(function (lists) {
+    var out = [], seen = {}
+    lists.forEach(function (list) {
+      ;(list || []).forEach(function (it) {
+        var k = it.name + '|' + it.admin1
+        if (seen[k]) return
+        seen[k] = 1
+        out.push(it)
+      })
+    })
+    return out.sort(function (a, b) { return adminRank(b.feature) - adminRank(a.feature) })
+  }).catch(function () { return [] })
+}
+/* Open-Meteo 结果行政级别：国家首都 > 行政区首府（省/地级市/县） > 普通聚落 */
+function adminRank(f) {
+  var t = String(f || '')
+  if (t === 'PPLC') return 3
+  if (t.indexOf('PPLA') === 0) return 2
+  if (t === 'PPL') return 0
+  return 1
 }
 function photonSearch(q) {
   // 实测：不要加 lang=zh（会 400）；countrycode=CN 过滤海外同名
@@ -1500,7 +1527,7 @@ function suggest(q) {
     })
     if (!out.length && coarse.length) out = coarse
     var ranked = out.map(function (it) { it.rank = classifyPlace(it); return it })
-      .sort(function (a, b) { return b.rank - a.rank })   // 山野优先；同权重保持源顺序（Array.sort 稳定）
+      .sort(function (a, b) { return b.rank - a.rank || ((b.ele > 0 ? 1 : 0) - (a.ele > 0 ? 1 : 0)) })   // 山野优先；同权重优先带海拔候选（Open-Meteo 地名高程），其余保持源顺序（Array.sort 稳定）
     // 别名注入：知名山库权威坐标置顶（解决"泰山"等歧义，防地理编码漏掉著名山峰）
     var aliases = mountainAlias(q)
     for (var ai = aliases.length - 1; ai >= 0; ai--) ranked.unshift(aliases[ai])
@@ -1579,6 +1606,7 @@ function confirmLocation(loc, opts) {
   closeSrd()
   showPickedName(selLoc.name)
   syncPlaceMap(selLoc.lat, selLoc.lng)   // ② 搜索确认后地图选点定位到目标
+  if (typeof renderDestCard === 'function') renderDestCard()   // 目的地卡即时刷新（搜索/坐标/地图/历史选点共用）
   if (!(opts && opts.noHistory) && typeof upsertHistory === 'function') upsertHistory()   // 选点即写历史
   // 海拔兜底：选点来源缺海拔（Photon/高德/和风 ele=0）时用 Open-Meteo 高程接口补齐；位置已切换则忽略过期结果
   if (!(loc.ele > 0)) {
@@ -2807,7 +2835,7 @@ function fmtNum(n) { return n == null || isNaN(n) ? '—' : (Math.round(n * 100)
 function resolveItem(id, d) {
   var no = { value: '—', tone: '' }
   switch (id) {
-    case 'elevation': return { value: fmtInt(d.ele) + 'm', tone: '' }
+    case 'elevation': return { value: d.ele > 0 ? fmtInt(d.ele) + 'm' : '—', tone: '' }
     case 'temp_mean': { var v = d.tempMin != null && d.tempMax != null ? Math.round(d.tempMin) + '°/' + Math.round(d.tempMax) + '°' : '—'; var t = d.tempMax >= 33 ? 'warn' : d.tempMin < 0 ? 'cold' : ''; return { value: v, tone: t } }
     case 'feels_day': return { value: d.appDay != null ? Math.round(d.appDay) + '°' : '—', tone: '' }
     case 'feels_night': return { value: d.nightAppTemp != null ? Math.round(d.nightAppTemp) + '°' : '—', tone: d.nightAppTemp != null && d.nightAppTemp < 0 ? 'cold' : '' }
@@ -2964,7 +2992,7 @@ function renderDailyLoc() {
   box.innerHTML = '<div class="daily-loc">' + perDay.map(function (pd, k) {
     var w = pd.weather || {}
     var cond = w.weatherCode != null ? (wmoOf(w.weatherCode).icon + ' ' + wmoOf(w.weatherCode).zh) : '—'
-    var ele = (pd.point && pd.point.ele != null) ? fmtInt(pd.point.ele) + 'm' : '—'
+    var ele = (pd.point && pd.point.ele > 0) ? fmtInt(pd.point.ele) + 'm' : '—'
     var sum = (w.tempMin != null ? Math.round(w.tempMin) + '°' : '—') + '/' + (w.tempMax != null ? Math.round(w.tempMax) + '°' : '—') + ' · 降水' + (w.precipProb != null ? Math.round(w.precipProb) + '%' : '—')
     var dist = isRoute && pd.distKmFromStart != null ? ' · ' + pd.distKmFromStart + 'km' : ''
     return '<div class="dl-card"><div class="dl-h">Day ' + (k + 1) + ' · ' + esc(fmtShort(pd.date)) + '</div>' +
@@ -2996,6 +3024,11 @@ function uvDisplay() {
   return '<div style="margin-top:8px"><span class="risk orange" style="margin-right:6px">' + esc(s) + '</span></div>'
 }
 
+/* 源 id → 中文标签（「源不可用」展示用；SRC_META 在 app.js 声明，防御缺省） */
+function srcLabel(id) {
+  var m = { qweather: '和风', 'open-meteo': 'Open-Meteo', amap: '高德', meteoblue: 'Meteoblue', windy: 'Windy', nmc: '中央气象台' }
+  return (typeof SRC_META !== 'undefined' && SRC_META[id] && SRC_META[id].label) ? SRC_META[id].label : (m[id] || id)
+}
 /* 多源一致度展示：高→空（不显示即不宣称）；低/中→胶囊 + 原因（多源分歧 / 源不可用 / 集合离散） */
 function confidenceDisplay() {
   if (!weather || !weather.days || !weather.days.length) return ''
@@ -3005,7 +3038,7 @@ function confidenceDisplay() {
   weather.days.forEach(function (d) { (d.lowConsistency || []).forEach(function (f) { lows[f] = (lows[f] || 0) + 1 }) })
   var parts = []
   Object.keys(lows).forEach(function (f) { parts.push(CONF_FIELD_ZH[f] || f) })
-  if (weather.unavailableSources && weather.unavailableSources.length) parts.push('源不可用 ' + weather.unavailableSources.join('/'))
+  if (weather.unavailableSources && weather.unavailableSources.length) parts.push('源不可用 ' + weather.unavailableSources.map(srcLabel).join('/'))
   if (weather.precipUncertain) parts.push('集合对降水分歧大（概率 40~60%）')
   var ec = ensCfg()
   if (weather.ensMaxSpread != null && weather.ensMaxSpread > ec.tempC) parts.push('温度集合离散 ' + Math.round(weather.ensMaxSpread) + '°C')
@@ -6784,6 +6817,13 @@ function syncCfgUi() {
   if ($('mbKey')) $('mbKey').value = ((appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta.meteoblue) || {}).key || ''
   if ($('windyKey')) $('windyKey').value = ((appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta.windy) || {}).key || ''
   if ($('qwKeyStatus')) { $('qwKeyStatus').textContent = appConfig.qweather.hasKey ? '已导入' : '未导入'; $('qwKeyStatus').className = 'risk ' + (appConfig.qweather.hasKey ? 'green' : 'orange') }
+  // 徽标恢复上次接通测试结果（未测过保持「未测试」；高德开机自检会自己刷新）
+  ;['amap', 'meteoblue', 'windy', 'qweather'].forEach(function (id) {
+    var st = document.getElementById('keyState_' + id)
+    if (!st) return
+    var t = lastKeyTestState(id)
+    if (t) { st.textContent = t.ok ? '✓ 已接通' : ('✕ ' + (t.txt || '失败')); st.className = 'risk ' + (t.ok ? 'green' : 'orange') }
+  })
   renderSrcList()
   syncSrcEditors()
   renderGearLib()
@@ -6795,6 +6835,7 @@ function srcEnabledState(id) {
   if (id === 'qweather') return (appConfig.qweather && appConfig.qweather.host) ? '' : '配置不完整，未启用'
   if (id === 'amap') return (appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta.amap && appConfig.weatherPriorityMeta.amap.key) ? '' : '配置不完整，未启用'
   if (id === 'meteoblue') return (appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta.meteoblue && appConfig.weatherPriorityMeta.meteoblue.key) ? '' : '配置不完整，未启用'
+  if (id === 'windy') return (appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta.windy && appConfig.weatherPriorityMeta.windy.key) ? '' : '配置不完整，未启用'
   return ''   // nmc / open-meteo 免 key 恒可用
 }
 function srcConfigInfo(id) {
@@ -6923,6 +6964,29 @@ function openWindyMap() {
   var url = 'https://www.windy.com/?' + lat.toFixed(3) + ',' + lon.toFixed(3) + ',' + zoom
   window.open(url, '_blank')
 }
+/* 记录源接通测试结果（持久化到配置：重开页面徽标直接显示上次结果，不用重测） */
+function saveKeyTestState(id, r) {
+  if (id === 'qweather') {
+    appConfig.qweather = appConfig.qweather || {}
+    appConfig.qweather.lastTest = { ok: !!r.ok, txt: r.txt || '', at: new Date().toISOString() }
+  } else {
+    if (!appConfig.weatherPriorityMeta) appConfig.weatherPriorityMeta = {}
+    var m = appConfig.weatherPriorityMeta[id] = appConfig.weatherPriorityMeta[id] || {}
+    m.lastTest = { ok: !!r.ok, txt: r.txt || '', at: new Date().toISOString() }
+  }
+  saveConfig()
+}
+/* 徽标渲染：✓ 已接通 / ✕ 原因 */
+function keyTestBadge(id, r) {
+  var st = document.getElementById('keyState_' + id)
+  if (st) { st.textContent = r.ok ? '✓ 已接通' : ('✕ ' + (r.txt || '失败')); st.className = 'risk ' + (r.ok ? 'green' : 'orange') }
+}
+/* 上次测试状态（未测过返回 null）：qweather 存在 appConfig.qweather，其余在 weatherPriorityMeta */
+function lastKeyTestState(id) {
+  if (id === 'qweather') return (appConfig.qweather && appConfig.qweather.lastTest) || null
+  var m = (appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta[id]) || {}
+  return m.lastTest || null
+}
 /* 「接通 / 测试」按钮：用该源实际请求一个最小查询验证 key 与网络可达 */
 function testWeatherKey(id) {
   var btn = document.getElementById('keyTest_' + id)
@@ -6931,7 +6995,8 @@ function testWeatherKey(id) {
   if (st) { st.textContent = '测试中…'; st.className = 'risk orange' }
   probeSource(id).then(function (r) {
     if (btn) { btn.textContent = r.ok ? '✓ 接通' : '✕ 失败'; btn.disabled = false }
-    if (st) { st.textContent = r.ok ? '✓ 已接通' : ('✕ ' + r.txt); st.className = 'risk ' + (r.ok ? 'green' : 'orange') }
+    keyTestBadge(id, r)
+    saveKeyTestState(id, r)
     toast((r.ok ? '✓ ' : '✕ ') + (SRC_META[id] ? SRC_META[id].label : id) + ' 接通测试' + (r.ok ? '成功' : '失败') + ' ' + r.txt)
   })
 }
@@ -6982,16 +7047,15 @@ function probeSource(id) {
     } else { resolve({ ok: true, txt: '· 该源无需 Key' }) }
   })
 }
-/* 开机自检：对已配置 key 的源后台跑一遍接通探测，真实状态写到徽标（不弹 toast、不改按钮） */
+/* 开机自检：仅对高德 key 后台跑一遍接通探测（其他源配额不动，配置弹层里手动「接通测试」）；真实状态写到徽标 */
 function startupSelfCheck() {
-  var ids = (appConfig.weatherPriority || []).filter(function (id) { return id === 'qweather' || id === 'amap' || id === 'meteoblue' || id === 'windy' })
-  ids.forEach(function (id) {
-    var st = document.getElementById('keyState_' + id)
-    if (st) { st.textContent = '自检中…'; st.className = 'risk orange' }
-    probeSource(id).then(function (r) {
-      var st2 = document.getElementById('keyState_' + id)
-      if (st2) { st2.textContent = r.ok ? '✓ 已接通' : ('✕ ' + r.txt); st2.className = 'risk ' + (r.ok ? 'green' : 'orange') }
-    })
+  var ak = (appConfig.weatherPriorityMeta || {}).amap && appConfig.weatherPriorityMeta.amap.key
+  if (!ak) return   // 未配置高德 key → 不探测，徽标保持「未测试」
+  var st = document.getElementById('keyState_amap')
+  if (st) { st.textContent = '自检中…'; st.className = 'risk orange' }
+  probeSource('amap').then(function (r) {
+    keyTestBadge('amap', r)
+    saveKeyTestState('amap', r)
   })
 }
 
@@ -7548,7 +7612,8 @@ async function init() {
     rd.readAsText(f)
   })
 
-  // 不再开机自动探测 key（省各源配额/次数）：源连通验证仅由配置弹层「接通测试」按钮手动触发
+  // 开机自检：仅高德 key（其他源不自动测，省配额；需手动「接通测试」）
+  startupSelfCheck()
   // C7 反打开：URL ?seed=/?sid= → 恢复种子 + 快照渲染 + 后台刷新
   if (typeof checkReverseOpen === 'function') checkReverseOpen()
 
