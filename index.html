@@ -601,11 +601,18 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
     </div>
     <div class="map-actions" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
       <button class="btn" style="padding:4px 12px;font-size:12px" onclick="openWindyMap()">🌬 Windy 风场图</button>
-      <button class="btn" style="padding:4px 12px;font-size:12px" onclick="openWindyMapFc()">🗺 地图预测</button>
       <span style="font-size:11px;color:var(--text-muted)">视野</span>
       <button class="btn" style="padding:4px 10px;font-size:11px" onclick="mapViewPreset(50)" title="显示约 50km 区域">50km</button>
       <button class="btn" style="padding:4px 10px;font-size:11px" onclick="mapViewPreset(10)" title="显示约 10km">10km</button>
       <button class="btn" style="padding:4px 10px;font-size:11px" onclick="mapViewPreset(5)" title="显示约 5km 特写">5km</button>
+    </div>
+    <!-- 常驻「地图预报」：一直展开，跟随主地图视野（搜索/选点/平移联动；embed.windy.com 免 key） -->
+    <div class="map-fc" id="homeMapFc">
+      <div class="mapfc-h" style="border:1px solid var(--border);border-bottom:0;border-radius:12px 12px 0 0">🗺 地图预报<span style="font-size:11px;color:var(--text-muted);font-weight:400">跟随主地图 · 免 key</span></div>
+      <div style="position:relative;height:44vh;border:1px solid var(--border);border-radius:0 0 12px 12px;overflow:hidden;background:var(--surface)">
+        <div class="mapfc-loading" id="homeFcLoading">加载中…</div>
+        <iframe id="homeFcFrame" title="Windy 地图预报" style="position:absolute;inset:0;width:100%;height:100%;border:0" allowfullscreen></iframe>
+      </div>
     </div>
   </div>
   <div id="mapErr" style="display:none"></div>
@@ -890,15 +897,6 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
       <button class="cfg-x" onclick="closeCfg(document.getElementById('hist'))">✕</button>
     </div>
     <div id="histList"></div>
-  </div>
-</div>
-
-<!-- 第 1 步「🗺 地图预测」覆盖层：embed.windy.com 官方组件 iframe，免 key -->
-<div class="mapfc" id="viewMapFc" style="display:none">
-  <div class="mapfc-h">🗺 Windy 地图预报<button class="cfg-x" style="width:auto;padding:0 12px" onclick="closeWindyMapFc()">✕ 关闭</button></div>
-  <div class="mapfc-b">
-    <div class="mapfc-loading" id="mapFcLoading">加载中…</div>
-    <iframe id="mapFcFrame" title="Windy 地图预报" allowfullscreen></iframe>
   </div>
 </div>
 
@@ -1618,6 +1616,13 @@ function initPlaceMap() {
     closeSrd()
     placePin(w)
     useLocationDirect(w)             // 点地图即用：逆地理回填 + 直接确认（无二次确认按钮）
+  })
+  // 常驻「地图预报」跟随主地图视野：初始渲染一次 + moveend 联动（防抖；搜索/选点/平移/路线导入都走 setView）
+  if (typeof renderHomeMapFc === 'function') renderHomeMapFc()
+  var _fcT = null
+  placeMap.on('moveend', function () {
+    clearTimeout(_fcT)
+    _fcT = setTimeout(function () { if (typeof renderHomeMapFc === 'function') renderHomeMapFc() }, 600)
   })
   // 容器尺寸变化（面板显隐/视口缩放）自动重算，杜绝“只左上角有图”的错位残留
   if (typeof ResizeObserver !== 'undefined') {
@@ -6584,11 +6589,47 @@ function corrShowSegment(list, idx) {
 
 </script>
 <script>
-/* ============ 第 1 步「🗺 地图预报」：应用内 Windy 地图预报覆盖层 ============
+/* ============ Windy 地图预报（embed.windy.com 官方组件 iframe，免 key）============
    可行性（2026-08-18 实测）：api.windy.com/map-forecast 插件需 Leaflet 1.4.x（App 为 1.9.4）
    且需有效付费 Map Forecast key（测试 key 被 v2/auth 403 拒绝），故不嵌入插件。改用官方
-   embed.windy.com 小组件 iframe——免 key、官方维护、headless 实测渲染正常（瓦片+canvas）。 */
-/* 中心推导：优先选点坐标，否则路线中点；无则返回 null（纯函数可测） */
+   embed.windy.com 小组件 iframe——免 key、官方维护、headless 实测渲染正常（瓦片+canvas）。
+
+   三个使用位置：
+   1) 第 1 步常驻「地图预报」面板（#homeMapFc）：一直展开，跟随主地图视野（搜索/选点/平移联动）。
+   2) 第 3 步天气「🗺 地图预报」子页签（#viewWmap）：进入加载、离开卸载。 */
+/* ---- 共用：iframe src 构造（免 key，URL 无任何 key 字段）---- */
+function windyMapFcSrc(center, zoom) {
+  var lat = (+center.lat).toFixed(3), lon = (+center.lon).toFixed(3)
+  return 'https://embed.windy.com/embed2.html?lat=' + lat + '&lon=' + lon +
+    '&detailLat=' + lat + '&detailLon=' + lon +
+    '&zoom=' + zoom +
+    '&overlay=wind&product=ecmwf&level=surface&type=map&marker=1'
+}
+/* ---- 第 1 步常驻面板：跟随主地图视野（主图为高德 GCJ-02 → 预报用 WGS-84）---- */
+function homeMapFcCenter() {
+  if (typeof placeMap === 'undefined' || !placeMap) return null
+  var c = placeMap.getCenter()
+  var w = gcj02ToWgs84(c.lat, c.lng)
+  return { lat: w.lat, lon: w.lng }
+}
+function homeMapFcZoom() {
+  if (typeof placeMap === 'undefined' || !placeMap) return 6
+  var z = placeMap.getZoom()
+  return Math.max(3, Math.min(11, Math.round(z)))   // 预报图不支持街景级缩放
+}
+/* 渲染/刷新：视野未变（src 相同）跳过，避免无谓重载；写 src 前显示加载提示 */
+function renderHomeMapFc() {
+  var frame = $('homeFcFrame'), l = $('homeFcLoading')
+  if (!frame) return
+  var c = homeMapFcCenter()
+  if (!c) return
+  var src = windyMapFcSrc(c, homeMapFcZoom())
+  if (frame.getAttribute('data-src') === src) return
+  frame.setAttribute('data-src', src)
+  if (l) l.style.display = 'flex'
+  frame.src = src
+}
+/* ---- 第 3 步「🗺 地图预报」页签：中心=选点或路线中点（复用风场图适配），进入渲染、离开卸载 ---- */
 function windyMapFcCenter() {
   if (selLoc) return { lat: selLoc.lat, lon: selLoc.lng }
   if (route && route.length) {
@@ -6604,38 +6645,10 @@ function windyMapFcCenter() {
   }
   return null
 }
-/* 缩放：复用风场图适配（单点 13、路线按跨度自适应） */
 function windyMapFcZoom(center) {
   if (typeof windyFitZoom === 'function') return windyFitZoom(center.lat, route || null)
   return 8
 }
-/* iframe src 构造：官方 embed.windy.com/embed2.html，免 key，URL 无任何 key 字段 */
-function windyMapFcSrc(center, zoom) {
-  var lat = (+center.lat).toFixed(3), lon = (+center.lon).toFixed(3)
-  return 'https://embed.windy.com/embed2.html?lat=' + lat + '&lon=' + lon +
-    '&detailLat=' + lat + '&detailLon=' + lon +
-    '&zoom=' + zoom +
-    '&overlay=wind&product=ecmwf&level=surface&type=map&marker=1'
-}
-/* 打开：校验定位 → 构造 src → 显示覆盖层（加载提示复位） */
-function openWindyMapFc() {
-  var c = windyMapFcCenter()
-  if (!c) { toast('请先选择地点或导入路线'); return }
-  var frame = $('mapFcFrame'), v = $('viewMapFc')
-  if (!frame || !v) return
-  frame.src = windyMapFcSrc(c, windyMapFcZoom(c))
-  var l = $('mapFcLoading'); if (l) l.style.display = ''
-  v.style.display = 'flex'
-}
-/* 关闭：卸载 iframe（about:blank 释放嵌入资源）并隐藏覆盖层 */
-function closeWindyMapFc() {
-  var v = $('viewMapFc')
-  if (!v) return
-  var frame = $('mapFcFrame'); if (frame) frame.src = 'about:blank'
-  v.style.display = 'none'
-}
-/* 第 3 步「🗺 地图预报」页签：中心=选点或路线中点（与第 1 步一致），展示当前行程区域的地图预报。
-   进入页签时渲染（中心变化则重载），离开时卸载释放资源。 */
 function renderWeatherMapFc() {
   var frame = $('wmapFrame'), l = $('wmapLoading')
   if (!frame) return
@@ -6651,7 +6664,7 @@ function unloadWeatherMapFc() {
 }
 /* iframe 加载完成 → 隐藏加载提示 */
 (function () {
-  ;[['mapFcFrame', 'mapFcLoading'], ['wmapFrame', 'wmapLoading']].forEach(function (p) {
+  ;[['homeFcFrame', 'homeFcLoading'], ['wmapFrame', 'wmapLoading']].forEach(function (p) {
     var frame = $(p[0])
     if (frame) frame.addEventListener('load', function () { var l = $(p[1]); if (l) l.style.display = 'none' })
   })
