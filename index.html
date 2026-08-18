@@ -490,6 +490,13 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
   .srd-item .nm{font-size:12px}
   .srd-item .ad,.srd-item .cr{font-size:10px}
   .srd-item .src,.srd-item .mt-tag{font-size:9px;padding:0 3px}
+  /* ①步定行程：手机端 5 字段一行并列（缩小输入框） */
+  .trip{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:10px}
+  .trip label{font-size:10px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .trip input,.trip select{font-size:12px;padding:6px 4px}
+  /* ①步模式 chips：手机端 5 项一行并列 */
+  .chips{gap:6px;margin-top:12px}
+  .chip{padding:5px 8px;font-size:11px}
 }
 /* ===== ③步天气：路线走廊（路线段 × 小时 矩阵） ===== */
 .corr-wrap{overflow:hidden;border:1px solid var(--border);border-radius:10px;background:var(--surface-2)}
@@ -626,10 +633,6 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
     <div class="map-actions" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
       <button class="btn" style="padding:4px 12px;font-size:12px" id="mapCollapseBtn" onclick="toggleMainMap()">⏷ 展开地图</button>
       <button class="btn" style="padding:4px 12px;font-size:12px" onclick="openWindyMap()">🌬 Windy 风场图</button>
-      <span style="font-size:11px;color:var(--text-muted)">视野</span>
-      <button class="btn" style="padding:4px 10px;font-size:11px" onclick="mapViewPreset(50)" title="显示约 50km 区域">50km</button>
-      <button class="btn" style="padding:4px 10px;font-size:11px" onclick="mapViewPreset(10)" title="显示约 10km">10km</button>
-      <button class="btn" style="padding:4px 10px;font-size:11px" onclick="mapViewPreset(5)" title="显示约 5km 特写">5km</button>
     </div>
     <!-- 常驻「地图预报」：一直展开，跟随主地图视野（搜索/选点/平移联动；embed.windy.com 免 key） -->
     <div class="map-fc" id="homeMapFc">
