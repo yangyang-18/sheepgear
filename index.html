@@ -229,9 +229,9 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .srd-item .mt-tag{font-family:var(--f-m);font-size:10px;color:var(--success);border:1px solid var(--border);border-radius:4px;padding:0 4px;white-space:nowrap}
 
 /* 行程 */
-.trip{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px}
-.trip label{font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px}
-.trip input,.trip select{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 12px;color:var(--text);font-size:14px;font-family:var(--f-b)}
+.trip{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px}
+.trip label{font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px}
+.trip input,.trip select{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 9px;color:var(--text);font-size:13px;font-family:var(--f-b)}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
 .chip{border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:7px 15px;font-size:12px;color:var(--text-muted);cursor:pointer}
 .chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
@@ -592,6 +592,24 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
     <div class="mt-diff" id="diffBadge" style="display:none;margin-top:8px"></div>
   </div>
 
+  <!-- 定行程：行程字段 + 模式（紧凑并列，置于地图上方） -->
+  <div class="region-h" style="margin-top:14px">定行程</div>
+  <div class="trip">
+    <div><label>出发日期</label><input type="date" id="tripDate"></div>
+    <div><label>持续天数</label><input type="number" id="tripDays" min="1" max="16" value="1" aria-label="持续天数"></div>
+    <div><label title="留空自动取路线累计爬升">预计爬升</label><input id="tripClimb" placeholder="如 1,280 m" aria-label="预计爬升"></div>
+    <div><label title="留空自动按路线计算">预计耗时</label><input id="tripHours" placeholder="如 6.5 h" aria-label="预计耗时"></div>
+    <div><label title="留空用出发日日出">出发时刻</label><input type="time" id="tripTime" aria-label="出发时刻"></div>
+  </div>
+
+  <div class="chips" id="modeChips">
+    <span class="chip on" data-mode="light" onclick="setMode('light')">轻装单日</span>
+    <span class="chip" data-mode="heavy" onclick="setMode('heavy')">重装</span>
+    <span class="chip" data-mode="trail" onclick="setMode('trail')">越野跑</span>
+    <span class="chip" data-mode="city" onclick="setMode('city')">城市游</span>
+    <span class="chip" data-alt="1" onclick="setHighAlt()">高海拔</span>
+  </div>
+
   <!-- 共享地图：loc 模式=选点针 · imp 模式=只读路线展示 -->
   <div class="mappick">
     <div class="map-pick" id="placeMap">
@@ -623,24 +641,6 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
     </div>
   </div>
   <div id="mapErr" style="display:none"></div>
-
-  <!-- 定行程：行程字段 + 模式（目的地卡已上移） -->
-  <div class="region-h" style="margin-top:14px">定行程</div>
-  <div class="trip" style="margin-top:6px">
-    <div><label>出发日期</label><input type="date" id="tripDate"></div>
-    <div><label>持续天数</label><input type="number" id="tripDays" min="1" max="16" value="1" aria-label="持续天数"></div>
-    <div><label>预计爬升（可留空自动取）</label><input id="tripClimb" placeholder="如 1,280 m" aria-label="预计爬升"></div>
-    <div><label>预计耗时（可留空自动算）</label><input id="tripHours" placeholder="如 6.5 h" aria-label="预计耗时"></div>
-    <div><label>出发时刻（留空用日出）</label><input type="time" id="tripTime" aria-label="出发时刻"></div>
-  </div>
-
-  <div class="chips" id="modeChips">
-    <span class="chip on" data-mode="light" onclick="setMode('light')">轻装单日</span>
-    <span class="chip" data-mode="heavy" onclick="setMode('heavy')">重装</span>
-    <span class="chip" data-mode="trail" onclick="setMode('trail')">越野跑</span>
-    <span class="chip" data-mode="city" onclick="setMode('city')">城市游</span>
-    <span class="chip" data-alt="1" onclick="setHighAlt()">高海拔</span>
-  </div>
 
   <div class="nav"><span></span><button class="btn primary" onclick="go(2)">下一步：查天气 →</button></div>
 </div>
