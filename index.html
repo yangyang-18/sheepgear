@@ -6393,7 +6393,8 @@ function toggleTerrain3D() {
 <script>
 /* ============ js/windfield-gl.js · WebGL 风场流线（webgl-wind 移植 + Leaflet 桥接） ============
    把 mapbox/webgl-wind（ISC 许可，https://github.com/mapbox/webgl-wind）移植为本 App 的
-   Windy 式顺滑流线：GPU 粒子（默认 5 万粒）按风速绿→黄→橙→红渐变，叠加轻微闪烁。
+   Windy 式顺滑流线：GPU 粒子（默认 5 万粒）按风速紫→蓝→橙→红渐变（低风速=紫、高风速=红；500 级色阶），
+   叠加轻微闪烁。
    移植改动：
    - ES module → plain-script（var/function，贴合本仓库 windfield.js 风格）；
    - draw.vert 增加 u_proj（UV→NDC 仿射矩阵），把流线叠在 Leaflet 局部网格而非整屏；
@@ -6410,6 +6411,7 @@ attribute float a_index;
 
 uniform sampler2D u_particles;
 uniform float u_particles_res;
+uniform float u_point_size;
 uniform mat3 u_proj;
 
 varying vec2 v_particle_pos;
@@ -6424,7 +6426,8 @@ void main() {
         color.r / 255.0 + color.b,
         color.g / 255.0 + color.a);
 
-    gl_PointSize = 1.0;
+    // 点尺寸（CSS px × 设备倍率）：默认 1 物理像素在高倍屏下几乎不可见
+    gl_PointSize = u_point_size;
     // u_proj：网格 UV → NDC（每帧由地图投影算出），把流线定位到地图上的网格区域
     vec3 ndc = u_proj * vec3(v_particle_pos, 1.0);
     gl_Position = vec4(ndc.xy, 0.0, 1.0);
@@ -6455,8 +6458,8 @@ void main() {
 
     vec4 color = texture2D(u_color_ramp, ramp_pos);
 
-    // 轻微闪烁：按时间 + 粒子空间相位脉动 alpha（0.55–1.0），流线整体保持清晰
-    float tw = 0.55 + 0.45 * (0.5 + 0.5 * sin(u_time * 4.0 + (v_particle_pos.x + v_particle_pos.y) * 90.0));
+    // 轻微闪烁：按时间 + 粒子空间相位脉动 alpha（0.50–0.85，500 级色阶中等深度补足可见度）；u_time*8 频率更高（周期约 0.8s）
+    float tw = 0.50 + 0.35 * (0.5 + 0.5 * sin(u_time * 8.0 + (v_particle_pos.x + v_particle_pos.y) * 90.0));
     gl_FragColor = vec4(color.rgb, color.a * tw);
 }
 `;
@@ -6773,6 +6776,7 @@ void main() {
     if (this.proj) gl.uniformMatrix3fv(program.u_proj, false, this.proj)
     gl.uniform1f(program.u_time, this.time || 0)
     gl.uniform1f(program.u_max_speed, this.maxSpeed || 16.7)
+    gl.uniform1f(program.u_point_size, this.pointSize || 1)
     // 轻微闪烁需要 alpha 混合（把脉动 alpha 与地图/拖尾背景混合）
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
@@ -6811,14 +6815,15 @@ void main() {
 /* ============ Leaflet 桥接层：把 WindGL 叠到 placeMap 局部网格上 ============ */
 var _wfgl = { on: false, gl: null, wind: null, canvas: null, legend: null, raf: 0, pts: [], bounds: null, map: null, last: 0, lastDt: 0.016, nowSec: 0, onResize: null }
 /* 观感可调参数：粒子数阶梯曲线（按视野公里数自适应）/ 流速 / 拖尾淡出 / 配色上限 km/h */
-var WFGL_NUM_BASE = 3000   // 5km → 3000 粒子
-var WFGL_STEP = 2000       // 每 +5km → +2000 粒子
-var WFGL_NUM_MAX = 21000   // 封顶（50km → 21000）
+var WFGL_NUM_BASE = 100    // 5km → 100 粒子
+var WFGL_STEP = 100        // 每 +5km → +100 粒子（线性增加）
+var WFGL_NUM_MAX = 500000  // 仅防崩溃安全上限（极端 zoom 会爆显存），非公里数上限；正常范围一直增加
+var WFGL_POINT_CSS = 2.0   // 粒子点尺寸（CSS 像素，×设备倍率）：高倍屏放大，否则 1 物理像素点近乎不可见
 var WFGL_SPEED = 300
 var WFGL_FADE = 0.992
 var WFGL_MAX_KMH = 60   // speed_t=1 对应 60km/h；>60 饱和为红色
 
-/* 按视野公里数计算粒子数：5km→3000，每 +5km→+2000，50km→21000 封顶。
+/* 按视野公里数计算粒子数：5km→100，每 +5km → +100 线性增加，无公里数上限（仅 WFGL_NUM_MAX 防崩溃兜底）。
    网格是视野的 1.3 倍（见 windfield.js 的 spacing 系数），故 km 乘 1.3 让 50km 视野恰好落在 50km 档。 */
 function wfglParticlesForRange() {
   var map = placeMap
@@ -6829,8 +6834,8 @@ function wfglParticlesForRange() {
     (b.getNorth() - b.getSouth()) * 111.32,
     (b.getEast() - b.getWest()) * 111.32 * Math.cos(latC * Math.PI / 180)
   ) * 1.3
-  var n = WFGL_NUM_BASE + Math.floor((km - 5) / 5) * WFGL_STEP
-  return Math.max(WFGL_NUM_BASE, Math.min(n, WFGL_NUM_MAX))
+  var n = WFGL_NUM_BASE + Math.max(0, Math.floor((km - 5) / 5)) * WFGL_STEP
+  return Math.min(n, WFGL_NUM_MAX)
 }
 
 /* WebGL 可用性探测（不可用 → 上层回退 canvas-2D） */
@@ -6873,7 +6878,7 @@ function wfglDrawLegend(ctx, w, h) {
   ctx.globalAlpha = 0.85
   ctx.fillStyle = 'rgba(12,16,24,.65)'
   ctx.fillRect(legX - 4, legY - 4, legW + 8, legH + 28)
-  var stops = [['#a855f7', '<16'], ['#3b82f6', '16-24'], ['#e8a33d', '25-38'], ['#e5533c', '39+']]
+  var stops = [['#a855f7', '<16'], ['#3b82f6', '16-24'], ['#f59e0b', '25-38'], ['#ef4444', '39+']]
   var segW = legW / stops.length
   stops.forEach(function (s, i) { ctx.fillStyle = s[0]; ctx.fillRect(legX + i * segW, legY, segW + 0.5, legH) })
   ctx.fillStyle = '#cbd5e1'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'
@@ -6969,18 +6974,19 @@ function startWindGLAnim(pts) {
     return false
   }
   var wind = new WindGL(gl)
-  wind.numParticles = wfglParticlesForRange()   // 粒子数按视野范围自适应（WFGL_NUM_NEAR/FAR）
+  wind.numParticles = wfglParticlesForRange()   // 粒子数按视野公里数阶梯自适应
+  wind.pointSize = WFGL_POINT_CSS * Math.min(window.devicePixelRatio || 1, 2)   // 高倍屏放大粒子点
   wind.fadeOpacity = WFGL_FADE        // 拖尾淡出（可调 WFGL_FADE）
   wind.speedFactor = 1
   wind.setWind(wfglBuildData(pts))
-  // 绝对配色：固定 km/h 档位（对齐 2D 版 wfColor：<16 绿 / 16-24 黄 / 25-38 橙 / 39+ 红），与 WFGL_MAX_KMH 一致
+  // 绝对配色：固定 km/h 档位（对齐 2D 版 wfColor：<16 紫 / 16-24 蓝 / 25-38 橙 / 39+ 红），与 WFGL_MAX_KMH 一致
   wind.maxSpeed = WFGL_MAX_KMH / 3.6
   var ramp = {}
   ramp['0.0'] = '#a855f7'                                        // 紫 (<16km/h)
   ramp[(16 / WFGL_MAX_KMH).toFixed(3)] = '#3b82f6'               // 蓝 (16-24)
-  ramp[(25 / WFGL_MAX_KMH).toFixed(3)] = '#e8a33d'               // 橙 (25-38)
-  ramp[(39 / WFGL_MAX_KMH).toFixed(3)] = '#e5533c'               // 红 (39+)
-  ramp['1.0'] = '#e5533c'
+  ramp[(25 / WFGL_MAX_KMH).toFixed(3)] = '#f59e0b'               // 橙 (25-38)
+  ramp[(39 / WFGL_MAX_KMH).toFixed(3)] = '#ef4444'               // 红 (39+)
+  ramp['1.0'] = '#ef4444'
   wind.setColorRamp(ramp)
 
   var s = Math.round(Math.sqrt(pts.length))
@@ -7024,46 +7030,117 @@ function clearWindGL() {
 
 </script>
 <script>
-/* ============ js/windfield.js · 风场图开关与数据（Open-Meteo 免 key） ============
-   第 1 步地图上的风场开关：拉当前位置周边 7×7 网格的 Open-Meteo 逐时风（风速/风向），
+/* ============ js/windfield.js · 风场图开关与数据（多源级联，Open-Meteo 兜底） ============
+   第 1 步地图上的风场开关：拉当前位置周边 7×7 网格的风（风速/风向）。
+   数据源按 App 天气源优先级（windy/qweather/meteoblue/open-meteo）逐点级联，首个成功即用——
+   与天气面板同源同值，不再是固定 Open-Meteo。Open-Meteo 始终作为最后兜底（免 key、CORS 已实测）。
    渲染优先走 WebGL 流线（js/windfield-gl.js，Windy 式顺滑流线 + 轻微闪烁），
-   WebGL 不可用时回退本文件的 canvas-2D 粒子流（双线性插值、速度越亮越暖）。
-   免 key、CORS 已实测、无外部插件。关闭/换位置时停止动画清理画布；失败降级提示，不阻塞。 */
+   WebGL 不可用时回退本文件的 canvas-2D 粒子流（双线性插值）。
+   配色两版统一：低风速=紫 <16 / 16-24=蓝 / 25-38=橙 / 高风速=红 ≥39（km/h）。
+   关闭/换位置时停止动画清理画布；失败降级提示，不阻塞。 */
 
-var _wf = { on: false, mode: null, canvas: null, raf: 0, pts: [], particles: [], bounds: null, ctx: null, size: 7, spacing: 0.18 }
+var _wf = { on: false, mode: null, canvas: null, raf: 0, pts: [], particles: [], bounds: null, ctx: null, size: 7, spacing: 0.18, src: null }
 /* mode: 'gl'（WebGL 流线，windfield-gl.js）| '2d'（canvas-2D 粒子，本文件）| null */
-/* 风级配色（km/h）：绿<16 黄<25 橙<39 红≥39 */
-function wfColor(kmh) { return kmh >= 39 ? '#e5533c' : kmh >= 25 ? '#e8a33d' : kmh >= 16 ? '#e8d34d' : '#5aa86a' }
+/* 风级配色（km/h）：低=紫 16-24=蓝 25-38=橙 高=红（与 WebGL 流线 windfield-gl.js 色带一致；500 级色阶，比浅色深一档） */
+function wfColor(kmh) { return kmh >= 39 ? '#ef4444' : kmh >= 25 ? '#f59e0b' : kmh >= 16 ? '#3b82f6' : '#a855f7' }
 /* 当前查询中心点 */
 function wfCenter() {
   if (selLoc) return { lat: selLoc.lat, lon: selLoc.lng }
   if (route && route.length) return { lat: route[0].lat, lon: route[0].lon != null ? route[0].lon : route[0].lng }
   return null
 }
-/* 拉 size×size 网格（spacing 度间距）Open-Meteo 逐时风；返回 [{lat,lon,ws,dir,u,v}]（u=东向 m/s, v=北向 m/s） */
+/* ===== 风场网格数据源：按 App 天气源优先级逐源尝试（与天气展示同源），Open-Meteo 兜底 ===== */
+/* 可给风源及其取数函数；每点按 weatherPriority 里启用的源依次尝试，首个成功即用，全部失败 → null（该点缺失）。 */
+function wfGridSourceFns() {
+  var fns = { qweather: wfQweatherUV, meteoblue: wfMeteoblueUV, windy: wfWindyUV, 'open-meteo': wfOmUV }
+  var prio = (typeof appConfig !== 'undefined' && appConfig && Array.isArray(appConfig.weatherPriority)) ? appConfig.weatherPriority.slice() : ['qweather', 'open-meteo', 'meteoblue', 'amap']
+  var ordered = prio.filter(function (id) {
+    if (!fns[id]) return false
+    return typeof sourceEnabled === 'function' ? sourceEnabled(id) : id === 'open-meteo'   // 无 sourceEnabled（沙箱）仅兜底源可用
+  })
+  if (ordered.indexOf('open-meteo') < 0) ordered.push('open-meteo')   // 兜底源恒在最后（免 key 必可用）
+  return ordered.map(function (id) { return fns[id] })
+}
+/* 单点级联：按序尝试各源，首个成功返回 {lat,lon,ws,dir,u,v,src}；全部失败 reject（由上层转 null） */
+function wfFetchPointUV(lat, lon) {
+  var fns = wfGridSourceFns()
+  var chain = Promise.reject(new Error('wf.no-source'))
+  fns.forEach(function (fn) { chain = chain.catch(function () { return fn(lat, lon) }) })
+  return chain
+}
+/* Open-Meteo 兜底：逐时风取「当前小时」（timezone=auto，hourly 从 00:00 起） */
+function wfOmUV(lat, lon) {
+  return fetch('https://api.open-meteo.com/v1/forecast?latitude=' + (+lat).toFixed(3) + '&longitude=' + (+lon).toFixed(3) + '&hourly=wind_speed_10m,wind_direction_10m&forecast_days=1&timezone=auto', { signal: AbortSignal.timeout(12000) })
+    .then(function (r) { if (!r.ok) throw new Error('om.http'); return r.json() })
+    .then(function (j) {
+      var h = j.hourly || {}
+      var ws = h.wind_speed_10m, dir = h.wind_direction_10m
+      if (!ws || !ws.length || !dir || !dir.length) throw new Error('om.no-wind')
+      var idx = Math.min(ws.length - 1, new Date().getHours())
+      var s = ws[idx], d = dir[idx]
+      if (s == null || d == null) throw new Error('om.no-wind')
+      // 气象风向 = 风的来向；流向来向+180° → u(东)/v(北) m/s
+      var rad = d * Math.PI / 180
+      return { lat: lat, lon: lon, ws: s, dir: d, u: -s * Math.sin(rad), v: -s * Math.cos(rad), src: 'open-meteo' }
+    })
+}
+/* 和风 72h：hourly[0]≈当前小时，windSpeed(km/h)+wind360(来向°) → u/v m/s */
+function wfQweatherUV(lat, lon) {
+  if (!appConfig || !appConfig.qweather || !appConfig.qweather.host) return Promise.reject(new Error('qw.no-cfg'))
+  return qwFetch('/v7/weather/72h', { location: qwLoc(lat, lon) }).then(function (j) {
+    var h0 = (j.hourly || [])[0]
+    var s = h0 ? qwF(h0.windSpeed) : null, d = h0 ? qwF(h0.wind360) : null
+    if (s == null || d == null) throw new Error('qw.no-wind')
+    var ms = s / 3.6
+    var rad = d * Math.PI / 180
+    return { lat: lat, lon: lon, ws: s, dir: d, u: -ms * Math.sin(rad), v: -ms * Math.cos(rad), src: 'qweather' }
+  })
+}
+/* Meteoblue 1h 包：data_1h[0]≈当前小时，windspeed(km/h 或 ms-1)+winddirection(来向°) → u/v m/s */
+function wfMeteoblueUV(lat, lon) {
+  if (!mbKey()) return Promise.reject(new Error('mb.no-key'))
+  return mbForecast(lat, lon).then(function (mb) {
+    var h = mb.data_1h || {}
+    var unit = (mb.units && mb.units.windspeed) || 'kmh'
+    function toMs(v) { return v == null ? null : (unit === 'ms-1' ? v : v / 3.6) }
+    var ms = toMs(mbNum(h.windspeed, 0)), d = mbNum(h.winddirection, 0)
+    if (ms == null || d == null) throw new Error('mb.no-wind')
+    var rad = d * Math.PI / 180
+    return { lat: lat, lon: lon, ws: ms * 3.6, dir: d, u: -ms * Math.sin(rad), v: -ms * Math.cos(rad), src: 'meteoblue' }
+  })
+}
+/* Windy Point Forecast 最小查询：仅 wind 参数，wind_u/wind_v(m/s) 取距当前最近时次（已是流动向量） */
+function wfWindyUV(lat, lon) {
+  if (!windyKey()) return Promise.reject(new Error('windy.no-key'))
+  var body = JSON.stringify({ lat: lat, lon: lon, model: 'gfs', parameters: ['wind'], levels: ['surface'], key: windyKey() })
+  return fetch('https://api.windy.com/api/point-forecast/v2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, signal: AbortSignal.timeout(12000) })
+    .then(function (r) { if (!r.ok) throw new Error('windy.http' + r.status); return r.json() })
+    .then(function (j) {
+      var ts = j.ts || [], uArr = j['wind_u-surface'], vArr = j['wind_v-surface']
+      if (!ts.length || !uArr || !vArr) throw new Error('windy.no-wind')
+      var now = Date.now(), best = 0, bd = Infinity
+      for (var i = 0; i < ts.length; i++) { var dd = Math.abs(ts[i] - now); if (dd < bd) { bd = dd; best = i } }
+      var u = uArr[best], v = vArr[best]
+      if (u == null || v == null || isNaN(u) || isNaN(v)) throw new Error('windy.no-wind')
+      return { lat: lat, lon: lon, ws: Math.sqrt(u * u + v * v) * 3.6, dir: (Math.atan2(u, v) * 180 / Math.PI + 180) % 360, u: u, v: v, src: 'windy' }
+    })
+}
+/* 拉 size×size 网格（spacing 度间距）风矢量；返回 [{lat,lon,ws,dir,u,v}]，单点全源失败 → null 不阻断。
+   结果首个成功点记录 _wf.src（数据源名，供 toast 提示与天气面板同源核对）。 */
 function wfFetchGrid(cx, cy, size, spacing) {
   size = size || _wf.size; spacing = spacing || _wf.spacing
   var jobs = []
   var off = (size - 1) / 2
   for (var r = 0; r < size; r++) for (var c = 0; c < size; c++) {
-    var lat = (cx + (r - off) * spacing).toFixed(3), lon = (cy + (c - off) * spacing).toFixed(3)
-    ;(function (lat, lon) {   // IIFE 捕获本轮 lat/lon（避免闭包读到循环最终值）
-      jobs.push(fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&hourly=wind_speed_10m,wind_direction_10m&forecast_days=1&timezone=auto', { signal: AbortSignal.timeout(12000) })
-        .then(function (r) { if (!r.ok) throw 0; return r.json() })
-        .then(function (j) {
-          var h = j.hourly || {}
-          var ws = h.wind_speed_10m, dir = h.wind_direction_10m
-          if (!ws || !ws.length || dir == null || !dir.length) return null
-          var idx = Math.min(ws.length - 1, 12)
-          var s = ws[idx], d = dir[idx]
-          if (s == null || d == null) return null
-          // 气象风向 = 风的来向；流向来向+180° → u(东)/v(北) m/s
-          var rad = d * Math.PI / 180
-          return { lat: +lat, lon: +lon, ws: s, dir: d, u: -s * Math.sin(rad), v: -s * Math.cos(rad) }
-        }).catch(function () { return null }))
-    })(lat, lon)
+    var lat = Math.round((cx + (r - off) * spacing) * 1000) / 1000
+    var lon = Math.round((cy + (c - off) * spacing) * 1000) / 1000
+    jobs.push(wfFetchPointUV(lat, lon).catch(function () { return null }))
   }
-  return Promise.all(jobs)
+  return Promise.all(jobs).then(function (pts) {
+    _wf.src = null
+    for (var i = 0; i < pts.length; i++) { if (pts[i] && pts[i].src) { _wf.src = pts[i].src; break } }
+    return pts
+  })
 }
 /* 双线性插值取 (lat,lon) 处风矢量；返回 {u,v}（m/s） */
 function wfInterp(pts, lat, lon) {
@@ -7155,7 +7232,7 @@ function startWindAnim(pts) {
     ctx.globalAlpha = 0.85
     ctx.fillStyle = 'rgba(12,16,24,.65)'
     ctx.fillRect(legX - 4, legY - 4, legW + 8, legH + 28)
-    var stops = [['#5aa86a', '<16'], ['#e8d34d', '16-24'], ['#e8a33d', '25-38'], ['#e5533c', '39+']]
+    var stops = [['#a855f7', '<16'], ['#3b82f6', '16-24'], ['#f59e0b', '25-38'], ['#ef4444', '39+']]
     var segW = legW / stops.length
     stops.forEach(function (s, i) { ctx.fillStyle = s[0]; ctx.fillRect(legX + i * segW, legY, segW + 0.5, legH) })
     ctx.fillStyle = '#cbd5e1'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'
@@ -7194,7 +7271,8 @@ function toggleWindField() {
     }
     if (usedGL) { _wf.mode = 'gl' } else { startWindAnim(ok); _wf.mode = '2d' }
     _wf.on = true
-    toast(usedGL ? ('风场已显示 · WebGL 流线 · ' + ok.length + ' 网格点') : ('风场已显示 · 动态粒子 · ' + ok.length + ' 网格点'))
+    var srcLab = _wf.src ? ' · 源 ' + _wf.src : ''
+    toast(usedGL ? ('风场已显示 · WebGL 流线 · ' + ok.length + ' 网格点' + srcLab) : ('风场已显示 · 动态粒子 · ' + ok.length + ' 网格点' + srcLab))
   })
 }
 function clearWindField() {
@@ -7207,7 +7285,7 @@ function clearWindField() {
   }
   if (_wf.raf) cancelAnimationFrame(_wf.raf); _wf.raf = 0
   if (_wf.canvas && _wf.canvas.parentNode) _wf.canvas.parentNode.removeChild(_wf.canvas)
-  _wf.canvas = null; _wf.ctx = null; _wf.pts = []; _wf.particles = []; _wf.bounds = null
+  _wf.canvas = null; _wf.ctx = null; _wf.pts = []; _wf.particles = []; _wf.bounds = null; _wf.src = null
   if (_wf.resize && window.removeEventListener) window.removeEventListener('resize', _wf.resize)
   _wf.resize = null
   _wf.on = false
