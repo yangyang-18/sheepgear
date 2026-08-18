@@ -67,8 +67,13 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .drop:hover{border-color:var(--accent);color:var(--accent)}
 
 /* 配置弹层（z-index 高于 Leaflet 最大层 1000，避免被地图遮挡）*/
-.cfg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:flex-end;justify-content:center;z-index:1100}
-.cfg.open{display:flex}
+.cfg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:flex-end;justify-content:center;z-index:1100}.cfg.open{display:flex}
+/* 第 1 步「🗺 地图预测」覆盖层（embed.windy.com iframe，免 key；z-index 低于配置弹层 1100）*/
+.mapfc{position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;z-index:1090}
+.mapfc-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);font-family:var(--f-d);font-weight:700;font-size:15px;background:var(--surface)}
+.mapfc-b{position:relative;flex:1}
+.mapfc-b iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.mapfc-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text-muted);background:var(--bg);z-index:1}
 .cfg-box{background:var(--bg);border:1px solid var(--border);border-radius:18px 18px 0 0;width:100%;max-width:720px;max-height:82vh;overflow-y:auto;padding:22px 24px 30px;animation:slide .25s ease}
 @keyframes slide{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
 .cfg-h{display:flex;justify-content:space-between;align-items:center;font-family:var(--f-d);font-weight:700;font-size:18px;margin-bottom:14px}
@@ -504,10 +509,6 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 .corr-cell.corr-snow{background:rgba(226,232,240,.5)}
 .corr-ico{display:block;font-size:14px}
 .corr-sub{display:block;font-size:8px;color:var(--text-muted)}
-/* ===== ③步天气概览：Meteoblue 气象图 ===== */
-.wx-meteogram{margin-top:14px}
-.wx-meteogram .meteo-img{width:100%;max-width:720px;border-radius:10px;border:1px solid var(--border);display:block}
-.meteo-fail{font-size:12px;color:var(--warning)}
 
 </style>
 </head>
@@ -599,9 +600,8 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
       <span class="coord-read" id="pickCoord">尚未选点</span>
     </div>
     <div class="map-actions" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
-      <button class="btn" style="padding:4px 12px;font-size:12px" onclick="toggleWindField()">🌪 风场</button>
-      <button class="btn" style="padding:4px 12px;font-size:12px" onclick="togglePrecipField()">🌧 降水</button>
       <button class="btn" style="padding:4px 12px;font-size:12px" onclick="openWindyMap()">🌬 Windy 风场图</button>
+      <button class="btn" style="padding:4px 12px;font-size:12px" onclick="openWindyMapFc()">🗺 地图预测</button>
       <span style="font-size:11px;color:var(--text-muted)">视野</span>
       <button class="btn" style="padding:4px 10px;font-size:11px" onclick="mapViewPreset(50)" title="显示约 50km 区域">50km</button>
       <button class="btn" style="padding:4px 10px;font-size:11px" onclick="mapViewPreset(10)" title="显示约 10km">10km</button>
@@ -861,10 +861,6 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
         <div class="cfg-row"><div>Windy Point Forecast Key<div class="desc">api.windy.com 申请；GFS 逐时预报（风/阵风/温度/降水/AQI），CORS 可直连；无 ECMWF/降水概率（由其他源补齐）</div></div><input id="windyKey" placeholder="输入 Key" onchange="saveWindyKey(this.value)"></div>
         <div class="cfg-row" style="justify-content:flex-start;gap:8px"><button class="btn" style="padding:4px 12px;font-size:12px" id="keyTest_windy" onclick="testWeatherKey('windy')">接通测试</button><span class="risk orange" id="keyState_windy">未测试</span></div>
       </div>
-      <div id="srcEditWindyMap" style="border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
-        <div class="cfg-row"><div>Windy Map Forecast Key<div class="desc">地图插件 key；本 App 不嵌入插件（需 Leaflet1.4.x 且 document.write 被 Chrome 拦截）——第 1 步「🌬 Windy 风场」为新标签页打开 windy.com 风场图（免 key）。此 key 仅存档</div></div><input id="windyMapKey" placeholder="输入 Key" onchange="saveWindyMapKey(this.value)"></div>
-        <div class="cfg-row" style="justify-content:flex-start;gap:8px"><button class="btn" style="padding:4px 12px;font-size:12px" id="keyTest_windymap" onclick="testWindyMapKey()">接通测试</button><span class="risk orange" id="keyState_windymap">未测试</span></div>
-      </div>
       <div id="srcEditNmc" style="display:none;border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
         <div class="cfg-row"><div>中央气象台<div class="desc">免 key 直连；预警按省，天气按站号（best-effort）</div></div><span class="risk green">免 key</span></div>
       </div>
@@ -885,6 +881,15 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
       <button class="cfg-x" onclick="closeCfg(document.getElementById('hist'))">✕</button>
     </div>
     <div id="histList"></div>
+  </div>
+</div>
+
+<!-- 第 1 步「🗺 地图预测」覆盖层：embed.windy.com 官方组件 iframe，免 key -->
+<div class="mapfc" id="viewMapFc" style="display:none">
+  <div class="mapfc-h">🗺 Windy 地图预报<button class="cfg-x" style="width:auto;padding:0 12px" onclick="closeWindyMapFc()">✕ 关闭</button></div>
+  <div class="mapfc-b">
+    <div class="mapfc-loading" id="mapFcLoading">加载中…</div>
+    <iframe id="mapFcFrame" title="Windy 地图预报" allowfullscreen></iframe>
   </div>
 </div>
 
@@ -1637,7 +1642,6 @@ function syncPlaceMap(lat, lng) {
   var g = wgs84ToGcj02(lat, lng)
   placeMap.setView([g.lat, g.lng], mapZoomForKm(5))   // 默认视野 5km
   placePin({ lat: lat, lng: lng })
-  if (typeof refreshWindField === 'function') refreshWindField()   // 风场随位置移动刷新
 }
 
 /* ---- 地图缩放（放大/缩小按钮）---- */
@@ -6430,1299 +6434,6 @@ function toggleTerrain3D() {
 }
 </script>
 <script>
-/* ============ js/windfield-gl.js · WebGL 风场流线（webgl-wind 移植 + Leaflet 桥接） ============
-   把 mapbox/webgl-wind（ISC 许可，https://github.com/mapbox/webgl-wind）移植为本 App 的
-   Windy 式顺滑流线：GPU 粒子（默认 5 万粒）按风速紫→蓝→橙→红渐变（低风速=紫、高风速=红；500 级色阶），
-   叠加轻微闪烁。
-   移植改动：
-   - ES module → plain-script（var/function，贴合本仓库 windfield.js 风格）；
-   - draw.vert 增加 u_proj（UV→NDC 仿射矩阵），把流线叠在 Leaflet 局部网格而非整屏；
-   - update.frag 局部网格三修正：clamp 不环绕全球、网格中心纬度 cos、按当前 zoom 的运动缩放；
-   - draw.frag 增加 u_time 轻微闪烁（alpha 脉动 0.55–1.0）。
-   依赖：全局 placeMap（Leaflet 1.9）、L；数据由 js/windfield.js 的 wfFetchGrid() 提供。
-   WebGL 不可用时由 windfield.js 回退到原 canvas-2D 渲染（isWebGLReady 返回 false）。
-   ------------ 以下 WindGL 类本体源自 mapbox/webgl-wind（ISC），仅作上述适配 ------------ */
-var WindGL = (function () {
-  var DRAW_VERT = `
-precision mediump float;
-
-attribute float a_index;
-
-uniform sampler2D u_particles;
-uniform float u_particles_res;
-uniform float u_point_size;
-uniform mat3 u_proj;
-
-varying vec2 v_particle_pos;
-
-void main() {
-    vec4 color = texture2D(u_particles, vec2(
-        fract(a_index / u_particles_res),
-        floor(a_index / u_particles_res) / u_particles_res));
-
-    // decode current particle position from the pixel's RGBA value
-    v_particle_pos = vec2(
-        color.r / 255.0 + color.b,
-        color.g / 255.0 + color.a);
-
-    // 点尺寸（CSS px × 设备倍率）：默认 1 物理像素在高倍屏下几乎不可见
-    gl_PointSize = u_point_size;
-    // u_proj：网格 UV → NDC（每帧由地图投影算出），把流线定位到地图上的网格区域
-    vec3 ndc = u_proj * vec3(v_particle_pos, 1.0);
-    gl_Position = vec4(ndc.xy, 0.0, 1.0);
-}
-`;
-
-  var DRAW_FRAG = `
-precision mediump float;
-
-uniform sampler2D u_wind;
-uniform vec2 u_wind_min;
-uniform vec2 u_wind_max;
-uniform sampler2D u_color_ramp;
-uniform float u_time;
-uniform float u_max_speed;   // 固定风速上限 m/s（绝对配色基准，见 WFGL_MAX_KMH）
-
-varying vec2 v_particle_pos;
-
-void main() {
-    vec2 velocity = mix(u_wind_min, u_wind_max, texture2D(u_wind, v_particle_pos).rg);
-    // 绝对归一化：speed_t = 实际风速 / 固定上限（而非网格最大风速），颜色始终对应 km/h
-    float speed_t = min(1.0, length(velocity) / u_max_speed);
-
-    // color ramp is encoded in a 16x16 texture
-    vec2 ramp_pos = vec2(
-        fract(16.0 * speed_t),
-        floor(16.0 * speed_t) / 16.0);
-
-    vec4 color = texture2D(u_color_ramp, ramp_pos);
-
-    // 轻微闪烁：按时间 + 粒子空间相位脉动 alpha（0.50–0.85，500 级色阶中等深度补足可见度）；u_time*8 频率更高（周期约 0.8s）
-    float tw = 0.50 + 0.35 * (0.5 + 0.5 * sin(u_time * 8.0 + (v_particle_pos.x + v_particle_pos.y) * 90.0));
-    gl_FragColor = vec4(color.rgb, color.a * tw);
-}
-`;
-
-  var QUAD_VERT = `
-precision mediump float;
-
-attribute vec2 a_pos;
-
-varying vec2 v_tex_pos;
-
-void main() {
-    v_tex_pos = a_pos;
-    gl_Position = vec4(1.0 - 2.0 * a_pos, 0, 1);
-}
-`;
-
-  var SCREEN_FRAG = `
-precision mediump float;
-
-uniform sampler2D u_screen;
-uniform float u_opacity;
-
-varying vec2 v_tex_pos;
-
-void main() {
-    vec4 color = texture2D(u_screen, 1.0 - v_tex_pos);
-    // a hack to guarantee opacity fade out even with a value close to 1.0
-    gl_FragColor = vec4(floor(255.0 * color * u_opacity) / 255.0);
-}
-`;
-
-  var UPDATE_FRAG = `
-precision highp float;
-
-uniform sampler2D u_particles;
-uniform sampler2D u_wind;
-uniform vec2 u_wind_res;
-uniform vec2 u_wind_min;
-uniform vec2 u_wind_max;
-uniform float u_rand_seed;
-uniform float u_speed_factor;
-uniform float u_drop_rate;
-uniform float u_drop_rate_bump;
-uniform float u_scale;      // 局部网格：m/s → UV/帧 系数（每帧按 zoom 的 px/m 换算）
-uniform float u_cos_lat;    // 网格中心纬度 cos（取代原版全球纬度公式）
-
-varying vec2 v_tex_pos;
-
-// pseudo-random generator
-const vec3 rand_constants = vec3(12.9898, 78.233, 4375.85453);
-float rand(const vec2 co) {
-    float t = dot(rand_constants.xy, co);
-    return fract(sin(t) * (rand_constants.z + t));
-}
-
-// wind speed lookup; use manual bilinear filtering based on 4 adjacent pixels for smooth interpolation
-vec2 lookup_wind(const vec2 uv) {
-    vec2 px = 1.0 / u_wind_res;
-    vec2 vc = (floor(uv * u_wind_res)) * px;
-    vec2 f = fract(uv * u_wind_res);
-    vec2 tl = texture2D(u_wind, vc).rg;
-    vec2 tr = texture2D(u_wind, vc + vec2(px.x, 0)).rg;
-    vec2 bl = texture2D(u_wind, vc + vec2(0, px.y)).rg;
-    vec2 br = texture2D(u_wind, vc + px).rg;
-    return mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y);
-}
-
-void main() {
-    vec4 color = texture2D(u_particles, v_tex_pos);
-    vec2 pos = vec2(
-        color.r / 255.0 + color.b,
-        color.g / 255.0 + color.a); // decode particle position from pixel RGBA
-
-    vec2 velocity = mix(u_wind_min, u_wind_max, lookup_wind(pos));
-    float speed_t = length(velocity) / length(u_wind_max);
-
-    // 局部网格：经度收敛按网格中心纬度 cos 校正（原版是全球纬度公式）
-    vec2 offset = vec2(velocity.x / u_cos_lat, -velocity.y) * u_scale;
-
-    // 局部网格：clamp 到网格内（不环绕全球），撞边粒子随机重投防下风侧堆积
-    vec2 next = pos + offset;
-    vec2 bounded = clamp(next, vec2(0.0), vec2(1.0));
-    bool hit_edge = any(greaterThan(abs(next - bounded), vec2(0.0001)));
-
-    vec2 seed = (pos + v_tex_pos) * u_rand_seed;
-    float drop_rate = u_drop_rate + speed_t * u_drop_rate_bump + (hit_edge ? 0.5 : 0.0);
-    float drop = step(1.0 - drop_rate, rand(seed));
-
-    vec2 random_pos = vec2(
-        rand(seed + 1.3),
-        rand(seed + 2.1));
-    pos = mix(bounded, random_pos, drop);
-
-    // encode the new particle position back into RGBA
-    gl_FragColor = vec4(
-        fract(pos * 255.0),
-        floor(pos * 255.0) / 255.0);
-}
-`;
-
-  function createShader(gl, type, source) {
-    var shader = gl.createShader(type)
-    gl.shaderSource(shader, source)
-    gl.compileShader(shader)
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-      throw new Error(gl.getShaderInfoLog(shader))
-    }
-    return shader
-  }
-
-  function createProgram(gl, vertexSource, fragmentSource) {
-    var program = gl.createProgram()
-    var vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexSource)
-    var fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentSource)
-    gl.attachShader(program, vertexShader)
-    gl.attachShader(program, fragmentShader)
-    gl.linkProgram(program)
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      throw new Error(gl.getProgramInfoLog(program))
-    }
-    var wrapper = { program: program }
-    var numAttributes = gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES)
-    for (var i = 0; i < numAttributes; i++) {
-      var attribute = gl.getActiveAttrib(program, i)
-      wrapper[attribute.name] = gl.getAttribLocation(program, attribute.name)
-    }
-    var numUniforms = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS)
-    for (var j = 0; j < numUniforms; j++) {
-      var uniform = gl.getActiveUniform(program, j)
-      wrapper[uniform.name] = gl.getUniformLocation(program, uniform.name)
-    }
-    return wrapper
-  }
-
-  function createTexture(gl, filter, data, width, height) {
-    var texture = gl.createTexture()
-    gl.bindTexture(gl.TEXTURE_2D, texture)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
-    if (data instanceof Uint8Array) {
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data)
-    } else {
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, data)
-    }
-    gl.bindTexture(gl.TEXTURE_2D, null)
-    return texture
-  }
-
-  function bindTexture(gl, texture, unit) {
-    gl.activeTexture(gl.TEXTURE0 + unit)
-    gl.bindTexture(gl.TEXTURE_2D, texture)
-  }
-
-  function createBuffer(gl, data) {
-    var buffer = gl.createBuffer()
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW)
-    return buffer
-  }
-
-  function bindAttribute(gl, buffer, attribute, numComponents) {
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-    gl.enableVertexAttribArray(attribute)
-    gl.vertexAttribPointer(attribute, numComponents, gl.FLOAT, false, 0, 0)
-  }
-
-  function bindFramebuffer(gl, framebuffer, texture) {
-    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer)
-    if (texture) {
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0)
-    }
-  }
-
-  var defaultRampColors = {
-    0.0: '#3288bd',
-    0.1: '#66c2a5',
-    0.2: '#abdda4',
-    0.3: '#e6f598',
-    0.4: '#fee08b',
-    0.5: '#fdae61',
-    0.6: '#f46d43',
-    1.0: '#d53e4f'
-  }
-
-  function getColorRamp(colors) {
-    var canvas = document.createElement('canvas')
-    var ctx = canvas.getContext('2d')
-    canvas.width = 256
-    canvas.height = 1
-    var gradient = ctx.createLinearGradient(0, 0, 256, 0)
-    for (var stop in colors) {
-      gradient.addColorStop(+stop, colors[stop])
-    }
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, 256, 1)
-    return new Uint8Array(ctx.getImageData(0, 0, 256, 1).data)
-  }
-
-  function WindGL(gl) {
-    this.gl = gl
-    this.fadeOpacity = 0.996   // 拖尾淡出速度
-    this.speedFactor = 1       // 运动放大系数（本桥接把缩放算进 u_scale，这里固定 1）
-    this.dropRate = 0.003      // 粒子随机重投概率
-    this.dropRateBump = 0.01   // 随风速增大的重投概率
-    this.proj = null           // 每帧由桥接层更新的 UV→NDC 矩阵
-    this.scale = null          // 每帧更新的 m/s→UV/帧 系数
-    this.cosLat = 1            // 网格中心纬度 cos
-    this.time = 0              // 闪烁用时间
-
-    this.drawProgram = createProgram(gl, DRAW_VERT, DRAW_FRAG)
-    this.screenProgram = createProgram(gl, QUAD_VERT, SCREEN_FRAG)
-    this.updateProgram = createProgram(gl, QUAD_VERT, UPDATE_FRAG)
-
-    this.quadBuffer = createBuffer(gl, new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]))
-    this.framebuffer = gl.createFramebuffer()
-
-    this.setColorRamp(defaultRampColors)
-    this.resize()
-  }
-
-  WindGL.prototype.resize = function () {
-    var gl = this.gl
-    var emptyPixels = new Uint8Array(gl.canvas.width * gl.canvas.height * 4)
-    // screen textures to hold the drawn screen for the previous and the current frame
-    this.backgroundTexture = createTexture(gl, gl.NEAREST, emptyPixels, gl.canvas.width, gl.canvas.height)
-    this.screenTexture = createTexture(gl, gl.NEAREST, emptyPixels, gl.canvas.width, gl.canvas.height)
-  }
-
-  WindGL.prototype.setColorRamp = function (colors) {
-    // lookup texture for colorizing the particles according to their speed
-    this.colorRampTexture = createTexture(this.gl, this.gl.LINEAR, getColorRamp(colors), 16, 16)
-  }
-
-  Object.defineProperty(WindGL.prototype, 'numParticles', {
-    get: function () { return this._numParticles },
-    set: function (numParticles) {
-      var gl = this.gl
-      // we create a square texture where each pixel will hold a particle position encoded as RGBA
-      var particleRes = this.particleStateResolution = Math.ceil(Math.sqrt(numParticles))
-      this._numParticles = particleRes * particleRes
-      var particleState = new Uint8Array(this._numParticles * 4)
-      for (var i = 0; i < particleState.length; i++) {
-        particleState[i] = Math.floor(Math.random() * 256) // randomize the initial particle positions
-      }
-      // textures to hold the particle state for the current and the next frame
-      this.particleStateTexture0 = createTexture(gl, gl.NEAREST, particleState, particleRes, particleRes)
-      this.particleStateTexture1 = createTexture(gl, gl.NEAREST, particleState, particleRes, particleRes)
-      var particleIndices = new Float32Array(this._numParticles)
-      for (var j = 0; j < this._numParticles; j++) particleIndices[j] = j
-      this.particleIndexBuffer = createBuffer(gl, particleIndices)
-    }
-  })
-
-  WindGL.prototype.setWind = function (windData) {
-    this.windData = windData
-    this.windTexture = createTexture(this.gl, this.gl.LINEAR, windData.image)
-  }
-
-  WindGL.prototype.draw = function () {
-    var gl = this.gl
-    gl.disable(gl.DEPTH_TEST)
-    gl.disable(gl.STENCIL_TEST)
-    bindTexture(gl, this.windTexture, 0)
-    bindTexture(gl, this.particleStateTexture0, 1)
-    this.drawScreen()
-    this.updateParticles()
-  }
-
-  WindGL.prototype.drawScreen = function () {
-    var gl = this.gl
-    // draw the screen into a temporary framebuffer to retain it as the background on the next frame
-    bindFramebuffer(gl, this.framebuffer, this.screenTexture)
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
-    this.drawTexture(this.backgroundTexture, this.fadeOpacity)
-    this.drawParticles()
-    bindFramebuffer(gl, null)
-    // enable blending to support drawing on top of an existing background (e.g. a map)
-    gl.enable(gl.BLEND)
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-    this.drawTexture(this.screenTexture, 1.0)
-    gl.disable(gl.BLEND)
-    // save the current screen as the background for the next frame
-    var temp = this.backgroundTexture
-    this.backgroundTexture = this.screenTexture
-    this.screenTexture = temp
-  }
-
-  WindGL.prototype.drawTexture = function (texture, opacity) {
-    var gl = this.gl
-    var program = this.screenProgram
-    gl.useProgram(program.program)
-    bindAttribute(gl, this.quadBuffer, program.a_pos, 2)
-    bindTexture(gl, texture, 2)
-    gl.uniform1i(program.u_screen, 2)
-    gl.uniform1f(program.u_opacity, opacity)
-    gl.drawArrays(gl.TRIANGLES, 0, 6)
-  }
-
-  WindGL.prototype.drawParticles = function () {
-    var gl = this.gl
-    var program = this.drawProgram
-    gl.useProgram(program.program)
-    bindAttribute(gl, this.particleIndexBuffer, program.a_index, 1)
-    bindTexture(gl, this.colorRampTexture, 2)
-    gl.uniform1i(program.u_wind, 0)
-    gl.uniform1i(program.u_particles, 1)
-    gl.uniform1i(program.u_color_ramp, 2)
-    gl.uniform1f(program.u_particles_res, this.particleStateResolution)
-    gl.uniform2f(program.u_wind_min, this.windData.uMin, this.windData.vMin)
-    gl.uniform2f(program.u_wind_max, this.windData.uMax, this.windData.vMax)
-    if (this.proj) gl.uniformMatrix3fv(program.u_proj, false, this.proj)
-    gl.uniform1f(program.u_time, this.time || 0)
-    gl.uniform1f(program.u_max_speed, this.maxSpeed || 16.7)
-    gl.uniform1f(program.u_point_size, this.pointSize || 1)
-    // 轻微闪烁需要 alpha 混合（把脉动 alpha 与地图/拖尾背景混合）
-    gl.enable(gl.BLEND)
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-    gl.drawArrays(gl.POINTS, 0, this._numParticles)
-    gl.disable(gl.BLEND)
-  }
-
-  WindGL.prototype.updateParticles = function () {
-    var gl = this.gl
-    bindFramebuffer(gl, this.framebuffer, this.particleStateTexture1)
-    gl.viewport(0, 0, this.particleStateResolution, this.particleStateResolution)
-    var program = this.updateProgram
-    gl.useProgram(program.program)
-    bindAttribute(gl, this.quadBuffer, program.a_pos, 2)
-    gl.uniform1i(program.u_wind, 0)
-    gl.uniform1i(program.u_particles, 1)
-    gl.uniform1f(program.u_rand_seed, Math.random())
-    gl.uniform2f(program.u_wind_res, this.windData.width, this.windData.height)
-    gl.uniform2f(program.u_wind_min, this.windData.uMin, this.windData.vMin)
-    gl.uniform2f(program.u_wind_max, this.windData.uMax, this.windData.vMax)
-    gl.uniform1f(program.u_speed_factor, this.speedFactor)
-    gl.uniform1f(program.u_drop_rate, this.dropRate)
-    gl.uniform1f(program.u_drop_rate_bump, this.dropRateBump)
-    gl.uniform1f(program.u_scale, this.scale || 0.0001)
-    gl.uniform1f(program.u_cos_lat, this.cosLat || 1)
-    gl.drawArrays(gl.TRIANGLES, 0, 6)
-    // swap the particle state textures so the new one becomes the current one
-    var temp = this.particleStateTexture0
-    this.particleStateTexture0 = this.particleStateTexture1
-    this.particleStateTexture1 = temp
-  }
-
-  return WindGL
-})()
-
-/* ============ Leaflet 桥接层：把 WindGL 叠到 placeMap 局部网格上 ============ */
-var _wfgl = { on: false, gl: null, wind: null, canvas: null, legend: null, raf: 0, pts: [], bounds: null, map: null, last: 0, lastDt: 0.016, nowSec: 0, onResize: null }
-/* 观感可调参数：粒子数阶梯曲线（按视野公里数自适应）/ 流速 / 拖尾淡出 / 配色上限 km/h */
-var WFGL_NUM_BASE = 100    // 5km → 100 粒子
-var WFGL_STEP = 100        // 每 +5km → +100 粒子（线性增加）
-var WFGL_NUM_MAX = 500000  // 仅防崩溃安全上限（极端 zoom 会爆显存），非公里数上限；正常范围一直增加
-var WFGL_POINT_CSS = 2.0   // 粒子点尺寸（CSS 像素，×设备倍率）：高倍屏放大，否则 1 物理像素点近乎不可见
-var WFGL_SPEED = 300
-var WFGL_FADE = 0.992
-var WFGL_MAX_KMH = 60   // speed_t=1 对应 60km/h；>60 饱和为红色
-
-/* 按视野公里数计算粒子数：5km→100，每 +5km → +100 线性增加，无公里数上限（仅 WFGL_NUM_MAX 防崩溃兜底）。
-   网格是视野的 1.3 倍（见 windfield.js 的 spacing 系数），故 km 乘 1.3 让 50km 视野恰好落在 50km 档。 */
-function wfglParticlesForRange() {
-  var map = placeMap
-  if (!map || !map.getBounds) return WFGL_NUM_BASE
-  var b = map.getBounds()
-  var latC = (b.getNorth() + b.getSouth()) / 2
-  var km = Math.max(
-    (b.getNorth() - b.getSouth()) * 111.32,
-    (b.getEast() - b.getWest()) * 111.32 * Math.cos(latC * Math.PI / 180)
-  ) * 1.3
-  var n = WFGL_NUM_BASE + Math.max(0, Math.floor((km - 5) / 5)) * WFGL_STEP
-  return Math.min(n, WFGL_NUM_MAX)
-}
-
-/* WebGL 可用性探测（不可用 → 上层回退 canvas-2D） */
-function isWebGLReady() {
-  try {
-    var c = document.createElement('canvas')
-    return !!(c.getContext('webgl') || c.getContext('experimental-webgl'))
-  } catch (e) { return false }
-}
-
-/* pts → WindGL 风场纹理：行 0=北、列 0=西；u→R、v→G，按 uMin/uMax/vMin/vMax 归一化 */
-function wfglBuildData(pts) {
-  var s = Math.round(Math.sqrt(pts.length))
-  var uMin = Infinity, uMax = -Infinity, vMin = Infinity, vMax = -Infinity
-  for (var i = 0; i < pts.length; i++) {
-    var u = pts[i].u, v = pts[i].v
-    if (u < uMin) uMin = u; if (u > uMax) uMax = u
-    if (v < vMin) vMin = v; if (v > vMax) vMax = v
-  }
-  var canvas = document.createElement('canvas')
-  canvas.width = s; canvas.height = s
-  var ctx = canvas.getContext('2d')
-  var img = ctx.createImageData(s, s)
-  var ur = (uMax - uMin) > 1e-6 ? (uMax - uMin) : 1
-  var vr = (vMax - vMin) > 1e-6 ? (vMax - vMin) : 1
-  for (var r = 0; r < s; r++) for (var c = 0; c < s; c++) {
-    var p = pts[r * s + c]
-    var i4 = (r * s + c) * 4
-    img.data[i4] = Math.max(0, Math.min(255, Math.round((p.u - uMin) / ur * 255)))
-    img.data[i4 + 1] = Math.max(0, Math.min(255, Math.round((p.v - vMin) / vr * 255)))
-    img.data[i4 + 2] = 255
-    img.data[i4 + 3] = 255
-  }
-  return { image: img, width: s, height: s, uMin: uMin, uMax: uMax, vMin: vMin, vMax: vMax }
-}
-
-/* 左下角风级图例（独立 2D 小画布覆盖层，GL 画布透明叠加在地图上） */
-function wfglDrawLegend(ctx, w, h) {
-  var legX = 8, legY = 8, legW = 114, legH = 12
-  ctx.globalAlpha = 0.85
-  ctx.fillStyle = 'rgba(12,16,24,.65)'
-  ctx.fillRect(legX - 4, legY - 4, legW + 8, legH + 28)
-  var stops = [['#a855f7', '<16'], ['#3b82f6', '16-24'], ['#f59e0b', '25-38'], ['#ef4444', '39+']]
-  var segW = legW / stops.length
-  stops.forEach(function (s, i) { ctx.fillStyle = s[0]; ctx.fillRect(legX + i * segW, legY, segW + 0.5, legH) })
-  ctx.fillStyle = '#cbd5e1'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'
-  stops.forEach(function (s, i) { ctx.fillText(s[1], legX + i * segW + segW / 2, legY + legH + 12) })
-  ctx.fillText('km/h', legX + legW / 2, legY + legH + 22)
-  ctx.globalAlpha = 1
-}
-
-function wfglBuildLegend() {
-  var dpr = Math.min(window.devicePixelRatio || 1, 2)
-  var cssW = 138, cssH = 62
-  var c = document.createElement('canvas')
-  c.style.cssText = 'position:absolute;left:0;bottom:0;width:' + cssW + 'px;height:' + cssH + 'px;pointer-events:none;z-index:800'
-  c.width = Math.round(cssW * dpr); c.height = Math.round(cssH * dpr)
-  var ctx = c.getContext('2d')
-  ctx.scale(dpr, dpr)
-  wfglDrawLegend(ctx, cssW, cssH)
-  return c
-}
-
-/* 重设 GL 画布背靠存储（含 devicePixelRatio），并让 WindGL 重建帧缓冲纹理 */
-function wfglResize() {
-  if (!_wfgl.gl || !_wfgl.canvas || !_wfgl.map) return
-  var container = _wfgl.map.getContainer()
-  var dpr = Math.min(window.devicePixelRatio || 1, 2)
-  _wfgl.canvas.width = Math.max(2, Math.round(container.clientWidth * dpr))
-  _wfgl.canvas.height = Math.max(2, Math.round(container.clientHeight * dpr))
-  _wfgl.wind.resize()
-}
-
-/* 每帧投影：网格 3 角 → 容器点 → NDC 仿射；同时更新运动缩放/纬度/时间 uniform */
-function wfglUpdateProjection() {
-  var map = _wfgl.map, pts = _wfgl.pts, b = _wfgl.bounds
-  var container = map.getContainer()
-  var cw = container.clientWidth, ch = container.clientHeight
-  if (cw < 2 || ch < 2) return
-  function ndc(lat, lon) {
-    var p = map.latLngToContainerPoint([lat, lon])
-    return [(p.x / cw) * 2 - 1, 1 - (p.y / ch) * 2]
-  }
-  var nw = ndc(b.gLat0, b.gLon0)   // u=0,v=0 西北
-  var ne = ndc(b.gLat0, b.gLon1)   // u=1,v=0 东北
-  var sw = ndc(b.gLat1, b.gLon0)   // u=0,v=1 西南
-  var a = ne[0] - nw[0], bb = sw[0] - nw[0], c = nw[0]
-  var d = ne[1] - nw[1], e = sw[1] - nw[1], f = nw[1]
-  // mat3 列主序：[a d 0 | b e 0 | c f 1]
-  _wfgl.wind.proj = new Float32Array([a, d, 0, bb, e, 0, c, f, 1])
-  // 运动缩放（可调 WFGL_SPEED）：流速 = WFGL_SPEED px/s 手感 → offset_uv = v·(WFGL_SPEED·ppm·dt)/pxPerUnit
-  var zoom = map.getZoom()
-  var ppm = Math.pow(2, zoom) / (156543 * Math.cos(b.latC * Math.PI / 180))
-  var pxPerU = Math.abs(a) * cw / 2, pxPerV = Math.abs(e) * ch / 2
-  var pxPerUnit = Math.sqrt(pxPerU * pxPerV) || 1
-  _wfgl.wind.scale = WFGL_SPEED * ppm * Math.max(0, _wfgl.lastDt) / pxPerUnit
-  _wfgl.wind.cosLat = Math.cos(b.latC * Math.PI / 180)
-  _wfgl.wind.time = _wfgl.nowSec
-}
-
-function wfglTick(now) {
-  if (!_wfgl.on || !_wfgl.gl) return
-  var dt = Math.min(0.05, (now - _wfgl.last) / 1000)
-  _wfgl.last = now
-  _wfgl.lastDt = dt
-  _wfgl.nowSec = now / 1000
-  // 容器尺寸变化（含隐藏面板显示后）自动重设背靠存储
-  var container = _wfgl.map.getContainer()
-  var dpr = Math.min(window.devicePixelRatio || 1, 2)
-  if (_wfgl.canvas.width !== Math.max(2, Math.round(container.clientWidth * dpr)) || _wfgl.canvas.height !== Math.max(2, Math.round(container.clientHeight * dpr))) {
-    wfglResize()
-  }
-  wfglUpdateProjection()
-  // 视野公里数变化 → 粒子数实时自适应（相对变化 >25% 才重建粒子状态，避免缩放过程频繁闪烁）
-  var want = wfglParticlesForRange()
-  var wantSq = Math.pow(Math.ceil(Math.sqrt(want)), 2)
-  var cur = _wfgl.wind.numParticles
-  if (wantSq !== cur && Math.abs(wantSq - cur) > cur * 0.25) {
-    _wfgl.wind.numParticles = want
-  }
-  _wfgl.wind.draw()
-  _wfgl.raf = requestAnimationFrame(wfglTick)
-}
-
-/* 启动 WebGL 流线；WebGL 不可用时返回 false（上层走 canvas-2D） */
-function startWindGLAnim(pts) {
-  clearWindGL()
-  var map = placeMap, container = map.getContainer()
-  var canvas = document.createElement('canvas')
-  canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:800'
-  container.appendChild(canvas)
-  var gl = null
-  try { gl = canvas.getContext('webgl', { alpha: true, antialias: false, depth: false, stencil: false }) } catch (e) { gl = null }
-  if (!gl) {
-    if (canvas.parentNode) canvas.parentNode.removeChild(canvas)
-    return false
-  }
-  var wind = new WindGL(gl)
-  wind.numParticles = wfglParticlesForRange()   // 粒子数按视野公里数阶梯自适应
-  wind.pointSize = WFGL_POINT_CSS * Math.min(window.devicePixelRatio || 1, 2)   // 高倍屏放大粒子点
-  wind.fadeOpacity = WFGL_FADE        // 拖尾淡出（可调 WFGL_FADE）
-  wind.speedFactor = 1
-  wind.setWind(wfglBuildData(pts))
-  // 绝对配色：固定 km/h 档位（对齐 2D 版 wfColor：<16 紫 / 16-24 蓝 / 25-38 橙 / 39+ 红），与 WFGL_MAX_KMH 一致
-  wind.maxSpeed = WFGL_MAX_KMH / 3.6
-  var ramp = {}
-  ramp['0.0'] = '#a855f7'                                        // 紫 (<16km/h)
-  ramp[(16 / WFGL_MAX_KMH).toFixed(3)] = '#3b82f6'               // 蓝 (16-24)
-  ramp[(25 / WFGL_MAX_KMH).toFixed(3)] = '#f59e0b'               // 橙 (25-38)
-  ramp[(39 / WFGL_MAX_KMH).toFixed(3)] = '#ef4444'               // 红 (39+)
-  ramp['1.0'] = '#ef4444'
-  wind.setColorRamp(ramp)
-
-  var s = Math.round(Math.sqrt(pts.length))
-  _wfgl.on = true
-  _wfgl.gl = gl
-  _wfgl.canvas = canvas
-  _wfgl.wind = wind
-  _wfgl.pts = pts
-  _wfgl.map = map
-  _wfgl.bounds = { gLat0: pts[0].lat, gLat1: pts[s * (s - 1)].lat, gLon0: pts[0].lon, gLon1: pts[s - 1].lon, latC: (pts[0].lat + pts[s * (s - 1)].lat) / 2 }
-  _wfgl.last = performance.now()
-  wfglResize()
-  _wfgl.legend = wfglBuildLegend()
-  container.appendChild(_wfgl.legend)
-  _wfgl.onResize = wfglResize
-  if (window.addEventListener) window.addEventListener('resize', _wfgl.onResize)
-  _wfgl.raf = requestAnimationFrame(wfglTick)
-  return true
-}
-
-/* 关闭 WebGL 流线：停帧、释放上下文（避免多次开关耗尽浏览器 WebGL 上下文）、清画布与图例 */
-function clearWindGL() {
-  if (_wfgl.raf) cancelAnimationFrame(_wfgl.raf)
-  _wfgl.raf = 0
-  if (_wfgl.onResize && window.removeEventListener) window.removeEventListener('resize', _wfgl.onResize)
-  _wfgl.onResize = null
-  if (_wfgl.gl && _wfgl.gl.getExtension) {
-    try { var ext = _wfgl.gl.getExtension('WEBGL_lose_context'); if (ext) ext.loseContext() } catch (e) {}
-  }
-  if (_wfgl.canvas && _wfgl.canvas.parentNode) _wfgl.canvas.parentNode.removeChild(_wfgl.canvas)
-  if (_wfgl.legend && _wfgl.legend.parentNode) _wfgl.legend.parentNode.removeChild(_wfgl.legend)
-  _wfgl.on = false
-  _wfgl.gl = null
-  _wfgl.wind = null
-  _wfgl.canvas = null
-  _wfgl.legend = null
-  _wfgl.pts = []
-  _wfgl.bounds = null
-  _wfgl.map = null
-}
-
-</script>
-<script>
-/* ============ js/windfield.js · 风场图开关与数据（多源级联，Open-Meteo 兜底） ============
-   第 1 步地图上的风场开关：拉当前位置周边 7×7 网格的风（风速/风向）。
-   数据源按 App 天气源优先级（windy/qweather/meteoblue/open-meteo）逐点级联，首个成功即用——
-   与天气面板同源同值，不再是固定 Open-Meteo。Open-Meteo 始终作为最后兜底（免 key、CORS 已实测）。
-   渲染优先走 WebGL 流线（js/windfield-gl.js，Windy 式顺滑流线 + 轻微闪烁），
-   WebGL 不可用时回退本文件的 canvas-2D 粒子流（双线性插值）。
-   配色两版统一：低风速=紫 <16 / 16-24=蓝 / 25-38=橙 / 高风速=红 ≥39（km/h）。
-   关闭/换位置时停止动画清理画布；失败降级提示，不阻塞。 */
-
-var _wf = { on: false, mode: null, canvas: null, raf: 0, pts: [], particles: [], bounds: null, ctx: null, size: 7, spacing: 0.18, src: null, cache: {} }
-/* mode: 'gl'（WebGL 流线，windfield-gl.js）| '2d'（canvas-2D 粒子，本文件）| null */
-/* 风级配色（km/h）：低=紫 16-24=蓝 25-38=橙 高=红（与 WebGL 流线 windfield-gl.js 色带一致；500 级色阶，比浅色深一档） */
-function wfColor(kmh) { return kmh >= 39 ? '#ef4444' : kmh >= 25 ? '#f59e0b' : kmh >= 16 ? '#3b82f6' : '#a855f7' }
-/* 当前查询中心点 */
-function wfCenter() {
-  if (selLoc) return { lat: selLoc.lat, lon: selLoc.lng }
-  if (route && route.length) return { lat: route[0].lat, lon: route[0].lon != null ? route[0].lon : route[0].lng }
-  return null
-}
-/* ===== 风场网格数据源：按 App 天气源优先级逐源尝试（与天气展示同源），Open-Meteo 兜底 ===== */
-/* 网格可取源 id 枚举（共享）：按 weatherPriority + sourceEnabled 过滤（qweather/meteoblue/windy），
-   open-meteo 恒兜底垫底。风场 wfGridSourceFns 与降水层 pfGridSourceFns 共用。 */
-function wfGridEnabledIds() {
-  var prio = (typeof appConfig !== 'undefined' && appConfig && Array.isArray(appConfig.weatherPriority)) ? appConfig.weatherPriority.slice() : ['qweather', 'open-meteo', 'meteoblue', 'amap']
-  var ordered = prio.filter(function (id) {
-    if (!(id === 'qweather' || id === 'meteoblue' || id === 'windy' || id === 'open-meteo')) return false
-    return typeof sourceEnabled === 'function' ? sourceEnabled(id) : id === 'open-meteo'   // 无 sourceEnabled（沙箱）仅兜底源可用
-  })
-  if (ordered.indexOf('open-meteo') < 0) ordered.push('open-meteo')   // 兜底源恒在最后（免 key 必可用）
-  return ordered
-}
-/* 风场取数函数列表（id→wf*UV）；每点按序尝试，首个成功即用，全部失败 → null（该点缺失）。 */
-function wfGridSourceFns() {
-  var fns = { qweather: wfQweatherUV, meteoblue: wfMeteoblueUV, windy: wfWindyUV, 'open-meteo': wfOmUV }
-  return wfGridEnabledIds().map(function (id) { return fns[id] })
-}
-/* 单点级联：按序尝试各源，首个成功返回 {lat,lon,ws,dir,u,v,src}；全部失败 reject（由上层转 null） */
-function wfFetchPointUV(lat, lon) {
-  var fns = wfGridSourceFns()
-  var chain = Promise.reject(new Error('wf.no-source'))
-  fns.forEach(function (fn) { chain = chain.catch(function () { return fn(lat, lon) }) })
-  return chain
-}
-/* Open-Meteo 兜底：逐时风取「当前小时」（timezone=auto，hourly 从 00:00 起） */
-function wfOmUV(lat, lon) {
-  return fetch('https://api.open-meteo.com/v1/forecast?latitude=' + (+lat).toFixed(3) + '&longitude=' + (+lon).toFixed(3) + '&hourly=wind_speed_10m,wind_direction_10m&forecast_days=1&timezone=auto', { signal: AbortSignal.timeout(12000) })
-    .then(function (r) { if (!r.ok) throw new Error('om.http'); return r.json() })
-    .then(function (j) {
-      var h = j.hourly || {}
-      var ws = h.wind_speed_10m, dir = h.wind_direction_10m
-      if (!ws || !ws.length || !dir || !dir.length) throw new Error('om.no-wind')
-      var idx = Math.min(ws.length - 1, new Date().getHours())
-      var s = ws[idx], d = dir[idx]
-      if (s == null || d == null) throw new Error('om.no-wind')
-      // 气象风向 = 风的来向；流向来向+180° → u(东)/v(北) m/s
-      var rad = d * Math.PI / 180
-      return { lat: lat, lon: lon, ws: s, dir: d, u: -s * Math.sin(rad), v: -s * Math.cos(rad), src: 'open-meteo' }
-    })
-}
-/* 和风 72h：hourly[0]≈当前小时，windSpeed(km/h)+wind360(来向°) → u/v m/s */
-function wfQweatherUV(lat, lon) {
-  if (!appConfig || !appConfig.qweather || !appConfig.qweather.host) return Promise.reject(new Error('qw.no-cfg'))
-  return qwFetch('/v7/weather/72h', { location: qwLoc(lat, lon) }).then(function (j) {
-    var h0 = (j.hourly || [])[0]
-    var s = h0 ? qwF(h0.windSpeed) : null, d = h0 ? qwF(h0.wind360) : null
-    if (s == null || d == null) throw new Error('qw.no-wind')
-    var ms = s / 3.6
-    var rad = d * Math.PI / 180
-    return { lat: lat, lon: lon, ws: s, dir: d, u: -ms * Math.sin(rad), v: -ms * Math.cos(rad), src: 'qweather' }
-  })
-}
-/* Meteoblue 1h 包：data_1h[0]≈当前小时，windspeed(km/h 或 ms-1)+winddirection(来向°) → u/v m/s */
-function wfMeteoblueUV(lat, lon) {
-  if (!mbKey()) return Promise.reject(new Error('mb.no-key'))
-  return mbForecast(lat, lon).then(function (mb) {
-    var h = mb.data_1h || {}
-    var unit = (mb.units && mb.units.windspeed) || 'kmh'
-    function toMs(v) { return v == null ? null : (unit === 'ms-1' ? v : v / 3.6) }
-    var ms = toMs(mbNum(h.windspeed, 0)), d = mbNum(h.winddirection, 0)
-    if (ms == null || d == null) throw new Error('mb.no-wind')
-    var rad = d * Math.PI / 180
-    return { lat: lat, lon: lon, ws: ms * 3.6, dir: d, u: -ms * Math.sin(rad), v: -ms * Math.cos(rad), src: 'meteoblue' }
-  })
-}
-/* Windy Point Forecast 最小查询：仅 wind 参数，wind_u/wind_v(m/s) 取距当前最近时次（已是流动向量） */
-function wfWindyUV(lat, lon) {
-  if (!windyKey()) return Promise.reject(new Error('windy.no-key'))
-  var body = JSON.stringify({ lat: lat, lon: lon, model: 'gfs', parameters: ['wind'], levels: ['surface'], key: windyKey() })
-  return fetch('https://api.windy.com/api/point-forecast/v2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, signal: AbortSignal.timeout(12000) })
-    .then(function (r) { if (!r.ok) throw new Error('windy.http' + r.status); return r.json() })
-    .then(function (j) {
-      var ts = j.ts || [], uArr = j['wind_u-surface'], vArr = j['wind_v-surface']
-      if (!ts.length || !uArr || !vArr) throw new Error('windy.no-wind')
-      var now = Date.now(), best = 0, bd = Infinity
-      for (var i = 0; i < ts.length; i++) { var dd = Math.abs(ts[i] - now); if (dd < bd) { bd = dd; best = i } }
-      var u = uArr[best], v = vArr[best]
-      if (u == null || v == null || isNaN(u) || isNaN(v)) throw new Error('windy.no-wind')
-      return { lat: lat, lon: lon, ws: Math.sqrt(u * u + v * v) * 3.6, dir: (Math.atan2(u, v) * 180 / Math.PI + 180) % 360, u: u, v: v, src: 'windy' }
-    })
-}
-/* 拉 size×size 网格（spacing 度间距）风矢量；返回 [{lat,lon,ws,dir,u,v}]，单点全源失败 → null 不阻断。
-   结果首个成功点记录 _wf.src（数据源名，供 toast 提示与天气面板同源核对）。 */
-function wfFetchGrid(cx, cy, size, spacing) {
-  size = size || _wf.size; spacing = spacing || _wf.spacing
-  var jobs = []
-  var off = (size - 1) / 2
-  for (var r = 0; r < size; r++) for (var c = 0; c < size; c++) {
-    var lat = Math.round((cx + (r - off) * spacing) * 1000) / 1000
-    var lon = Math.round((cy + (c - off) * spacing) * 1000) / 1000
-    jobs.push(wfFetchPointUV(lat, lon).catch(function () { return null }))
-  }
-  return Promise.all(jobs).then(function (pts) {
-    _wf.src = null
-    for (var i = 0; i < pts.length; i++) { if (pts[i] && pts[i].src) { _wf.src = pts[i].src; break } }
-    return pts
-  })
-}
-/* 双线性插值取 (lat,lon) 处风矢量；返回 {u,v}（m/s） */
-function wfInterp(pts, lat, lon) {
-  // 用 4 角判定网格结构：pts 为 size×size，按 r 行序存储
-  var s = Math.round(Math.sqrt(pts.length))
-  var gLat0 = pts[0].lat, gLat1 = pts[s * (s - 1)].lat, gLon0 = pts[0].lon, gLon1 = pts[s - 1].lon
-  if (gLat1 === gLat0 || gLon1 === gLon0) return { u: 0, v: 0 }   // 退化网格（同点）防除零
-  var n = (lat - gLat0) / (gLat1 - gLat0), m = (lon - gLon0) / (gLon1 - gLon0)
-  n = Math.max(0, Math.min(s - 1.001, n)); m = Math.max(0, Math.min(s - 1.001, m))
-  var i0 = Math.floor(n), i1 = i0 + 1, j0 = Math.floor(m), j1 = j0 + 1
-  var fn = n - i0, fm = m - j0
-  function g(i, j) { var p = pts[i * s + j]; return p ? p : { u: 0, v: 0 } }
-  var p00 = g(i0, j0), p01 = g(i0, j1), p10 = g(i1, j0), p11 = g(i1, j1)
-  var u = (p00.u * (1 - fn) + p10.u * fn) * (1 - fm) + (p01.u * (1 - fn) + p11.u * fn) * fm
-  var v = (p00.v * (1 - fn) + p10.v * fn) * (1 - fm) + (p01.v * (1 - fn) + p11.v * fn) * fm
-  return { u: u, v: v }
-}
-/* 粒子动画：canvas 覆盖地图容器，粒子沿风场流动（运动轨迹淡出） */
-function startWindAnim(pts) {
-  clearWindField()   // 清旧（含画布）
-  var map = placeMap, container = map.getContainer()
-  var canvas = document.createElement('canvas')
-  canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:800'
-  container.appendChild(canvas)
-  var ctx = canvas.getContext('2d')
-  function resize() {
-    canvas.width = container.clientWidth; canvas.height = container.clientHeight
-  }
-  resize()
-  var s = Math.round(Math.sqrt(pts.length))
-  var gLat0 = pts[0].lat, gLat1 = pts[s * (s - 1)].lat, gLon0 = pts[0].lon, gLon1 = pts[s - 1].lon
-  // 粒子：分布在网格内，带小随机抖动
-  var particles = []
-  var N = 1200   // 粒子密度：1200 粒形成稠密流动（比 420 密约 3 倍，仍保持流畅）
-  for (var i = 0; i < N; i++) {
-    particles.push({
-      lat: gLat0 + Math.random() * (gLat1 - gLat0),
-      lon: gLon0 + Math.random() * (gLon1 - gLon0),
-      px: 0, py: 0, hue: Math.random()
-    })
-  }
-  var last = performance.now()
-  function tick(now) {
-    if (!_wf.on || !_wf.canvas) return
-    var dt = Math.min(0.05, (now - last) / 1000); last = now
-    var zoom = map.getZoom()
-    var ppm = Math.pow(2, zoom) / (156543 * Math.cos(pts[0].lat * Math.PI / 180))   // 米→像素
-    var SPEED = 700   // 视觉放大系数：让风明显流动
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    particles.forEach(function (p) {
-      if (p.lat < gLat0 || p.lat > gLat1 || p.lon < gLon0 || p.lon > gLon1) {
-        p.lat = gLat0 + Math.random() * (gLat1 - gLat0); p.lon = gLon0 + Math.random() * (gLon1 - gLon0)
-      }
-      var w = wfInterp(pts, p.lat, p.lon)
-      var cosL = Math.cos(p.lat * Math.PI / 180)
-      var dLat = w.v * dt * SPEED * ppm / 111320 * 0.9
-      var dLon = w.u * dt * SPEED * ppm / (111320 * cosL)
-      p.lat += dLat; p.lon += dLon
-      var pt = map.latLngToContainerPoint([p.lat, p.lon])
-      // 屏幕速度（px/s）→ 拖尾方向
-      var vx = 0, vy = 0
-      if (dt > 0) {
-        var pt0 = map.latLngToContainerPoint([p.lat - dLat, p.lon - dLon])
-        vx = (pt.x - pt0.x) / dt; vy = (pt.y - pt0.y) / dt
-      }
-      var spdMs = Math.sqrt(w.u * w.u + w.v * w.v)
-      var kmh = spdMs * 3.6
-      var color = wfColor(kmh)
-      // 拖尾长度随风速：强风长亮线、弱风短点（速度差异化明显）
-      var len = Math.max(3, Math.min(34, Math.sqrt(vx * vx + vy * vy) * 0.22))
-      if (vx || vy) {
-        var vl = Math.sqrt(vx * vx + vy * vy) || 1
-        var nx = vx / vl, ny = vy / vl
-        var tx = pt.x - nx * len, ty = pt.y - ny * len   // 拖尾尾部
-        // 渐隐拖尾（分段透明度，头亮尾淡，免每帧建渐变对象保流畅）：
-        ctx.strokeStyle = color; ctx.lineWidth = 2.2; ctx.lineCap = 'round'
-        ctx.globalAlpha = 0.3     // 全段（淡）
-        ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(pt.x, pt.y); ctx.stroke()
-        ctx.globalAlpha = 0.65    // 头部半段（中亮）
-        ctx.beginPath(); ctx.moveTo(pt.x - nx * len * 0.5, pt.y - ny * len * 0.5); ctx.lineTo(pt.x, pt.y); ctx.stroke()
-      }
-      // 头粒子亮圆点
-      ctx.fillStyle = color
-      ctx.globalAlpha = 1
-      ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.2, 0, 6.2832); ctx.fill()
-    })
-    // 风级图例（左下角）：颜色→风速等级
-    var legX = 10, legY = canvas.height - 48, legW = 118, legH = 12
-    ctx.globalAlpha = 0.85
-    ctx.fillStyle = 'rgba(12,16,24,.65)'
-    ctx.fillRect(legX - 4, legY - 4, legW + 8, legH + 28)
-    var stops = [['#a855f7', '<16'], ['#3b82f6', '16-24'], ['#f59e0b', '25-38'], ['#ef4444', '39+']]
-    var segW = legW / stops.length
-    stops.forEach(function (s, i) { ctx.fillStyle = s[0]; ctx.fillRect(legX + i * segW, legY, segW + 0.5, legH) })
-    ctx.fillStyle = '#cbd5e1'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'
-    stops.forEach(function (s, i) { ctx.fillText(s[1], legX + i * segW + segW / 2, legY + legH + 12) })
-    ctx.fillText('km/h', legX + legW / 2, legY + legH + 22)
-    ctx.globalAlpha = 1
-    _wf.raf = requestAnimationFrame(tick)
-  }
-  _wf.on = true
-  _wf.canvas = canvas; _wf.ctx = ctx; _wf.pts = pts; _wf.particles = particles; _wf.bounds = { gLat0: gLat0, gLat1: gLat1, gLon0: gLon0, gLon1: gLon1 }
-  _wf.raf = requestAnimationFrame(tick)
-  // 地图移动/缩放时粒子仍在地理空间随动（每帧重投影）；容器尺寸变化重设画布
-  if (window.addEventListener) window.addEventListener('resize', resize)
-  _wf.resize = resize
-}
-/* 风场开关 */
-/* 网格会话缓存键：中心按间距分桶（同区域开关/位置微调命中缓存，不重复拉 49 点付费源） */
-function wfGridCacheKey(lat, lon, sp) { return Math.round(lat / sp) + '|' + Math.round(lon / sp) + '|' + sp.toFixed(3) }
-/* 渲染风场网格（WebGL 优先，2D 回退），并回填 _wf.src */
-function wfRenderGrid(ok) {
-  var usedGL = false
-  if (typeof startWindGLAnim === 'function' && isWebGLReady()) {
-    try { usedGL = startWindGLAnim(ok) } catch (e) { usedGL = false }
-  }
-  if (usedGL) { _wf.mode = 'gl' } else { startWindAnim(ok); _wf.mode = '2d' }
-  _wf.on = true
-  _wf.src = null
-  for (var i = 0; i < ok.length; i++) { if (ok[i] && ok[i].src) { _wf.src = ok[i].src; break } }
-  var srcLab = _wf.src ? ' · 源 ' + _wf.src : ''
-  toast(usedGL ? ('风场已显示 · WebGL 流线 · ' + ok.length + ' 网格点' + srcLab) : ('风场已显示 · 动态粒子 · ' + ok.length + ' 网格点' + srcLab))
-}
-function toggleWindField() {
-  if (_wf.on) { clearWindField(); return }
-  // 与降水层互斥：开风场先关降水层（降水层开风场同理见 precipfield.js）
-  if (typeof _pf !== 'undefined' && _pf.on && typeof clearPrecipField === 'function') clearPrecipField()
-  var c = wfCenter()
-  if (!c) { toast('请先选择地点或导入路线'); return }
-  if (typeof placeMap === 'undefined' || typeof L === 'undefined') { toast('地图组件未加载'); return }
-  // 网格覆盖可视区约 1.3 倍：从当前地图视野反推间距（风场填满视野，缩放后粒子仍在地理空间随动）
-  var b = placeMap.getBounds()
-  var spanLat = b.getNorth() - b.getSouth(), spanLon = b.getEast() - b.getWest()
-  var spacing = Math.max(spanLat, spanLon * Math.cos(c.lat * Math.PI / 180)) / (_wf.size - 1) * 1.3
-  spacing = Math.max(0.02, Math.min(2, spacing))
-  _wf.spacing = spacing
-  var key = wfGridCacheKey(c.lat, c.lon, spacing)
-  if (_wf.cache && _wf.cache[key]) {
-    var cachedOk = _wf.cache[key].filter(Boolean)
-    if (cachedOk.length) { wfRenderGrid(cachedOk); toast('风场已显示 · 同区域缓存（未重复请求）'); return }
-  }
-  toast('正在拉取风场…')
-  wfFetchGrid(c.lat, c.lon, _wf.size, spacing).then(function (pts) {
-    if (_wf.on) return   // 期间已关闭则丢弃
-    var ok = pts.filter(Boolean)
-    if (!ok.length) { toast('风场拉取失败，请重试'); return }
-    if (!_wf.cache) _wf.cache = {}
-    if (Object.keys(_wf.cache).length > 30) _wf.cache = {}   // 会话缓存上限，防无限增长
-    _wf.cache[key] = pts
-    wfRenderGrid(ok)
-  })
-}
-function clearWindField() {
-  if (_wf.mode === 'gl') {
-    // WebGL 流线（windfield-gl.js）：释放上下文 + 清画布/图例
-    if (typeof clearWindGL === 'function') { try { clearWindGL() } catch (e) {} }
-    _wf.mode = null
-    _wf.on = false
-    return
-  }
-  if (_wf.raf) cancelAnimationFrame(_wf.raf); _wf.raf = 0
-  if (_wf.canvas && _wf.canvas.parentNode) _wf.canvas.parentNode.removeChild(_wf.canvas)
-  _wf.canvas = null; _wf.ctx = null; _wf.pts = []; _wf.particles = []; _wf.bounds = null; _wf.src = null
-  if (_wf.resize && window.removeEventListener) window.removeEventListener('resize', _wf.resize)
-  _wf.resize = null
-  _wf.on = false
-  _wf.mode = null
-}
-/* 位置变化时后台刷新（非破坏式：动画保持运行，成功才替换数据，失败保留当前显示）。
-   中心移动 < 0.6 倍间距时跳过（避免微移动/点地图打断动画与重复请求）；降水层一并刷新。 */
-function refreshWindField() {
-  if (_wf.on) {
-    var c = wfCenter()
-    if (c) {
-      var skip = false
-      if (_wf.bounds) {
-        var latC = (_wf.bounds.gLat0 + _wf.bounds.gLat1) / 2
-        var lonC = (_wf.bounds.gLon0 + _wf.bounds.gLon1) / 2
-        var sp0 = _wf.spacing || 0.18
-        if (Math.abs(c.lat - latC) < sp0 * 0.6 && Math.abs(c.lon - lonC) < sp0 * 0.6) skip = true
-      }
-      if (!skip) {
-        var b = placeMap.getBounds()
-        var spanLat = b.getNorth() - b.getSouth(), spanLon = b.getEast() - b.getWest()
-        var spacing = Math.max(spanLat, spanLon * Math.cos(c.lat * Math.PI / 180)) / (_wf.size - 1) * 1.3
-        spacing = Math.max(0.02, Math.min(2, spacing))
-        _wf.spacing = spacing
-        var key = wfGridCacheKey(c.lat, c.lon, spacing)
-        if (_wf.cache && _wf.cache[key]) {
-          var cachedOk = _wf.cache[key].filter(Boolean)
-          if (cachedOk.length) { wfRenderGrid(cachedOk); skip = true }
-        }
-        if (!skip) {
-          toast('正在刷新风场…')
-          wfFetchGrid(c.lat, c.lon, _wf.size, spacing).then(function (pts) {
-            if (!_wf.on) return   // 期间已关闭则丢弃
-            var ok = pts.filter(Boolean)
-            if (!ok.length) { toast('风场刷新失败，保持当前显示'); return }
-            if (!_wf.cache) _wf.cache = {}
-            if (Object.keys(_wf.cache).length > 30) _wf.cache = {}
-            _wf.cache[key] = pts
-            wfRenderGrid(ok)
-          })
-        }
-      }
-    }
-  }
-  if (typeof _pf !== 'undefined' && _pf.on && typeof refreshPrecipField === 'function') refreshPrecipField()
-}
-
-</script>
-<script>
-/* ============ js/precipfield.js · 雨雪粒子动画叠加层（风场图同款网格取数 + canvas-2D 粒子） ============
-   第 1 步地图上的「🌧 降水」按钮：按当前视野拉 7×7 网格降水（类型/强度/温度），
-   用 canvas-2D 粒子在地图上模拟实时降水——雨=斜落短线、雪=慢飘白点带摇曳、冰粒=小亮点、
-   毛毛雨=细密短点、冻雨=雨形态偏紫；粒子密度/速度随强度档递增，锚定在地理降水区域内。
-   数据源复用 windfield.js 的 wfGridEnabledIds（多源级联，Open-Meteo 恒兜底）。
-   与风场图互斥（同开自动关对方）；位置切换刷新；关闭清理画布与图例停止动画。 */
-
-var _pf = { on: false, canvas: null, ctx: null, raf: 0, grid: [], particles: [], legend: null, resize: null, size: 7, spacing: 0.18, src: null, cache: {} }
-var PF_NONE = 0, PF_DRIZZLE = 1, PF_RAIN = 2, PF_FREEZE = 3, PF_SNOW = 4, PF_SLEET = 5
-
-/* ================= 降水类型 / 强度统一口径 ================= */
-/* WMO 天气码 → 降水类型；无码时由调用方按温度兜底（见 precipFrom） */
-function wmoToPrecip(wmo, temp) {
-  var w = wmo == null ? -1 : +wmo
-  if (w === 51 || w === 53 || w === 55 || w === 56 || w === 57) return PF_DRIZZLE
-  if (w === 61 || w === 63 || w === 65 || w === 80 || w === 81 || w === 82 || w === 95 || w === 96 || w === 99) return PF_RAIN
-  if (w === 66 || w === 67) return PF_FREEZE
-  if (w === 71 || w === 73 || w === 75 || w === 77 || w === 85 || w === 86) return PF_SNOW
-  if (w === 78) return PF_SLEET
-  return PF_NONE
-}
-/* 天气码 + 降水量 + 温度 → 类型：有码按码；无码但有降水按温度兜底（≤1°C 雪，否则雨） */
-function precipFrom(wmo, mm, temp) {
-  var t = wmoToPrecip(wmo, temp)
-  if (t !== PF_NONE || !(mm > 0)) return t
-  return (temp != null && temp <= 1) ? PF_SNOW : PF_RAIN
-}
-/* 逐时降水量(mm/h) → 强度档：0=无 1=弱(<0.5) 2=中(0.5–2.5) 3=强(≥2.5) */
-function rateOf(mmh) {
-  if (mmh == null || !isFinite(mmh) || mmh <= 0) return 0
-  if (mmh < 0.5) return 1
-  if (mmh < 2.5) return 2
-  return 3
-}
-
-/* ================= 网格取数（多源级联，OM 兜底） ================= */
-/* 降水取数函数列表（id→pf*UV），按 wfGridEnabledIds 共享枚举排序 */
-function pfGridSourceFns() {
-  var fns = { qweather: pfQweatherUV, meteoblue: pfMeteoblueUV, windy: pfWindyUV, 'open-meteo': pfOmUV }
-  return wfGridEnabledIds().map(function (id) { return fns[id] })
-}
-/* 单点级联：按序尝试各源，首个成功返回 {lat,lon,type,rate,temp,src}；全部失败 reject（由上层转 null） */
-function pfFetchPoint(lat, lon) {
-  var fns = pfGridSourceFns()
-  var chain = Promise.reject(new Error('pf.no-source'))
-  fns.forEach(function (fn) { chain = chain.catch(function () { return fn(lat, lon) }) })
-  return chain
-}
-/* Open-Meteo 兜底：current 降水/天气码/温度（免 key 必可用） */
-function pfOmUV(lat, lon) {
-  return fetch('https://api.open-meteo.com/v1/forecast?latitude=' + (+lat).toFixed(3) + '&longitude=' + (+lon).toFixed(3) + '&current=precipitation,weather_code,temperature_2m&timezone=auto', { signal: AbortSignal.timeout(12000) })
-    .then(function (r) { if (!r.ok) throw new Error('om.http'); return r.json() })
-    .then(function (j) {
-      var c = j.current || {}
-      var mm = c.precipitation, wmo = c.weather_code, temp = c.temperature_2m
-      if (mm == null && wmo == null) throw new Error('om.no-precip')
-      return { lat: lat, lon: lon, type: precipFrom(wmo, mm, temp), rate: rateOf(mm), temp: temp, src: 'open-meteo' }
-    })
-}
-/* 和风 72h：hourly[0]≈当前小时，text→wmo + precip(mm) + temp(°C) */
-function pfQweatherUV(lat, lon) {
-  if (!appConfig || !appConfig.qweather || !appConfig.qweather.host) return Promise.reject(new Error('qw.no-cfg'))
-  return qwFetch('/v7/weather/72h', { location: qwLoc(lat, lon) }).then(function (j) {
-    var h0 = (j.hourly || [])[0]
-    var wmo = h0 ? qwTextToWmo(h0.text) : -1
-    var mm = h0 ? qwF(h0.precip) : null
-    var temp = h0 ? qwF(h0.temp) : null
-    if (wmo < 0 && mm == null) throw new Error('qw.no-precip')
-    return { lat: lat, lon: lon, type: precipFrom(wmo, mm, temp), rate: rateOf(mm), temp: temp, src: 'qweather' }
-  })
-}
-/* Meteoblue 1h 包：data_1h[0]≈当前小时，pictocode→wmo + precipitation(mm) + temperature(°C) */
-function pfMeteoblueUV(lat, lon) {
-  if (!mbKey()) return Promise.reject(new Error('mb.no-key'))
-  return mbForecast(lat, lon).then(function (mb) {
-    var h = mb.data_1h || {}
-    var wmo = mbPictoToWmo(mbNum(h.pictocode, 0), 'hour')
-    var mm = mbNum(h.precipitation, 0)
-    var temp = mbNum(h.temperature, 0)
-    if (wmo == null && mm == null) throw new Error('mb.no-precip')
-    return { lat: lat, lon: lon, type: precipFrom(wmo, mm, temp), rate: rateOf(mm), temp: temp, src: 'meteoblue' }
-  })
-}
-/* Windy Point Forecast 最小查询：仅 precip/snowPrecip/temp，取距当前最近时次（m→mm，K→°C） */
-function pfWindyUV(lat, lon) {
-  if (!windyKey()) return Promise.reject(new Error('windy.no-key'))
-  var body = JSON.stringify({ lat: lat, lon: lon, model: 'gfs', parameters: ['precip', 'snowPrecip', 'temp'], levels: ['surface'], key: windyKey() })
-  return fetch('https://api.windy.com/api/point-forecast/v2', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, signal: AbortSignal.timeout(12000) })
-    .then(function (r) { if (!r.ok) throw new Error('windy.http' + r.status); return r.json() })
-    .then(function (j) {
-      var ts = j.ts || [], pr = j['past3hprecip-surface'], sn = j['past3hsnowprecip-surface'], tp = j['temp-surface']
-      if (!ts.length || (!pr && !sn)) throw new Error('windy.no-precip')
-      var now = Date.now(), best = 0, bd = Infinity
-      for (var i = 0; i < ts.length; i++) { var dd = Math.abs(ts[i] - now); if (dd < bd) { bd = dd; best = i } }
-      var mm = pr ? pr[best] * 1000 : 0
-      var snowMm = sn ? sn[best] * 1000 : 0
-      var temp = tp && tp[best] != null ? tp[best] - 273.15 : null
-      var type = snowMm > 0 ? PF_SNOW : (mm > 0 ? PF_RAIN : PF_NONE)
-      return { lat: lat, lon: lon, type: type, rate: rateOf(Math.max(mm, snowMm)), temp: temp, src: 'windy' }
-    })
-}
-/* 拉 size×size 网格（spacing 度间距）降水；单点全源失败 → null 不阻断；首个成功点记 _pf.src */
-function pfFetchGrid(cx, cy, size, spacing) {
-  size = size || _pf.size; spacing = spacing || _pf.spacing
-  var jobs = []
-  var off = (size - 1) / 2
-  for (var r = 0; r < size; r++) for (var c = 0; c < size; c++) {
-    var lat = Math.round((cx + (r - off) * spacing) * 1000) / 1000
-    var lon = Math.round((cy + (c - off) * spacing) * 1000) / 1000
-    jobs.push(pfFetchPoint(lat, lon).catch(function () { return null }))
-  }
-  return Promise.all(jobs).then(function (pts) {
-    _pf.src = null
-    for (var i = 0; i < pts.length; i++) { if (pts[i] && pts[i].src) { _pf.src = pts[i].src; break } }
-    return pts
-  })
-}
-
-/* ================= 网格插值：类型按最近格点、强度按双线性 ================= */
-function pfTypeAt(grid, lat, lon) {
-  var s = Math.round(Math.sqrt(grid.length))
-  var gLat0 = grid[0].lat, gLat1 = grid[s * (s - 1)].lat, gLon0 = grid[0].lon, gLon1 = grid[s - 1].lon
-  if (gLat1 === gLat0 || gLon1 === gLon0) return PF_NONE
-  var n = Math.round(Math.max(0, Math.min(s - 1, (lat - gLat0) / (gLat1 - gLat0) * (s - 1))))
-  var m = Math.round(Math.max(0, Math.min(s - 1, (lon - gLon0) / (gLon1 - gLon0) * (s - 1))))
-  var p = grid[n * s + m]
-  return p ? p.type : PF_NONE
-}
-function pfRateAt(grid, lat, lon) {
-  var s = Math.round(Math.sqrt(grid.length))
-  var gLat0 = grid[0].lat, gLat1 = grid[s * (s - 1)].lat, gLon0 = grid[0].lon, gLon1 = grid[s - 1].lon
-  if (gLat1 === gLat0 || gLon1 === gLon0) return 0
-  var n = (lat - gLat0) / (gLat1 - gLat0), m = (lon - gLon0) / (gLon1 - gLon0)
-  n = Math.max(0, Math.min(s - 1.001, n)); m = Math.max(0, Math.min(s - 1.001, m))
-  var i0 = Math.floor(n), i1 = i0 + 1, j0 = Math.floor(m), j1 = j0 + 1, fn = n - i0, fm = m - j0
-  function g(i, j) { var p = grid[i * s + j]; return p ? p.rate : 0 }
-  return g(i0, j0) * (1 - fn) * (1 - fm) + g(i1, j0) * fn * (1 - fm) + g(i0, j1) * (1 - fn) * fm + g(i1, j1) * fn * fm
-}
-
-/* ================= 粒子渲染 ================= */
-function pfSpeed(type, rate) {
-  var base = type === PF_SNOW ? 22 : type === PF_SLEET ? 240 : type === PF_FREEZE ? 150 : type === PF_DRIZZLE ? 90 : 160
-  return base * (1 + rate * 0.25)
-}
-function pfDraw(ctx, p, type, rate, pt) {
-  if (type === PF_RAIN) {
-    var len = 6 + rate * 4
-    ctx.strokeStyle = 'rgba(96,165,250,0.85)'; ctx.lineWidth = 1.4
-    ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(pt.x - 3 - rate * 1.5, pt.y + len); ctx.stroke()
-  } else if (type === PF_SNOW) {
-    var sx = pt.x + Math.sin(p.phase) * 5
-    ctx.fillStyle = 'rgba(255,255,255,0.9)'
-    ctx.beginPath(); ctx.arc(sx, pt.y, 1.6 + rate * 0.4, 0, 6.2832); ctx.fill()
-  } else if (type === PF_SLEET) {
-    ctx.fillStyle = 'rgba(226,232,240,0.9)'
-    ctx.beginPath(); ctx.arc(pt.x, pt.y, 1.2, 0, 6.2832); ctx.fill()
-  } else if (type === PF_FREEZE) {
-    var fl = 5 + rate * 3
-    ctx.strokeStyle = 'rgba(167,139,250,0.85)'; ctx.lineWidth = 1.4
-    ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(pt.x - 2, pt.y + fl); ctx.stroke()
-  } else if (type === PF_DRIZZLE) {
-    ctx.strokeStyle = 'rgba(148,197,255,0.7)'; ctx.lineWidth = 1
-    ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(pt.x, pt.y + 3 + rate); ctx.stroke()
-  }
-}
-function startPrecipAnim(grid) {
-  clearPrecipField()
-  var map = placeMap, container = map.getContainer()
-  var canvas = document.createElement('canvas')
-  canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:800'
-  container.appendChild(canvas)
-  var ctx = canvas.getContext('2d')
-  function resize() { canvas.width = container.clientWidth; canvas.height = container.clientHeight }
-  resize()
-  var s = Math.round(Math.sqrt(grid.length))
-  var gLat0 = grid[0].lat, gLat1 = grid[s * (s - 1)].lat, gLon0 = grid[0].lon, gLon1 = grid[s - 1].lon
-  var area = canvas.width * canvas.height
-  var N = Math.max(500, Math.min(3500, Math.round(area / 1500)))   // 粒子数按容器面积自适应
-  var particles = []
-  for (var i = 0; i < N; i++) {
-    particles.push({ lat: gLat0 + Math.random() * (gLat1 - gLat0), lon: gLon0 + Math.random() * (gLon1 - gLon0), phase: Math.random() * 6.2832, type: PF_NONE })
-  }
-  _pf.on = true; _pf.canvas = canvas; _pf.ctx = ctx; _pf.grid = grid; _pf.particles = particles
-  var last = performance.now()
-  function tick(now) {
-    if (!_pf.on || !_pf.canvas) return
-    var dt = Math.min(0.05, (now - last) / 1000); last = now
-    var zoom = map.getZoom()
-    var ppm = Math.pow(2, zoom) / (156543 * Math.cos(gLat0 * Math.PI / 180))   // 米→像素
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    for (var k = 0; k < particles.length; k++) {
-      var p = particles[k]
-      var type = pfTypeAt(grid, p.lat, p.lon)
-      if (type === PF_NONE) { p.type = PF_NONE; continue }   // 干区粒子不画，随下落自然进入湿区
-      var rate = pfRateAt(grid, p.lat, p.lon)
-      p.type = type
-      var sp = pfSpeed(type, rate)
-      var dLat = sp * dt / (ppm * 111320)   // 屏幕 px/s → 纬度降量（北朝上地图=向下落）
-      p.lat -= dLat
-      if (type === PF_SNOW) p.phase += dt * 2.5
-      // 越界随机重投（保持采样，密度自然偏向湿区）
-      if (p.lat < gLat1 - (gLat1 - gLat0) * 0.02 || p.lat > gLat0 + (gLat1 - gLat0) * 0.02 || p.lon < gLon0 || p.lon > gLon1) {
-        p.lat = gLat0 + Math.random() * (gLat1 - gLat0); p.lon = gLon0 + Math.random() * (gLon1 - gLon0)
-      }
-      var pt = map.latLngToContainerPoint([p.lat, p.lon])
-      if (pt.x >= 0 && pt.x <= canvas.width && pt.y >= 0 && pt.y <= canvas.height) pfDraw(ctx, p, type, rate, pt)
-    }
-    _pf.raf = requestAnimationFrame(tick)
-  }
-  _pf.raf = requestAnimationFrame(tick)
-  if (window.addEventListener) window.addEventListener('resize', resize)
-  _pf.resize = resize
-  _pf.legend = buildPrecipLegend()
-  container.appendChild(_pf.legend)
-}
-/* 左下角降水图例（2D 小画布）：类型颜色 + 强度说明，随覆盖层开关显隐 */
-function buildPrecipLegend() {
-  var dpr = Math.min(window.devicePixelRatio || 1, 2)
-  var cssW = 150, cssH = 64
-  var c = document.createElement('canvas')
-  c.style.cssText = 'position:absolute;left:0;bottom:0;width:' + cssW + 'px;height:' + cssH + 'px;pointer-events:none;z-index:800'
-  c.width = Math.round(cssW * dpr); c.height = Math.round(cssH * dpr)
-  var ctx = c.getContext('2d')
-  ctx.scale(dpr, dpr)
-  ctx.globalAlpha = 0.85
-  ctx.fillStyle = 'rgba(12,16,24,.65)'
-  ctx.fillRect(4, 4, cssW - 8, cssH - 8)
-  var items = [['雨', '#60a5fa'], ['雪', '#f8fafc'], ['冰粒', '#e2e8f0'], ['毛毛雨', '#94c5ff'], ['冻雨', '#a78bfa']]
-  var x = 10, y = 14, sw = 12, gap = 8
-  ctx.font = '10px sans-serif'; ctx.textBaseline = 'middle'
-  items.forEach(function (it) {
-    ctx.fillStyle = it[1]; ctx.fillRect(x, y - 5, sw, sw)
-    ctx.fillStyle = '#cbd5e1'; ctx.fillText(it[0], x + sw + 3, y)
-    x += sw + 3 + ctx.measureText(it[0]).width + gap
-  })
-  ctx.fillStyle = '#cbd5e1'
-  ctx.fillText('强度：疏(弱) 密(中) 浓(强)', 10, cssH - 18)
-  ctx.globalAlpha = 1
-  return c
-}
-
-/* ================= 开关 / 生命周期 / 互斥 ================= */
-function clearPrecipField() {
-  if (_pf.raf) cancelAnimationFrame(_pf.raf); _pf.raf = 0
-  if (_pf.canvas && _pf.canvas.parentNode) _pf.canvas.parentNode.removeChild(_pf.canvas)
-  if (_pf.legend && _pf.legend.parentNode) _pf.legend.parentNode.removeChild(_pf.legend)
-  _pf.canvas = null; _pf.ctx = null; _pf.grid = []; _pf.particles = []; _pf.legend = null
-  if (_pf.resize && window.removeEventListener) window.removeEventListener('resize', _pf.resize)
-  _pf.resize = null
-  _pf.on = false; _pf.src = null
-}
-/* 渲染降水网格（粒子层 + 图例） */
-function pfRenderGrid(ok) {
-  var src = _pf.src   // pfFetchGrid 记的源（startPrecipAnim 开头 clear 会清空，先存）
-  startPrecipAnim(ok)
-  _pf.src = src
-  toast('降水已显示 · ' + ok.length + ' 网格点 · 源 ' + (_pf.src || 'open-meteo'))
-}
-function togglePrecipField() {
-  if (_pf.on) { clearPrecipField(); return }
-  var c = wfCenter()
-  if (!c) { toast('请先选择地点或导入路线'); return }
-  if (typeof placeMap === 'undefined' || typeof L === 'undefined') { toast('地图组件未加载'); return }
-  // 与风场互斥：开降水先关风场
-  if (typeof _wf !== 'undefined' && _wf.on && typeof clearWindField === 'function') clearWindField()
-  var b = placeMap.getBounds()
-  var spanLat = b.getNorth() - b.getSouth(), spanLon = b.getEast() - b.getWest()
-  var spacing = Math.max(spanLat, spanLon * Math.cos(c.lat * Math.PI / 180)) / (_pf.size - 1) * 1.3
-  spacing = Math.max(0.02, Math.min(2, spacing))
-  _pf.spacing = spacing
-  var key = wfGridCacheKey(c.lat, c.lon, spacing)
-  if (_pf.cache && _pf.cache[key]) {
-    var cachedOk = _pf.cache[key].filter(Boolean)
-    if (cachedOk.length) { _pf.src = _pf.cache[key]._src || 'open-meteo'; pfRenderGrid(cachedOk); toast('降水已显示 · 同区域缓存（未重复请求）'); return }
-  }
-  toast('正在拉取降水…')
-  pfFetchGrid(c.lat, c.lon, _pf.size, spacing).then(function (grid) {
-    if (_pf.on) return   // 期间已关闭则丢弃
-    var ok = grid.filter(Boolean)
-    if (!ok.length) { toast('降水获取失败，请重试'); return }
-    if (!_pf.cache) _pf.cache = {}
-    if (Object.keys(_pf.cache).length > 30) _pf.cache = {}   // 会话缓存上限，防无限增长
-    grid._src = _pf.src
-    _pf.cache[key] = grid
-    pfRenderGrid(ok)
-  })
-}
-/* 位置变化时后台刷新（非破坏式：动画保持运行，成功才替换数据，失败保留当前显示）。
-   中心移动 < 0.6 倍间距时跳过（避免微移动/点地图打断动画与重复请求）。 */
-function refreshPrecipField() {
-  if (!_pf.on) return
-  var c = wfCenter()
-  if (!c) return
-  // 距当前网格中心过近 → 不刷新
-  if (_pf.grid && _pf.grid.length > 1) {
-    var gs = Math.round(Math.sqrt(_pf.grid.length))
-    var latC = (_pf.grid[0].lat + _pf.grid[gs * (gs - 1)].lat) / 2
-    var lonC = (_pf.grid[0].lon + _pf.grid[gs - 1].lon) / 2
-    var sp0 = _pf.spacing || 0.18
-    if (Math.abs(c.lat - latC) < sp0 * 0.6 && Math.abs(c.lon - lonC) < sp0 * 0.6) return
-  }
-  var b = placeMap.getBounds()
-  var spanLat = b.getNorth() - b.getSouth(), spanLon = b.getEast() - b.getWest()
-  var spacing = Math.max(spanLat, spanLon * Math.cos(c.lat * Math.PI / 180)) / (_pf.size - 1) * 1.3
-  spacing = Math.max(0.02, Math.min(2, spacing))
-  _pf.spacing = spacing
-  var key = wfGridCacheKey(c.lat, c.lon, spacing)
-  if (_pf.cache && _pf.cache[key]) {
-    var cachedOk = _pf.cache[key].filter(Boolean)
-    if (cachedOk.length) { _pf.src = _pf.cache[key]._src || 'open-meteo'; pfRenderGrid(cachedOk); return }
-  }
-  // 后台刷新：成功才替换网格（动画不中断）；失败保留当前显示
-  pfFetchGrid(c.lat, c.lon, _pf.size, spacing).then(function (grid) {
-    if (!_pf.on) return
-    var ok = grid.filter(Boolean)
-    if (!ok.length) { toast('降水刷新失败，保持当前显示'); return }
-    if (!_pf.cache) _pf.cache = {}
-    if (Object.keys(_pf.cache).length > 30) _pf.cache = {}
-    grid._src = _pf.src
-    _pf.cache[key] = grid
-    pfRenderGrid(ok)
-  })
-}
-
-</script>
-<script>
 /* ============ js/corridor.js · 路线天气走廊（路线段 × 小时 逐时矩阵） ============
    第 3 步天气「🗺 路线走廊」子页签（仅导入路线时显示）：沿路线等分 M 个采样点，
    对选定某天逐时取数（多源级联，会话缓存），渲染「路线段 × 小时」矩阵——
@@ -7864,6 +6575,64 @@ function corrShowSegment(list, idx) {
 
 </script>
 <script>
+/* ============ 第 1 步「🗺 地图预报」：应用内 Windy 地图预报覆盖层 ============
+   可行性（2026-08-18 实测）：api.windy.com/map-forecast 插件需 Leaflet 1.4.x（App 为 1.9.4）
+   且需有效付费 Map Forecast key（测试 key 被 v2/auth 403 拒绝），故不嵌入插件。改用官方
+   embed.windy.com 小组件 iframe——免 key、官方维护、headless 实测渲染正常（瓦片+canvas）。 */
+/* 中心推导：优先选点坐标，否则路线中点；无则返回 null（纯函数可测） */
+function windyMapFcCenter() {
+  if (selLoc) return { lat: selLoc.lat, lon: selLoc.lng }
+  if (route && route.length) {
+    var minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity
+    route.forEach(function (p) {
+      if (p.lat < minLat) minLat = p.lat
+      if (p.lat > maxLat) maxLat = p.lat
+      var lo = p.lon != null ? p.lon : p.lng
+      if (lo < minLon) minLon = lo
+      if (lo > maxLon) maxLon = lo
+    })
+    return { lat: (minLat + maxLat) / 2, lon: (minLon + maxLon) / 2 }
+  }
+  return null
+}
+/* 缩放：复用风场图适配（单点 13、路线按跨度自适应） */
+function windyMapFcZoom(center) {
+  if (typeof windyFitZoom === 'function') return windyFitZoom(center.lat, route || null)
+  return 8
+}
+/* iframe src 构造：官方 embed.windy.com/embed2.html，免 key，URL 无任何 key 字段 */
+function windyMapFcSrc(center, zoom) {
+  var lat = (+center.lat).toFixed(3), lon = (+center.lon).toFixed(3)
+  return 'https://embed.windy.com/embed2.html?lat=' + lat + '&lon=' + lon +
+    '&detailLat=' + lat + '&detailLon=' + lon +
+    '&zoom=' + zoom +
+    '&overlay=wind&product=ecmwf&level=surface&type=map&marker=1'
+}
+/* 打开：校验定位 → 构造 src → 显示覆盖层（加载提示复位） */
+function openWindyMapFc() {
+  var c = windyMapFcCenter()
+  if (!c) { toast('请先选择地点或导入路线'); return }
+  var frame = $('mapFcFrame'), v = $('viewMapFc')
+  if (!frame || !v) return
+  frame.src = windyMapFcSrc(c, windyMapFcZoom(c))
+  var l = $('mapFcLoading'); if (l) l.style.display = ''
+  v.style.display = 'flex'
+}
+/* 关闭：卸载 iframe（about:blank 释放嵌入资源）并隐藏覆盖层 */
+function closeWindyMapFc() {
+  var v = $('viewMapFc')
+  if (!v) return
+  var frame = $('mapFcFrame'); if (frame) frame.src = 'about:blank'
+  v.style.display = 'none'
+}
+/* iframe 加载完成 → 隐藏加载提示 */
+(function () {
+  var frame = $('mapFcFrame')
+  if (frame) frame.addEventListener('load', function () { var l = $('mapFcLoading'); if (l) l.style.display = 'none' })
+})()
+
+</script>
+<script>
 ﻿/* ============ app.js · 状态 / IndexedDB 配置·历史 / 5 步向导 / ③步路线地图 / 初始化 ============ */
 
 /* ---- 全局状态（各模块共享）---- */
@@ -7898,7 +6667,6 @@ var DEFAULT_CFG = {
   weatherPriority: ['qweather', 'open-meteo', 'meteoblue', 'amap'],
   alertSource: 'off', activeWindow: [8, 18],
   overnightMarginC: 5, precipTriggerPct: 40, riverFlowThreshold: 100,
-  windyMapKey: '',   // Windy Map Forecast key（外链风场图无需 key，此项仅存配置）
   baseline: { fullSizeOnHeavy: true, fullSizeOnHours: 8, fullSizeOnElevation: 3000 },
   packWeightLimit: { light: 8000, heavy: 15000, trail: 8000, city: 6000 },
   theme: 'ridge',
@@ -7959,7 +6727,6 @@ function syncCfgUi() {
   if ($('amapKey')) $('amapKey').value = ((appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta.amap) || {}).key || ''
   if ($('mbKey')) $('mbKey').value = ((appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta.meteoblue) || {}).key || ''
   if ($('windyKey')) $('windyKey').value = ((appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta.windy) || {}).key || ''
-  if ($('windyMapKey')) $('windyMapKey').value = (appConfig.windyMapKey || '')
   if ($('qwKeyStatus')) { $('qwKeyStatus').textContent = appConfig.qweather.hasKey ? '已导入' : '未导入'; $('qwKeyStatus').className = 'risk ' + (appConfig.qweather.hasKey ? 'green' : 'orange') }
   renderSrcList()
   syncSrcEditors()
@@ -8050,9 +6817,6 @@ function saveWindyKey(v) {
   appConfig.weatherPriorityMeta.windy = { key: String(v || '').trim() }
   saveConfig(); renderSrcList()
 }
-/* Windy Map Forecast key（独立于天气源，存配置；外链风场图无需 key） */
-function windyMapKey() { return (appConfig && appConfig.windyMapKey) || '' }
-function saveWindyMapKey(v) { appConfig.windyMapKey = String(v || '').trim(); saveConfig() }
 /* Windy 深链 zoom：单点=13（约 10km 近景）；路线按跨度自适应。纯函数可测。 */
 function windyFitZoom(lat, route) {
   if (!route || route.length < 2) return 13
@@ -8091,22 +6855,6 @@ function openWindyMap() {
   var zoom = windyFitZoom(lat, route || null)
   var url = 'https://www.windy.com/?' + lat.toFixed(3) + ',' + lon.toFixed(3) + ',' + zoom
   window.open(url, '_blank')
-}
-/* Windy Map Forecast「接通测试」：Windy 地图插件无法在配置弹层运行，仅校验库可达 + Key 格式 */
-function testWindyMapKey() {
-  var btn = document.getElementById('keyTest_windymap'), st = document.getElementById('keyState_windymap')
-  if (btn) { btn.textContent = '测试中…'; btn.disabled = true }
-  if (st) { st.textContent = '测试中…'; st.className = 'risk orange' }
-  var k = windyMapKey()
-  var p = !k ? Promise.resolve({ ok: false, txt: '未配置 Key' })
-    : fetch('https://api.windy.com/assets/map-forecast/libBoot.js', { method: 'HEAD', signal: AbortSignal.timeout(8000) })
-        .then(function (r) { return { ok: r.ok && /^[A-Za-z0-9]{20,40}$/.test(k), txt: r.ok ? '· Windy 库可达，Key 格式有效' : '· libBoot 库不可达' } })
-        .catch(function () { return { ok: false, txt: '· 网络不可达' } })
-  p.then(function (r) {
-    if (btn) { btn.textContent = r.ok ? '✓ 接通' : '✕ 失败'; btn.disabled = false }
-    if (st) { st.textContent = r.ok ? '✓ 已接通' : ('✕ ' + r.txt); st.className = 'risk ' + (r.ok ? 'green' : 'orange') }
-    toast((r.ok ? '✓ ' : '✕ ') + 'Windy Map Forecast 测试' + (r.ok ? '成功' : '失败') + ' ' + r.txt)
-  })
 }
 /* 「接通 / 测试」按钮：用该源实际请求一个最小查询验证 key 与网络可达 */
 function testWeatherKey(id) {
