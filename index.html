@@ -490,8 +490,8 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
   .srd-item .nm{font-size:12px}
   .srd-item .ad,.srd-item .cr{font-size:10px}
   .srd-item .src,.srd-item .mt-tag{font-size:9px;padding:0 3px}
-  /* ①步定行程：手机端 5 字段一行并列（缩小输入框） */
-  .trip{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:10px}
+  /* ①步定行程：手机端 5 字段一行并列；出发日期列加宽（日期完整显示） */
+  .trip{grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:6px;margin-top:10px}
   .trip label{font-size:10px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .trip input,.trip select{font-size:12px;padding:6px 4px}
   /* ①步模式 chips：手机端 5 项一行并列 */
