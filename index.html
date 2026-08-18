@@ -661,7 +661,6 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 
   <div id="viewWx" style="display:none">
     <div id="alertCard"></div>
-    <div id="wxMeteogram"></div>
     <div id="dailyLoc"></div>
     <div id="wxList"></div>
   </div>
@@ -2934,8 +2933,7 @@ function renderDailyLoc() {
     var ele = (pd.point && pd.point.ele != null) ? fmtInt(pd.point.ele) + 'm' : '—'
     var sum = (w.tempMin != null ? Math.round(w.tempMin) + '°' : '—') + '/' + (w.tempMax != null ? Math.round(w.tempMax) + '°' : '—') + ' · 降水' + (w.precipProb != null ? Math.round(w.precipProb) + '%' : '—')
     var dist = isRoute && pd.distKmFromStart != null ? ' · ' + pd.distKmFromStart + 'km' : ''
-    var metClick = (typeof mbKey === 'function' && mbKey()) ? ' onclick="setMeteogramDay(' + k + ')" style="cursor:pointer" title="气象图切到该天采样点"' : ''
-    return '<div class="dl-card"' + metClick + '><div class="dl-h">Day ' + (k + 1) + ' · ' + esc(fmtShort(pd.date)) + '</div>' +
+    return '<div class="dl-card"><div class="dl-h">Day ' + (k + 1) + ' · ' + esc(fmtShort(pd.date)) + '</div>' +
       '<div class="dl-sub"><span class="dl-name">…</span> · 海拔 ' + ele + dist + '</div>' +
       '<div class="dl-wx">' + esc(cond) + ' · ' + esc(sum) + '</div></div>'
   }).join('') + '</div>'
@@ -2989,14 +2987,11 @@ function renderWxList() {
   if (!box) return
   // 未查询天气：展示手动「搜索天气」入口（省 Key 配额，不再进第 3 步自动跑）
   if (!weather || !weather.days.length) {
-    if (typeof renderMeteogram === 'function') renderMeteogram()
     box.innerHTML = '<div class="wx-detail" style="padding:18px 14px;text-align:center"><div style="font-size:14px;color:var(--text-muted)">尚未查询天气</div>' +
       '<button class="btn primary" style="margin-top:12px;padding:8px 22px;font-size:14px" onclick="searchWeather()">🔍 搜索天气</button>' +
       '<div style="font-size:11px;color:var(--text-muted);margin-top:8px">确认地点/路线后点击开始查询 · 一次性拉取所选天气源（消耗 Key 配额）</div></div>'
     return
   }
-  // 天气概览页签内展示 Meteoblue 气象图（懒加载：非概览页签不加载）
-  if (typeof renderMeteogram === 'function' && (view3 === 'wx' || typeof view3 === 'undefined')) renderMeteogram()
   var enabled = WX_TEMPLATE.filter(function (it) { return enabledInd.has(it.id) })
   if (!enabled.length) {
     box.innerHTML = '<div class="ov-wrap" style="border-top:none;margin-top:0;padding-top:0"><div style="font-size:12px;color:var(--text-muted)">未勾选任何指标，可在 ⚙ 配置指标 中勾选</div></div>'
@@ -3288,110 +3283,6 @@ async function runWeather() {
   }
 }
 
-
-</script>
-<script>
-/* ============ js/meteogram.js · Meteoblue 7 天气象图（天气概览内展示） ============
-   用 meteoblue 图片 API 生成逐时气象图（PNG）：端点 `my.meteoblue.com/visimage/<图集>`，
-   参数 lat/lon/asl(海拔)/apikey/tz/look(单位)/lang/dpi/forecast_days。
-   CORS 已实测开放（access-control-allow-origin:*），用 fetch 直读响应——
-   图片 → blob 展示；JSON 错误 → 显示 meteoblue 具体错误（未开通/配额用完）。
-   图集策略：`meteogram_extended`(7天) 优先，返回「not available」时降级 `meteogram`(5天)。
-   同地点同 URL 不重复请求；加载失败可重试。 */
-
-var _meteo = { day: 0, url: null, failed: false, setIdx: 0, img: null, objUrl: null }
-var METEO_SET_PREF = ['meteogram_extended', 'meteogram']   // 7 天优先，5 天兜底（key 未开通 extended 时）
-
-/* 时区：浏览器本地 IANA 名，兜底 Asia/Shanghai */
-function meteogramTz() {
-  try { var tz = Intl.DateTimeFormat().resolvedOptions().timeZone; return tz || 'Asia/Shanghai' } catch (e) { return 'Asia/Shanghai' }
-}
-/* 构建 meteoblue 图片 API URL；未配 key 返回 null */
-function buildMeteogramUrl(setName, lat, lon, ele, tz) {
-  if (!mbKey()) return null
-  var p = new URLSearchParams({
-    lat: (+lat).toFixed(2),
-    lon: (+lon).toFixed(2),
-    apikey: mbKey(),
-    asl: String(Math.max(0, Math.round(+ele || 0))),
-    tz: tz || meteogramTz(),
-    look: 'CELSIUS_MILLIMETER_KILOMETER_PER_HOUR',   // 温度°C / 降水mm / 风km/h
-    forecast_days: '7',
-    format: 'png',
-    dpi: '72',
-    lang: 'zh'
-  })
-  return 'https://my.meteoblue.com/visimage/' + (setName || 'meteogram_extended') + '?' + p.toString()
-}
-/* 当前展示地点：多日路线取 _meteo.day 对应采样点，单点各天共用 */
-function meteogramPoint() {
-  var d = weather && weather.days && weather.days[Math.min(_meteo.day, weather.days.length - 1)]
-  if (d && d.lat != null) return { lat: d.lat, lon: d.lon != null ? d.lon : d.lng, ele: d.ele }
-  if (selLoc) return { lat: selLoc.lat, lon: selLoc.lng, ele: selLoc.ele }
-  return null
-}
-/* 概览内渲染气象图区块（仅 key 且地点存在时）；同一地点 URL 已渲染则跳过 */
-function renderMeteogram() {
-  var box = $('wxMeteogram')
-  if (!box) return
-  if (!mbKey()) { box.innerHTML = ''; return }
-  var pt = meteogramPoint()
-  if (!pt) { box.innerHTML = ''; return }
-  var url = buildMeteogramUrl('meteogram_extended', pt.lat, pt.lon, pt.ele)
-  if (!url) { box.innerHTML = ''; return }
-  if (_meteo.url === url && !_meteo.failed) return   // 同地点已加载/加载中 → 不重复请求
-  _meteo.url = url; _meteo.failed = false; _meteo.setIdx = 0
-  box.innerHTML = '<div class="wx-meteogram"><div class="wx-h"><div class="wx-cond">🌦 Meteoblue 气象图</div>' +
-    '<div class="wx-src">Meteoblue 逐时气象图 · 点「逐日定位卡」切换该天地点</div></div>' +
-    '<div id="meteoImgBox"><div class="meteo-loading">气象图加载中…</div></div></div>'
-  loadMeteogram(url, 0)
-}
-/* fetch 直读：图片 → blob 展示；JSON 错误 → 未开通则降级下一个图集，否则显示具体错误 */
-function loadMeteogram(url, setIdx) {
-  var box = $('meteoImgBox')
-  if (!box) return
-  var sets = METEO_SET_PREF
-  _meteo.setIdx = setIdx
-  box.innerHTML = '<div class="meteo-loading">气象图加载中…</div>'
-  fetch(url, { signal: AbortSignal.timeout(25000) }).then(function (r) {
-    var ct = (r.headers.get('content-type') || '').toLowerCase()
-    if (ct.indexOf('image') >= 0) return r.blob().then(function (blob) { showMeteoImage(box, blob, setIdx) })
-    return r.json().then(function (j) {
-      var msg = (j && j.error_message) ? String(j.error_message) : ('HTTP ' + r.status)
-      // 「not available」= 该图集未开通 → 降级下一个图集（extended → 5天）
-      if (/not available/i.test(msg) && setIdx + 1 < sets.length) {
-        var pt = meteogramPoint()
-        if (pt) { loadMeteogram(buildMeteogramUrl(sets[setIdx + 1], pt.lat, pt.lon, pt.ele), setIdx + 1); return }
-      }
-      _meteo.failed = true
-      showMeteoFail(box, msg, setIdx)
-    })
-  }).catch(function (e) {
-    _meteo.failed = true
-    showMeteoFail(box, '网络错误', setIdx)
-  })
-}
-function showMeteoImage(box, blob, setIdx) {
-  if (_meteo.objUrl) URL.revokeObjectURL(_meteo.objUrl)
-  var objUrl = URL.createObjectURL(blob)
-  _meteo.objUrl = objUrl
-  var im = document.createElement('img')
-  im.className = 'meteo-img'
-  im.alt = 'Meteoblue 气象图'
-  _meteo.img = im
-  _meteo.failed = false
-  im.onload = function () { box.innerHTML = ''; box.appendChild(im); if (setIdx > 0) { var n = $('meteoSetNote'); if (n) n.textContent = '图集：' + METEO_SET_PREF[setIdx] + '（7 天版未开通，已用 5 天版）' } }
-  im.onerror = function () { URL.revokeObjectURL(objUrl); _meteo.failed = true; showMeteoFail(box, '图片解码失败', setIdx) }
-  im.src = objUrl
-}
-function showMeteoFail(box, msg, setIdx) {
-  var setLab = METEO_SET_PREF[setIdx] || ''
-  box.innerHTML = '<div class="meteo-fail">气象图加载失败<span style="display:block;font-size:11px;opacity:.8">' +
-    (msg || '') + (setLab ? '（图集 ' + setLab + '）' : '') + '</span>' +
-    '<button class="btn" style="padding:2px 10px;font-size:11px;margin-top:6px" onclick="loadMeteogram(_meteo.url,' + _meteo.setIdx + ')">重试</button></div>'
-}
-/* 逐日定位卡联动：切换到某天采样点 */
-function setMeteogramDay(n) { _meteo.day = n; renderMeteogram() }
 
 </script>
 <script>
@@ -7429,6 +7320,7 @@ function toggleWindField() {
   var spanLat = b.getNorth() - b.getSouth(), spanLon = b.getEast() - b.getWest()
   var spacing = Math.max(spanLat, spanLon * Math.cos(c.lat * Math.PI / 180)) / (_wf.size - 1) * 1.3
   spacing = Math.max(0.02, Math.min(2, spacing))
+  _wf.spacing = spacing
   var key = wfGridCacheKey(c.lat, c.lon, spacing)
   if (_wf.cache && _wf.cache[key]) {
     var cachedOk = _wf.cache[key].filter(Boolean)
@@ -7461,9 +7353,45 @@ function clearWindField() {
   _wf.on = false
   _wf.mode = null
 }
-/* 位置变化时自动清场（避免旧位置粒子残留）；降水层一并刷新 */
+/* 位置变化时后台刷新（非破坏式：动画保持运行，成功才替换数据，失败保留当前显示）。
+   中心移动 < 0.6 倍间距时跳过（避免微移动/点地图打断动画与重复请求）；降水层一并刷新。 */
 function refreshWindField() {
-  if (_wf.on) { clearWindField(); toggleWindField() }
+  if (_wf.on) {
+    var c = wfCenter()
+    if (c) {
+      var skip = false
+      if (_wf.bounds) {
+        var latC = (_wf.bounds.gLat0 + _wf.bounds.gLat1) / 2
+        var lonC = (_wf.bounds.gLon0 + _wf.bounds.gLon1) / 2
+        var sp0 = _wf.spacing || 0.18
+        if (Math.abs(c.lat - latC) < sp0 * 0.6 && Math.abs(c.lon - lonC) < sp0 * 0.6) skip = true
+      }
+      if (!skip) {
+        var b = placeMap.getBounds()
+        var spanLat = b.getNorth() - b.getSouth(), spanLon = b.getEast() - b.getWest()
+        var spacing = Math.max(spanLat, spanLon * Math.cos(c.lat * Math.PI / 180)) / (_wf.size - 1) * 1.3
+        spacing = Math.max(0.02, Math.min(2, spacing))
+        _wf.spacing = spacing
+        var key = wfGridCacheKey(c.lat, c.lon, spacing)
+        if (_wf.cache && _wf.cache[key]) {
+          var cachedOk = _wf.cache[key].filter(Boolean)
+          if (cachedOk.length) { wfRenderGrid(cachedOk); skip = true }
+        }
+        if (!skip) {
+          toast('正在刷新风场…')
+          wfFetchGrid(c.lat, c.lon, _wf.size, spacing).then(function (pts) {
+            if (!_wf.on) return   // 期间已关闭则丢弃
+            var ok = pts.filter(Boolean)
+            if (!ok.length) { toast('风场刷新失败，保持当前显示'); return }
+            if (!_wf.cache) _wf.cache = {}
+            if (Object.keys(_wf.cache).length > 30) _wf.cache = {}
+            _wf.cache[key] = pts
+            wfRenderGrid(ok)
+          })
+        }
+      }
+    }
+  }
   if (typeof _pf !== 'undefined' && _pf.on && typeof refreshPrecipField === 'function') refreshPrecipField()
 }
 
@@ -7738,6 +7666,7 @@ function togglePrecipField() {
   var spanLat = b.getNorth() - b.getSouth(), spanLon = b.getEast() - b.getWest()
   var spacing = Math.max(spanLat, spanLon * Math.cos(c.lat * Math.PI / 180)) / (_pf.size - 1) * 1.3
   spacing = Math.max(0.02, Math.min(2, spacing))
+  _pf.spacing = spacing
   var key = wfGridCacheKey(c.lat, c.lon, spacing)
   if (_pf.cache && _pf.cache[key]) {
     var cachedOk = _pf.cache[key].filter(Boolean)
@@ -7755,8 +7684,42 @@ function togglePrecipField() {
     pfRenderGrid(ok)
   })
 }
-/* 位置变化时自动刷新（与 refreshWindField 并列，由 syncPlaceMap 调用） */
-function refreshPrecipField() { if (_pf.on) { clearPrecipField(); togglePrecipField() } }
+/* 位置变化时后台刷新（非破坏式：动画保持运行，成功才替换数据，失败保留当前显示）。
+   中心移动 < 0.6 倍间距时跳过（避免微移动/点地图打断动画与重复请求）。 */
+function refreshPrecipField() {
+  if (!_pf.on) return
+  var c = wfCenter()
+  if (!c) return
+  // 距当前网格中心过近 → 不刷新
+  if (_pf.grid && _pf.grid.length > 1) {
+    var gs = Math.round(Math.sqrt(_pf.grid.length))
+    var latC = (_pf.grid[0].lat + _pf.grid[gs * (gs - 1)].lat) / 2
+    var lonC = (_pf.grid[0].lon + _pf.grid[gs - 1].lon) / 2
+    var sp0 = _pf.spacing || 0.18
+    if (Math.abs(c.lat - latC) < sp0 * 0.6 && Math.abs(c.lon - lonC) < sp0 * 0.6) return
+  }
+  var b = placeMap.getBounds()
+  var spanLat = b.getNorth() - b.getSouth(), spanLon = b.getEast() - b.getWest()
+  var spacing = Math.max(spanLat, spanLon * Math.cos(c.lat * Math.PI / 180)) / (_pf.size - 1) * 1.3
+  spacing = Math.max(0.02, Math.min(2, spacing))
+  _pf.spacing = spacing
+  var key = wfGridCacheKey(c.lat, c.lon, spacing)
+  if (_pf.cache && _pf.cache[key]) {
+    var cachedOk = _pf.cache[key].filter(Boolean)
+    if (cachedOk.length) { _pf.src = _pf.cache[key]._src || 'open-meteo'; pfRenderGrid(cachedOk); return }
+  }
+  // 后台刷新：成功才替换网格（动画不中断）；失败保留当前显示
+  pfFetchGrid(c.lat, c.lon, _pf.size, spacing).then(function (grid) {
+    if (!_pf.on) return
+    var ok = grid.filter(Boolean)
+    if (!ok.length) { toast('降水刷新失败，保持当前显示'); return }
+    if (!_pf.cache) _pf.cache = {}
+    if (Object.keys(_pf.cache).length > 30) _pf.cache = {}
+    grid._src = _pf.src
+    _pf.cache[key] = grid
+    pfRenderGrid(ok)
+  })
+}
 
 </script>
 <script>
