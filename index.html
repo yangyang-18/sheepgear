@@ -3292,76 +3292,103 @@ async function runWeather() {
 </script>
 <script>
 /* ============ js/meteogram.js · Meteoblue 7 天气象图（天气概览内展示） ============
-   用 meteoblue 图片 API（type=meteogram_extended PNG）按当前位置/海拔/时区 + key 构建 URL，
-   在天气概览预警卡下方以 <img> 展示 7 天逐时气象图。仅配置 meteoblue key 时显示。
-   多日路线点「逐日定位卡」切换为该天采样点；单点各天共用。加载失败可重试。 */
+   用 meteoblue 图片 API 生成逐时气象图（PNG）：端点 `my.meteoblue.com/visimage/<图集>`，
+   参数 lat/lon/asl(海拔)/apikey/tz/look(单位)/lang/dpi/forecast_days。
+   CORS 已实测开放（access-control-allow-origin:*），用 fetch 直读响应——
+   图片 → blob 展示；JSON 错误 → 显示 meteoblue 具体错误（未开通/配额用完）。
+   图集策略：`meteogram_extended`(7天) 优先，返回「not available」时降级 `meteogram`(5天)。
+   同地点同 URL 不重复请求；加载失败可重试。 */
 
-var _meteo = { day: 0, url: null, img: null, failed: false }
+var _meteo = { day: 0, url: null, failed: false, setIdx: 0, img: null, objUrl: null }
+var METEO_SET_PREF = ['meteogram_extended', 'meteogram']   // 7 天优先，5 天兜底（key 未开通 extended 时）
 
-/* 时区：浏览器本地 IANA 名（URL 编码），兜底 Asia/Shanghai */
+/* 时区：浏览器本地 IANA 名，兜底 Asia/Shanghai */
 function meteogramTz() {
   try { var tz = Intl.DateTimeFormat().resolvedOptions().timeZone; return tz || 'Asia/Shanghai' } catch (e) { return 'Asia/Shanghai' }
 }
-/* 构建 meteoblue 图片 API URL；未配 key 返回 null。
-   路径 {lat}{N|S}{lon}{E|W}{ele}_{tz}；参数镜像已验证链接（kwp/facing/slope/dpi/单位/lang）。 */
-function buildMeteogramUrl(lat, lon, ele, tz) {
+/* 构建 meteoblue 图片 API URL；未配 key 返回 null */
+function buildMeteogramUrl(setName, lat, lon, ele, tz) {
   if (!mbKey()) return null
-  var latS = Math.abs(+lat).toFixed(2) + (+lat >= 0 ? 'N' : 'S')
-  var lonS = Math.abs(+lon).toFixed(2) + (+lon >= 0 ? 'E' : 'W')
-  var eleS = Math.max(0, Math.round(+ele || 0))
-  var tzS = encodeURIComponent(tz || meteogramTz())
   var p = new URLSearchParams({
+    lat: (+lat).toFixed(2),
+    lon: (+lon).toFixed(2),
     apikey: mbKey(),
-    type: 'meteogram_extended',
-    kwp: '5',
-    facing: '180',
-    slope: '45',
-    tz: '',
+    asl: String(Math.max(0, Math.round(+ele || 0))),
+    tz: tz || meteogramTz(),
+    look: 'CELSIUS_MILLIMETER_KILOMETER_PER_HOUR',   // 温度°C / 降水mm / 风km/h
+    forecast_days: '7',
     format: 'png',
     dpi: '72',
-    temperature: 'C',
-    precipitation: 'mm',
-    windspeed: 'kmh',
     lang: 'zh'
   })
-  return 'https://www.meteoblue.com/en/weather-api/image-api/index/' + latS + lonS + eleS + '_' + tzS + '?' + p.toString()
+  return 'https://my.meteoblue.com/visimage/' + (setName || 'meteogram_extended') + '?' + p.toString()
 }
-/* 当前展示地点：多日路线取 _meteo.day 对应采样点（weather.days[day] 已含 lat/lon/ele），单点各天共用 */
+/* 当前展示地点：多日路线取 _meteo.day 对应采样点，单点各天共用 */
 function meteogramPoint() {
   var d = weather && weather.days && weather.days[Math.min(_meteo.day, weather.days.length - 1)]
   if (d && d.lat != null) return { lat: d.lat, lon: d.lon != null ? d.lon : d.lng, ele: d.ele }
   if (selLoc) return { lat: selLoc.lat, lon: selLoc.lng, ele: selLoc.ele }
   return null
 }
-/* 概览内渲染气象图区块（仅 key 且地点存在时）；同一地点 URL 已渲染则跳过，避免每次概览重发图片请求 */
+/* 概览内渲染气象图区块（仅 key 且地点存在时）；同一地点 URL 已渲染则跳过 */
 function renderMeteogram() {
   var box = $('wxMeteogram')
   if (!box) return
   if (!mbKey()) { box.innerHTML = ''; return }
   var pt = meteogramPoint()
   if (!pt) { box.innerHTML = ''; return }
-  var url = buildMeteogramUrl(pt.lat, pt.lon, pt.ele)
+  var url = buildMeteogramUrl('meteogram_extended', pt.lat, pt.lon, pt.ele)
   if (!url) { box.innerHTML = ''; return }
-  if (_meteo.url === url) return   // 同地点已加载/加载中/失败均保持现状，不重复请求（重试按钮仍在失败态可用）
-  _meteo.url = url; _meteo.failed = false
-  box.innerHTML = '<div class="wx-meteogram"><div class="wx-h"><div class="wx-cond">🌦 Meteoblue 7 天气象图</div>' +
+  if (_meteo.url === url && !_meteo.failed) return   // 同地点已加载/加载中 → 不重复请求
+  _meteo.url = url; _meteo.failed = false; _meteo.setIdx = 0
+  box.innerHTML = '<div class="wx-meteogram"><div class="wx-h"><div class="wx-cond">🌦 Meteoblue 气象图</div>' +
     '<div class="wx-src">Meteoblue 逐时气象图 · 点「逐日定位卡」切换该天地点</div></div>' +
-    '<div id="meteoImgBox"><div style="font-size:12px;color:var(--text-muted)">气象图加载中…</div></div></div>'
-  loadMeteogram(url)
+    '<div id="meteoImgBox"><div class="meteo-loading">气象图加载中…</div></div></div>'
+  loadMeteogram(url, 0)
 }
-/* 懒加载：<img> 直显，onload 落地、onerror 失败提示 + 重试；重试先回加载态 */
-function loadMeteogram(url) {
+/* fetch 直读：图片 → blob 展示；JSON 错误 → 未开通则降级下一个图集，否则显示具体错误 */
+function loadMeteogram(url, setIdx) {
   var box = $('meteoImgBox')
   if (!box) return
-  _meteo.failed = false   // 重试/新加载视为新尝试
-  box.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">气象图加载中…</div>'
+  var sets = METEO_SET_PREF
+  _meteo.setIdx = setIdx
+  box.innerHTML = '<div class="meteo-loading">气象图加载中…</div>'
+  fetch(url, { signal: AbortSignal.timeout(25000) }).then(function (r) {
+    var ct = (r.headers.get('content-type') || '').toLowerCase()
+    if (ct.indexOf('image') >= 0) return r.blob().then(function (blob) { showMeteoImage(box, blob, setIdx) })
+    return r.json().then(function (j) {
+      var msg = (j && j.error_message) ? String(j.error_message) : ('HTTP ' + r.status)
+      // 「not available」= 该图集未开通 → 降级下一个图集（extended → 5天）
+      if (/not available/i.test(msg) && setIdx + 1 < sets.length) {
+        var pt = meteogramPoint()
+        if (pt) { loadMeteogram(buildMeteogramUrl(sets[setIdx + 1], pt.lat, pt.lon, pt.ele), setIdx + 1); return }
+      }
+      _meteo.failed = true
+      showMeteoFail(box, msg, setIdx)
+    })
+  }).catch(function (e) {
+    _meteo.failed = true
+    showMeteoFail(box, '网络错误', setIdx)
+  })
+}
+function showMeteoImage(box, blob, setIdx) {
+  if (_meteo.objUrl) URL.revokeObjectURL(_meteo.objUrl)
+  var objUrl = URL.createObjectURL(blob)
+  _meteo.objUrl = objUrl
   var im = document.createElement('img')
   im.className = 'meteo-img'
-  im.alt = '7 天气象图'
-  _meteo.img = im   // 测试/调试钩子：可对 img 触发 error 验证降级
-  im.onload = function () { _meteo.failed = false; box.innerHTML = ''; box.appendChild(im) }
-  im.onerror = function () { _meteo.failed = true; box.innerHTML = '<div class="meteo-fail">气象图加载失败 <button class="btn" style="padding:2px 10px;font-size:11px" onclick="loadMeteogram(_meteo.url)">重试</button></div>' }
-  im.src = url
+  im.alt = 'Meteoblue 气象图'
+  _meteo.img = im
+  _meteo.failed = false
+  im.onload = function () { box.innerHTML = ''; box.appendChild(im); if (setIdx > 0) { var n = $('meteoSetNote'); if (n) n.textContent = '图集：' + METEO_SET_PREF[setIdx] + '（7 天版未开通，已用 5 天版）' } }
+  im.onerror = function () { URL.revokeObjectURL(objUrl); _meteo.failed = true; showMeteoFail(box, '图片解码失败', setIdx) }
+  im.src = objUrl
+}
+function showMeteoFail(box, msg, setIdx) {
+  var setLab = METEO_SET_PREF[setIdx] || ''
+  box.innerHTML = '<div class="meteo-fail">气象图加载失败<span style="display:block;font-size:11px;opacity:.8">' +
+    (msg || '') + (setLab ? '（图集 ' + setLab + '）' : '') + '</span>' +
+    '<button class="btn" style="padding:2px 10px;font-size:11px;margin-top:6px" onclick="loadMeteogram(_meteo.url,' + _meteo.setIdx + ')">重试</button></div>'
 }
 /* 逐日定位卡联动：切换到某天采样点 */
 function setMeteogramDay(n) { _meteo.day = n; renderMeteogram() }
