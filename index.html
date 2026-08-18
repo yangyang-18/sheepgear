@@ -497,6 +497,17 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
   /* ①步模式 chips：手机端 5 项一行并列 */
   .chips{gap:6px;margin-top:12px}
   .chip{padding:5px 8px;font-size:11px}
+  /* ①步整体：手机端字体收紧 + 间距压缩（限定 #p1，不影响其它步骤） */
+  #p1 .step-h{font-size:20px}
+  #p1 .step-s{font-size:12px}
+  #p1 .dual-tab{font-size:12px}
+  #p1 .search input{font-size:13px}
+  #p1 .region{margin-top:8px}
+  #p1 .mt{padding:10px 12px}
+  #p1 .mt-name{font-size:14px}
+  #p1 .mt-loc{font-size:11px}
+  #p1 .chips{margin-top:8px}
+  #p1 .trip{margin-top:6px}
 }
 /* ===== ③步天气：路线走廊（路线段 × 小时 矩阵） ===== */
 .corr-wrap{overflow:hidden;border:1px solid var(--border);border-radius:10px;background:var(--surface-2)}
@@ -594,7 +605,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
   </div>
 
   <!-- 已选目的地卡：搜索/选点确认后即时展示在地图上方 -->
-  <div class="region" style="margin-top:12px"><div class="region-h">已选目的地</div>
+  <div class="region" style="margin-top:8px"><div class="region-h">已选目的地</div>
     <div class="mt sel" style="margin-top:0"><div class="mt-top"><div><div class="mt-name" id="destName">—</div><div class="mt-loc" id="destMeta"></div></div><span class="risk green">已选</span></div></div>
     <div class="mt-diff" id="diffBadge" style="display:none;margin-top:8px"></div>
   </div>
