@@ -654,6 +654,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
     <button class="sub-tab on" data-v="wx" onclick="setView3('wx')">☀️ 天气概览</button>
     <button class="sub-tab" data-v="ov" onclick="setView3('ov')">📊 每日明细</button>
     <button class="sub-tab" data-v="corr" onclick="setView3('corr')" id="corrTab" style="display:none">🗺 路线走廊</button>
+    <button class="sub-tab" data-v="wmap" onclick="setView3('wmap')">🗺 地图预报</button>
     <button class="sub-tab cfg-ind" onclick="toggle('#indCfg','open')">⚙ 配置指标</button>
   </div>
 
@@ -670,6 +671,14 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
   </div>
 
   <div id="viewCorr" style="display:none"></div>
+
+  <div id="viewWmap" style="display:none">
+    <div style="position:relative;height:60vh;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface)">
+      <div class="mapfc-loading" id="wmapLoading" style="display:flex">加载中…</div>
+      <iframe id="wmapFrame" title="Windy 地图预报" style="position:absolute;inset:0;width:100%;height:100%;border:0" allowfullscreen></iframe>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:6px">Windy 官方地图组件（免 key）· 中心：当前选点 / 路线区域</div>
+  </div>
 
   <div class="nav"><button class="btn" onclick="go(2)">← 上一步</button><button class="btn primary" onclick="go(4)">下一步：装备清单 →</button></div>
 </div>
@@ -6625,10 +6634,27 @@ function closeWindyMapFc() {
   var frame = $('mapFcFrame'); if (frame) frame.src = 'about:blank'
   v.style.display = 'none'
 }
+/* 第 3 步「🗺 地图预报」页签：中心=选点或路线中点（与第 1 步一致），展示当前行程区域的地图预报。
+   进入页签时渲染（中心变化则重载），离开时卸载释放资源。 */
+function renderWeatherMapFc() {
+  var frame = $('wmapFrame'), l = $('wmapLoading')
+  if (!frame) return
+  var c = windyMapFcCenter()
+  if (l) l.style.display = 'flex'
+  if (!c) { frame.src = 'about:blank'; return }
+  frame.src = windyMapFcSrc(c, windyMapFcZoom(c))
+}
+function unloadWeatherMapFc() {
+  var frame = $('wmapFrame'), l = $('wmapLoading')
+  if (frame) frame.src = 'about:blank'
+  if (l) l.style.display = 'flex'
+}
 /* iframe 加载完成 → 隐藏加载提示 */
 (function () {
-  var frame = $('mapFcFrame')
-  if (frame) frame.addEventListener('load', function () { var l = $('mapFcLoading'); if (l) l.style.display = 'none' })
+  ;[['mapFcFrame', 'mapFcLoading'], ['wmapFrame', 'wmapLoading']].forEach(function (p) {
+    var frame = $(p[0])
+    if (frame) frame.addEventListener('load', function () { var l = $(p[1]); if (l) l.style.display = 'none' })
+  })
 })()
 
 </script>
@@ -7268,6 +7294,7 @@ function dual(m) {
   syncMapForMode()
 }
 function setView3(v) {
+  var prev = view3
   view3 = v
   document.querySelectorAll('.sub-tab').forEach(function (t) { t.classList.toggle('on', t.dataset.v === v) })
   // 路线走廊页签：仅导入路线时可见
@@ -7277,6 +7304,13 @@ function setView3(v) {
   $('viewOv').style.display = v === 'ov' ? 'block' : 'none'
   var vc = $('viewCorr')
   if (vc) vc.style.display = v === 'corr' ? 'block' : 'none'
+  // 「🗺 地图预报」页签：进入渲染，离开卸载（免 key embed，中心=选点/路线）
+  var vm = $('viewWmap')
+  if (vm) {
+    vm.style.display = v === 'wmap' ? 'block' : 'none'
+    if (v === 'wmap' && typeof renderWeatherMapFc === 'function') renderWeatherMapFc()
+    else if (prev === 'wmap' && typeof unloadWeatherMapFc === 'function') unloadWeatherMapFc()
+  }
   if (v === 'corr' && typeof renderCorridor === 'function') renderCorridor()
   // 不自动查天气：由「🔍 搜索天气」按钮手动触发（renderWxList 无天气时展示搜索入口）
   renderAlertCard(); renderWxList(); renderDayIndGrid()
