@@ -565,18 +565,28 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 /* ===== 开机动画：🐑 走入吃草 → 淡出让出主页（每次冷启动，点按跳过，全程≤2秒）===== */
 .boot{position:fixed;inset:0;z-index:1200;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:var(--bg);overflow:hidden;cursor:pointer;transition:opacity .3s ease}
 .boot.leaving{opacity:0;pointer-events:none}
-.boot-sun{position:absolute;top:6%;right:9%;font-size:46px;z-index:1;animation:boot-sun-pulse 2.6s ease-in-out .1s infinite alternate}
+.boot-sun{position:absolute;top:5%;left:50%;font-size:64px;z-index:1;transform:translateX(-50%);animation:boot-sun-pulse 2.6s ease-in-out .1s infinite alternate}
 .boot-cloud{position:absolute;font-size:38px;opacity:.55;animation:boot-cloud-drift 2.6s ease-in-out .2s infinite alternate}
-.boot-cloud.c1{top:16%;left:18%}
-.boot-cloud.c2{top:24%;right:14%;font-size:30px;animation-delay:.9s}
-.boot-cloud.c3{top:8%;left:42%;font-size:34px;animation-delay:.4s}
-.boot-cloud.c4{top:30%;left:5%;font-size:26px;animation-delay:1.3s}
-.boot-cloud.c5{top:12%;right:30%;font-size:24px;animation-delay:1.7s}
-.boot-cloud.c6{top:20%;left:62%;font-size:28px;animation-delay:.3s}
-.boot-cloud.c7{top:5%;left:8%;font-size:22px;animation-delay:1.1s}
-.boot-cloud.c8{top:34%;right:6%;font-size:32px;animation-delay:.7s}
-.boot-cloud.c9{top:26%;left:30%;font-size:20px;animation-delay:1.5s}
-.boot-cloud.c10{top:10%;right:48%;font-size:26px;animation-delay:.6s}
+.boot-cloud.c1{top:16%;left:18%;font-size:40px}
+.boot-cloud.c2{top:24%;right:14%;font-size:28px;animation-delay:.9s}
+.boot-cloud.c3{top:9%;left:34%;font-size:36px;animation-delay:.4s}
+.boot-cloud.c4{top:30%;left:5%;font-size:22px;animation-delay:1.3s}
+.boot-cloud.c5{top:12%;right:30%;font-size:26px;animation-delay:1.7s}
+.boot-cloud.c6{top:20%;left:62%;font-size:32px;animation-delay:.3s}
+.boot-cloud.c7{top:5%;left:8%;font-size:18px;animation-delay:1.1s}
+.boot-cloud.c8{top:34%;right:6%;font-size:34px;animation-delay:.7s}
+.boot-cloud.c9{top:26%;left:30%;font-size:24px;animation-delay:1.5s}
+.boot-cloud.c10{top:10%;right:48%;font-size:30px;animation-delay:.6s}
+.boot-cloud.c11{top:32%;left:74%;font-size:20px;animation-delay:2s}
+.boot-cloud.c12{top:6%;right:18%;font-size:38px;animation-delay:.2s}
+.boot-cloud.c13{top:28%;left:48%;font-size:16px;animation-delay:1.9s}
+.boot-cloud.c14{top:14%;right:64%;font-size:30px;animation-delay:.8s}
+.boot-cloud.c15{top:36%;left:14%;font-size:24px;animation-delay:2.2s}
+.boot-cloud.c16{top:7%;left:70%;font-size:36px;animation-delay:1s}
+.boot-cloud.c17{top:22%;right:38%;font-size:20px;animation-delay:1.6s}
+.boot-cloud.c18{top:30%;left:88%;font-size:28px;animation-delay:.5s}
+.boot-cloud.c19{top:8%;left:88%;font-size:34px;animation-delay:2.4s}
+.boot-cloud.c20{top:18%;right:22%;font-size:26px;animation-delay:1.2s}
 .boot-stage{position:relative;width:320px;height:240px}
 .boot-title{position:absolute;top:4px;left:0;right:0;text-align:center;font-family:var(--f-d);font-weight:900;font-size:24px;letter-spacing:-.01em;color:var(--text);animation:boot-title-in .5s ease-out .1s both}
 .boot-scene{position:absolute;left:50%;bottom:36px;transform:translateX(-50%);display:flex;align-items:flex-end;gap:8px}
@@ -593,7 +603,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 @keyframes boot-sheep-eat{0%,22%,46%,100%{transform:translateY(0)}8%,30%,54%{transform:translateY(16px) rotate(-5deg)}}
 @keyframes boot-grass-sway{from{transform:rotate(-7deg) scale(.96)}to{transform:rotate(7deg) scale(1.04)}}
 @keyframes boot-cloud-drift{from{transform:translateX(-14px)}to{transform:translateX(14px)}}
-@keyframes boot-sun-pulse{from{transform:scale(1)}to{transform:scale(1.1) rotate(20deg)}}
+@keyframes boot-sun-pulse{from{transform:translateX(-50%) scale(1)}to{transform:translateX(-50%) scale(1.1) rotate(20deg)}}
 @keyframes boot-title-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion: reduce){
   .boot-sheep,.boot-food span,.boot-cloud,.boot-sun,.boot-title,.boot-hint{animation:none !important}
@@ -622,6 +632,16 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
   <span class="boot-cloud c8" aria-hidden="true">☁️</span>
   <span class="boot-cloud c9" aria-hidden="true">☁️</span>
   <span class="boot-cloud c10" aria-hidden="true">☁️</span>
+  <span class="boot-cloud c11" aria-hidden="true">☁️</span>
+  <span class="boot-cloud c12" aria-hidden="true">☁️</span>
+  <span class="boot-cloud c13" aria-hidden="true">☁️</span>
+  <span class="boot-cloud c14" aria-hidden="true">☁️</span>
+  <span class="boot-cloud c15" aria-hidden="true">☁️</span>
+  <span class="boot-cloud c16" aria-hidden="true">☁️</span>
+  <span class="boot-cloud c17" aria-hidden="true">☁️</span>
+  <span class="boot-cloud c18" aria-hidden="true">☁️</span>
+  <span class="boot-cloud c19" aria-hidden="true">☁️</span>
+  <span class="boot-cloud c20" aria-hidden="true">☁️</span>
   <div class="boot-stage" aria-hidden="true">
     <div class="boot-title">SHEEP🐏GEAR</div>
     <div class="boot-scene">
