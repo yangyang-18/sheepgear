@@ -387,8 +387,8 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .map-opt .mo-seg .btn.on{background:var(--accent);color:#1F1C1A;border-color:var(--accent);font-weight:700}
 .map-opt .mo-vpn{font-style:normal;font-size:9px;color:var(--text-muted);margin-left:4px}
 #mapOptBtn.on{background:var(--accent);color:#1F1C1A;border-color:var(--accent);font-weight:700}
-/* 点位海拔标注徽章 */
-.elev-badge{position:relative;top:6px;left:6px;background:rgba(31,28,26,.85);color:#fff;border:1px solid rgba(255,255,255,.5);border-radius:999px;padding:1px 7px;font-size:11px;font-weight:700;font-family:var(--f-m);white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+/* 点位海拔标注徽章：深底白字，居中于点位 */
+.elev-badge{background:rgba(31,28,26,.88);color:#fff;border:1px solid rgba(255,255,255,.55);border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;font-family:var(--f-m);white-space:nowrap;text-align:center;line-height:1.5;box-shadow:0 1px 4px rgba(0,0,0,.5)}
 
 /* 导航 */
 .nav{display:flex;justify-content:space-between;margin-top:28px;padding-top:18px;border-top:1px solid var(--border)}
@@ -2036,7 +2036,8 @@ function renderElevMarkers() {
     if (!wgs || wgs.lat == null) return
     var g = mapBaseLL(wgs)
     var txt = label || (ele != null && ele > 0 ? '⛰ ' + Math.round(ele).toLocaleString() + 'm' : '⛰ —')
-    L.marker([g.lat, g.lng], { icon: L.divIcon({ html: '<div class="elev-badge">' + txt + '</div>', className: '', iconSize: [0, 0] }), interactive: false }).addTo(elevLayerGroup)
+    // 需真实 iconSize，否则 divIcon 容器 0×0 → 徽章被裁剪成黑点、文字不可见
+    L.marker([g.lat, g.lng], { icon: L.divIcon({ html: '<div class="elev-badge">' + txt + '</div>', className: '', iconSize: [132, 26], iconAnchor: [66, 13] }), interactive: false }).addTo(elevLayerGroup)
   }
   if (selLoc && selLoc.lat != null) {
     if (selLoc.ele > 0) addBadge(selLoc, selLoc.ele)
