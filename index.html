@@ -2134,7 +2134,7 @@ function placePin(wgs) {
 function syncPlaceMap(lat, lng) {
   if (!placeMap) return
   var g = mapBaseLL({ lat: lat, lng: lng })
-  placeMap.setView([g.lat, g.lng], mapZoomForKm(5))   // 默认视野 5km
+  placeMap.setView([g.lat, g.lng], mapZoomForKm(0.1))   // 最大视野 zoom 18（约 100m；搜索选点后自动放大）
   placePin({ lat: lat, lng: lng })
 }
 
