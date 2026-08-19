@@ -7413,7 +7413,7 @@ function syncCfgUi() {
 }
 
 /* ================= 天气源优先级编辑器（增删排序 + 逐源配置 + 启停校验） ================= */
-var SRC_META = { qweather: { label: '和风天气 QWeather', need: '需 JWT' }, 'open-meteo': { label: 'Open-Meteo', need: '免 key' }, nmc: { label: '中央气象台', need: '免 key' }, amap: { label: '高德天气', need: '需 key' }, meteoblue: { label: 'Meteoblue', need: '需 key' }, windy: { label: 'Windy Point Forecast', need: '需 key' } }
+var SRC_META = { qweather: { label: '和风天气 QWeather', need: '需 JWT' }, 'open-meteo': { label: 'Open-Meteo', need: '免 key' }, nmc: { label: '中央气象台', need: '免 key' }, amap: { label: '高德🔍地名', need: '需 key' }, meteoblue: { label: 'Meteoblue', need: '需 key' }, windy: { label: 'Windy Point Forecast', need: '需 key' } }
 function srcEnabledState(id) {
   if (id === 'qweather') return (appConfig.qweather && appConfig.qweather.host) ? '' : '配置不完整，未启用'
   if (id === 'amap') return (appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta.amap && appConfig.weatherPriorityMeta.amap.key) ? '' : '配置不完整，未启用'
@@ -7626,7 +7626,7 @@ function probeSource(id) {
       if (!ak) { resolve({ ok: false, txt: '未配置 Key' }); return }
       fetch('https://restapi.amap.com/v3/weather/weatherInfo?key=' + encodeURIComponent(ak) + '&city=110000&extensions=base', { signal: AbortSignal.timeout(8000) })
         .then(function (r) { return r.json() })
-        .then(function (j) { resolve({ ok: !!(j && j.status === '1'), txt: (j && j.status === '1') ? '· 高德天气接口可用' : ('· ' + ((j && j.info) || '返回异常')) }) })
+        .then(function (j) { resolve({ ok: !!(j && j.status === '1'), txt: (j && j.status === '1') ? '· 高德地名/天气接口可用' : ('· ' + ((j && j.info) || '返回异常')) }) })
         .catch(function () { resolve({ ok: false, txt: '· 网络/CORS 失败' }) })
     } else if (id === 'qweather') {
       var qh = (appConfig.qweather || {}).host
