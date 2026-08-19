@@ -7929,11 +7929,12 @@ function renderRouteDisplay() {
   // 不标“起/终”：导入/历史路线只读预览，按天分点标注（第 N 天 + 海拔 + 累计里程）
   var days = Math.max(1, Math.min(16, trip.days || 1))
   splitPoints = splitByDays(route, days, segEnds)
-  for (var k = 1; k < splitPoints.length - 1; k++) {
+  // 天标注边界：按总里程/days 等分（第 k 天结束位置 = total·k/days）。如 48.4km÷3天 → 16.13km、32.26km，第3天出山
+  var dayBnd = (days > 1) ? splitByDays(route, days + 1, segEnds) : []
+  for (var k = 1; k < dayBnd.length - 1; k++) {
     ;(function (k) {
-      var sp = splitPoints[k]
+      var sp = dayBnd[k]
       var g = mapBaseLL(sp)
-      // 里程 = 总里程 × t（splitByDays 按总距离等分，t=k/(N-1)）；海拔 = 该分点插值
       var km = (routeMetrics && routeMetrics.distanceKm != null && sp.t != null) ? Math.round(routeMetrics.distanceKm * sp.t) : null
       var ele = (sp.ele != null && sp.ele > 0) ? Math.round(sp.ele) : null
       var html = '<div class="mk-day"><b>第' + k + '天</b>' +
