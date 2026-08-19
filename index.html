@@ -565,9 +565,13 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 /* ===== 开机动画：🐑 走入吃草 → 淡出让出主页（每次冷启动，点按跳过，全程≤2秒）===== */
 .boot{position:fixed;inset:0;z-index:1200;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:var(--bg);overflow:hidden;cursor:pointer;transition:opacity .3s ease}
 .boot.leaving{opacity:0;pointer-events:none}
+.boot-sun{position:absolute;top:6%;right:9%;font-size:46px;z-index:1;animation:boot-sun-pulse 2.6s ease-in-out .1s infinite alternate}
 .boot-cloud{position:absolute;font-size:38px;opacity:.55;animation:boot-cloud-drift 2.6s ease-in-out .2s infinite alternate}
 .boot-cloud.c1{top:16%;left:18%}
 .boot-cloud.c2{top:24%;right:14%;font-size:30px;animation-delay:.9s}
+.boot-cloud.c3{top:8%;left:42%;font-size:34px;animation-delay:.4s}
+.boot-cloud.c4{top:30%;left:5%;font-size:26px;animation-delay:1.3s}
+.boot-cloud.c5{top:12%;right:30%;font-size:24px;animation-delay:1.7s}
 .boot-stage{position:relative;width:320px;height:240px}
 .boot-title{position:absolute;top:4px;left:0;right:0;text-align:center;font-family:var(--f-d);font-weight:900;font-size:24px;letter-spacing:-.01em;color:var(--text);animation:boot-title-in .5s ease-out .1s both}
 .boot-scene{position:absolute;left:50%;bottom:36px;transform:translateX(-50%);display:flex;align-items:flex-end;gap:8px}
@@ -584,9 +588,10 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 @keyframes boot-sheep-eat{0%,22%,46%,100%{transform:translateY(0)}8%,30%,54%{transform:translateY(16px) rotate(-5deg)}}
 @keyframes boot-grass-sway{from{transform:rotate(-7deg) scale(.96)}to{transform:rotate(7deg) scale(1.04)}}
 @keyframes boot-cloud-drift{from{transform:translateX(-14px)}to{transform:translateX(14px)}}
+@keyframes boot-sun-pulse{from{transform:scale(1)}to{transform:scale(1.1) rotate(20deg)}}
 @keyframes boot-title-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion: reduce){
-  .boot-sheep,.boot-food span,.boot-cloud,.boot-title,.boot-hint{animation:none !important}
+  .boot-sheep,.boot-food span,.boot-cloud,.boot-sun,.boot-title,.boot-hint{animation:none !important}
   .boot-sheep{transform:none}
 }
 /* 窄屏：emoji 盒偏宽，缩小字号避免场景溢出视口 */
@@ -601,8 +606,12 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 
 <!-- 开机动画：🐑 走入 → 吃草(🌿🥬🥦) → 淡出让出主页（每次冷启动显示，点按跳过，全程≤2秒） -->
 <div class="boot" id="boot" role="dialog" aria-label="SHEEPGEAR 启动动画">
+  <span class="boot-sun" aria-hidden="true">☀️</span>
   <span class="boot-cloud c1" aria-hidden="true">☁️</span>
   <span class="boot-cloud c2" aria-hidden="true">☁️</span>
+  <span class="boot-cloud c3" aria-hidden="true">☁️</span>
+  <span class="boot-cloud c4" aria-hidden="true">☁️</span>
+  <span class="boot-cloud c5" aria-hidden="true">☁️</span>
   <div class="boot-stage" aria-hidden="true">
     <div class="boot-title">SHEEP🐏GEAR</div>
     <div class="boot-scene">
