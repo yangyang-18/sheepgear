@@ -8,10 +8,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHEEP🐏GEAR · 天气驱动徒步装备清单</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E🐏%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@500,700,900&display=swap">
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@500,700,900&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@500,700,900&display=swap"></noscript>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<!-- 字体 CSS 非阻塞加载：不阻塞 load 事件；墙外源（Google Fonts）挂起时优雅回退系统字体 -->
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <style>
 /* ===== SHEEP🐏GEAR · 冻结样式（finalized.html 逐字提取 + 已批准例外/补充） ===== */
@@ -1845,10 +1848,10 @@ function initPlaceMap() {
   if (typeof syncIboBtn === 'function') syncIboBtn()
   if (selLoc) {
     var g0 = mapBaseLL(selLoc)
-    placeMap.setView([g0.lat, g0.lng], mapZoomForKm(5))   // 默认视野 5km
+    placeMap.setView([g0.lat, g0.lng], mapZoomForKm(0.1))   // 最大视野 zoom 18（约 100m；mapZoomForKm 封顶 18）
     placePin({ lat: selLoc.lat, lng: selLoc.lng })
   } else {
-    placeMap.setView([39.9987, 115.784], mapZoomForKm(5))
+    placeMap.setView([39.9987, 115.784], mapZoomForKm(0.1))
   }
   placeMap.on('click', function (e) {
     if (entryMode === 'imp' && route && route.length > 1) return   // 路线模式：只读，不选点
@@ -1857,8 +1860,12 @@ function initPlaceMap() {
     placePin(w)
     useLocationDirect(w)             // 点地图即用：逆地理回填 + 直接确认（无二次确认按钮）
   })
-  // 常驻「地图预报」跟随主地图视野：初始渲染一次 + moveend 联动（防抖；搜索/选点/平移/路线导入都走 setView）
-  if (typeof renderHomeMapFc === 'function') renderHomeMapFc()
+  // 常驻「地图预报」跟随主地图视野：延迟到页面 load 后再加载（windy.com 在部分网络慢/被墙，
+  // 若即时加载会阻塞页面 load 事件，导致打开卡顿 ~20s）；后续 moveend 联动照常
+  if (typeof renderHomeMapFc === 'function') {
+    if (document.readyState === 'complete') renderHomeMapFc()
+    else window.addEventListener('load', function () { setTimeout(function () { renderHomeMapFc() }, 600) })
+  }
   var _fcT = null
   placeMap.on('moveend', function () {
     clearTimeout(_fcT)
@@ -1972,9 +1979,10 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if (!hit) { p.style.display = 'none'; var b = $('mapOptBtn'); if (b) b.classList.remove('on') }
   })
 }
-/* 显示坐标：高德底图 → GCJ02，天地图底图 → WGS84 原样 */
+/* 显示坐标：高德底图 → GCJ02，天地图底图 → WGS84 原样（兼容路线点用 lon、选点用 lng） */
 function mapBaseLL(wgs) {
-  return (appConfig && appConfig.baseMap === 'amap') ? wgs84ToGcj02(wgs.lat, wgs.lng) : { lat: wgs.lat, lng: wgs.lng }
+  var lng = (wgs.lng != null) ? wgs.lng : wgs.lon
+  return (appConfig && appConfig.baseMap === 'amap') ? wgs84ToGcj02(wgs.lat, lng) : { lat: wgs.lat, lng: lng }
 }
 /* 反解：显示坐标 → 数据坐标（WGS84）。高德底图 → GCJ02 逆转换，天地图底图 → 原样 */
 function mapDataLL(disp) {
@@ -7294,12 +7302,12 @@ var DEFAULT_CFG = {
   ownedGear: [], customGear: [], tripMode: 'light', highAltitude: false, cardWeather: [],
   gearOverrides: {}, weatherPriorityMeta: {},
   topo: false,   // ①步地图 OpenTopoMap 等高线叠层开关（免费瓦片，持久化）
-  satellite: false,   // ①步地图高德卫星叠层开关（免费瓦片，持久化）
+  satellite: true,   // ①步地图高德卫星叠层开关（默认开；高德=GCJ02 → 默认底图需为高德对齐）
   tdt: false,   // ①步地图天地图地形晕渲叠层开关（需 tiandituKey）
   ibo: false,   // ①步地图天地图全球境界叠层开关（需 tiandituKey，独立可叠加）
   tiandituKey: '',   // 天地图浏览器端 tk（lbs.tianditu.gov.cn 免费注册）
-  baseMap: 'tdt_img',   // ①步底图：amap 高德 / tdt_vec 天地图矢量 / tdt_img 天地图影像（默认影像；无 key 回退高德）
-  elevMarkers: false,   // ①步地图点位/路线点海拔标注（app 自带 Open-Meteo 高程）
+  baseMap: 'amap',   // ①步底图：amap 高德 / tdt_vec 天地图矢量 / tdt_img 天地图影像（默认高德，与卫星叠层对齐）
+  elevMarkers: true,   // ①步地图点位/路线点海拔标注（默认开；app 自带 Open-Meteo 高程）
   freshness: null,   // 预报新鲜度阈值（C2）：缺省用 FRESHNESS_DEFAULT.bands
   ensCfg: null       // 集合一致度阈值（C6 升级）：缺省 {tempC:4, windKmh:15, precipMm:20, precipBand:[40,60]}
 }
@@ -7925,8 +7933,8 @@ function renderRouteDisplay() {
       routeDrawLayers.push(mk.addTo(placeMap))
     })(k)
   }
-  // 默认视野 5km：fitBounds maxZoom 13（短路线不贴太近、显示约 5km 上下文；长路线仍全部可见）
-  placeMap.fitBounds(boundsArr, { padding: [24, 24], maxZoom: 13 })
+  // 只取轨迹范围：fitBounds 贴近路线（maxZoom 16，短路线放大细看）
+  placeMap.fitBounds(boundsArr, { padding: [16, 16], maxZoom: 16 })
   renderRouteRisk()
   if (typeof renderElevMarkers === 'function') renderElevMarkers()
   showRouteProfile()
