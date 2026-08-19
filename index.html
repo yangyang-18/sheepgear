@@ -387,8 +387,10 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .map-opt .mo-seg .btn.on{background:var(--accent);color:#1F1C1A;border-color:var(--accent);font-weight:700}
 .map-opt .mo-vpn{font-style:normal;font-size:9px;color:var(--text-muted);margin-left:4px}
 #mapOptBtn.on{background:var(--accent);color:#1F1C1A;border-color:var(--accent);font-weight:700}
-/* 点位海拔标注：纯黑字体 + 浅色光晕（无胶囊背景） */
-.elev-badge{color:#111;font-size:12px;font-weight:700;font-family:var(--f-m);white-space:nowrap;text-align:center;line-height:1.5;text-shadow:0 0 3px #fff,0 0 3px #fff,1px 1px 2px #fff}
+/* 点位海拔标注：白色 ⛰ 图标 + 黑色海拔数字（无胶囊背景，黑字带浅色描边保证可见） */
+.elev-badge{font-family:var(--f-m);white-space:nowrap;text-align:center;line-height:1.5}
+.elev-ico{display:inline-block;margin-right:3px;font-size:14px;filter:brightness(0) invert(1)}
+.elev-num{color:#000;font-weight:800;font-size:13px;text-shadow:0 0 3px #fff,0 0 3px #fff,1px 1px 2px #fff}
 
 /* 导航 */
 .nav{display:flex;justify-content:space-between;margin-top:28px;padding-top:18px;border-top:1px solid var(--border)}
@@ -2035,9 +2037,12 @@ function renderElevMarkers() {
   function addBadge(wgs, ele, label) {
     if (!wgs || wgs.lat == null) return
     var g = mapBaseLL(wgs)
-    var txt = label || (ele != null && ele > 0 ? '⛰ ' + Math.round(ele).toLocaleString() + 'm' : '⛰ —')
+    var txt = label
+    if (!txt) {
+      txt = '<span class="elev-ico">⛰</span><span class="elev-num">' + (ele != null && ele > 0 ? Math.round(ele).toLocaleString() + 'm' : '—') + '</span>'
+    }
     // 需真实 iconSize，否则 divIcon 容器 0×0 → 徽章被裁剪成黑点、文字不可见
-    L.marker([g.lat, g.lng], { icon: L.divIcon({ html: '<div class="elev-badge">' + txt + '</div>', className: '', iconSize: [132, 26], iconAnchor: [66, 13] }), interactive: false }).addTo(elevLayerGroup)
+    L.marker([g.lat, g.lng], { icon: L.divIcon({ html: '<div class="elev-badge">' + txt + '</div>', className: '', iconSize: [132, 24], iconAnchor: [66, 12] }), interactive: false }).addTo(elevLayerGroup)
   }
   if (selLoc && selLoc.lat != null) {
     if (selLoc.ele > 0) addBadge(selLoc, selLoc.ele)
