@@ -359,6 +359,28 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .cf-cond{flex:1;white-space:nowrap}
 .cf-val{font-family:var(--f-m);font-size:12px;text-align:right;margin-left:10px}
 .card-foot{margin-top:12px;font-size:10px;color:rgba(255,255,255,.68)}
+/* 分享卡「风险路段」元素（无风险不渲染；导出与预览一致） */
+.card-riskseg{margin-bottom:10px}
+.card-riskseg .card-riskseg-h{font-size:10px;letter-spacing:.06em;color:rgba(255,255,255,.55);margin-bottom:6px}
+.card-riskseg .rs-row{display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 0;border-bottom:1px dotted rgba(255,255,255,.3)}
+.card-riskseg .rs-row b{font-size:11px;font-family:var(--f-m);color:rgba(255,255,255,.85)}
+.card-riskseg .rs-tag{color:#fff;border-radius:999px;padding:2px 8px;font-size:11px;font-family:var(--f-m)}
+
+/* ①步地图地形叠层开关按下态 + 路线风险段地图徽章 */
+.map-actions .btn.on{background:var(--accent);color:#1F1C1A;border-color:var(--accent);font-weight:700}
+.risk-badge{background:var(--surface);border:2px solid;border-radius:999px;padding:1px 7px;font-size:11px;font-weight:700;font-family:var(--f-m);box-shadow:0 1px 4px rgba(0,0,0,.4);white-space:nowrap}
+/* 地图选项集合面板：底图分段 + 叠加开关 */
+.map-opt{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:10px 12px;margin-top:8px;max-width:440px}
+.map-opt .mo-sec{margin-bottom:8px}
+.map-opt .mo-sec:last-child{margin-bottom:0}
+.map-opt .mo-lab{font-size:10px;letter-spacing:.08em;color:var(--text-muted);margin-bottom:6px}
+.map-opt .mo-seg{display:flex;gap:6px;flex-wrap:wrap}
+.map-opt .mo-seg .btn{padding:5px 14px;font-size:12px}
+.map-opt .mo-seg .btn.on{background:var(--accent);color:#1F1C1A;border-color:var(--accent);font-weight:700}
+.map-opt .mo-vpn{font-style:normal;font-size:9px;color:var(--text-muted);margin-left:4px}
+#mapOptBtn.on{background:var(--accent);color:#1F1C1A;border-color:var(--accent);font-weight:700}
+/* 点位海拔标注徽章 */
+.elev-badge{position:relative;top:6px;left:6px;background:rgba(31,28,26,.85);color:#fff;border:1px solid rgba(255,255,255,.5);border-radius:999px;padding:1px 7px;font-size:11px;font-weight:700;font-family:var(--f-m);white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 
 /* 导航 */
 .nav{display:flex;justify-content:space-between;margin-top:28px;padding-top:18px;border-top:1px solid var(--border)}
@@ -643,8 +665,28 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
       <span class="coord-read" id="pickCoord">尚未选点</span>
     </div>
     <div class="map-actions" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center">
-      <button class="btn" style="padding:4px 12px;font-size:12px" id="mapCollapseBtn" onclick="toggleMainMap()">⏷ 展开地图</button>
+      <button class="btn" style="padding:4px 12px;font-size:12px" id="mapCollapseBtn" onclick="toggleMainMap()">⏶ 收起地图</button>
       <button class="btn" style="padding:4px 12px;font-size:12px" onclick="openWindyMap()">🌬 Windy 风场图</button>
+      <button class="btn" style="padding:4px 12px;font-size:12px" id="mapOptBtn" onclick="toggleMapOpts()">🗺 地图选项</button>
+    </div>
+    <!-- 地图选项集合：底图（高德/矢量/影像）+ 叠加（卫星/地形/等高线·需VPN）；国内源无需 VPN -->
+    <div class="map-opt" id="mapOptPop" style="display:none">
+      <div class="mo-sec"><div class="mo-lab">底图</div>
+        <div class="mo-seg" id="moBase">
+          <button class="btn" data-b="amap" onclick="setBaseMap('amap')">高德</button>
+          <button class="btn" data-b="tdt_vec" onclick="setBaseMap('tdt_vec')">矢量</button>
+          <button class="btn" data-b="tdt_img" onclick="setBaseMap('tdt_img')">影像</button>
+        </div>
+      </div>
+      <div class="mo-sec"><div class="mo-lab">叠加</div>
+        <div class="mo-seg" id="moOverlay">
+          <button class="btn" id="satBtn" onclick="toggleSat()" title="高德卫星影像（国内可达，免 key）">🛰 卫星</button>
+          <button class="btn" id="tdtBtn" onclick="toggleTdt()" title="天地图地形晕渲·山体阴影（半透明叠加；天地图注记稀疏，标注以底图/点位海拔为准）">🗻 地形</button>
+          <button class="btn" id="iboBtn" onclick="toggleIbo()" title="天地图全球境界（国界/省界线，需天地图 key）">🗺 境界</button>
+          <button class="btn" id="elevBtn" onclick="toggleElev()" title="点位/路线点海拔标注（Open-Meteo 高程，100% 可靠）">⛰ 海拔</button>
+          <button class="btn" id="topoBtn" onclick="toggleTopo()" title="OpenTopoMap 等高线（海外源，国内通常需 VPN）">🏔 等高线<em class="mo-vpn">需VPN</em></button>
+        </div>
+      </div>
     </div>
     <!-- 常驻「地图预报」：一直展开，跟随主地图视野（搜索/选点/平移联动；embed.windy.com 免 key） -->
     <div class="map-fc" id="homeMapFc">
@@ -750,6 +792,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
         <div class="card-qr" id="cardQr" style="display:none"></div>
         <div class="card-div"></div>
         <div class="card-risks" id="cardRisks" style="display:none"></div>
+        <div class="card-riskseg" id="cardRiskSeg" style="display:none"></div>
         <div class="card-wx" id="cardWx"></div>
         <div class="card-forecast" id="cardForecast" style="display:none"></div>
         <div class="card-gear" id="cardGear"></div>
@@ -782,6 +825,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
           <label><input type="checkbox" checked data-el="difficulty" id="elDiff" onchange="updateCardEl()"> 难度</label>
           <label><input type="checkbox" data-el="qr" id="elQr" onchange="updateCardEl()"> QR</label>
           <label><input type="checkbox" data-el="route" id="elRoute" style="display:none" onchange="updateCardEl()"> 路线</label>
+          <label><input type="checkbox" checked data-el="riskseg" id="elRiskSeg" onchange="updateCardEl()"> 风险段</label>
           <label><input type="checkbox" checked data-el="anim" onchange="updateCardEl()"> 动画背景</label>
         </div>
       </div>
@@ -887,6 +931,8 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
       <div id="srcEditWindy" style="display:none;border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
         <div class="cfg-row"><div>Windy Point Forecast Key<div class="desc">api.windy.com 申请；GFS 逐时预报（风/阵风/温度/降水/AQI），CORS 可直连；无 ECMWF/降水概率（由其他源补齐）</div></div><input id="windyKey" placeholder="输入 Key" onchange="saveWindyKey(this.value)"></div>
         <div class="cfg-row" style="justify-content:flex-start;gap:8px"><button class="btn" style="padding:4px 12px;font-size:12px" id="keyTest_windy" onclick="testWeatherKey('windy')">接通测试</button><span class="risk orange" id="keyState_windy">未测试</span></div>
+        <div class="cfg-row"><div>天地图 Key<div class="desc">lbs.tianditu.gov.cn 注册获取浏览器端 tk（免费）；用于底图切换（矢量/影像）、地名搜索兜底与「🗻 地形」晕渲叠层</div></div><input id="tdtKey" placeholder="输入 Key" onchange="saveTdtField(this.value)"></div>
+        <div class="cfg-row" style="justify-content:flex-start;gap:8px"><button class="btn" style="padding:4px 12px;font-size:12px" id="keyTest_tdt" onclick="testTdtKey()">接通测试</button><span class="risk orange" id="keyState_tdt">未测试</span></div>
       </div>
       <div id="srcEditNmc" style="display:none;border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
         <div class="cfg-row"><div>中央气象台<div class="desc">免 key 直连；预警按省，天气按站号（best-effort）</div></div><span class="risk green">免 key</span></div>
@@ -980,8 +1026,86 @@ function windchillC(t, v) { if (t == null || isNaN(t)) return null; var sp = v |
 
 /* ---- 场景推算 ---- */
 function calcCloudSea(h, cc, ele) { if (ele > 1000 && cc > 60 && h > 70) return { level: '高概率·可见云海', tone: 'good' }; if (ele > 500 && cc > 40 && h > 60) return { level: '中等概率', tone: 'warn' }; return { level: '低概率', tone: '' } }
-function calcStar(cc, pp) { if (cc > 80 || pp > 50) return { stars: '★☆☆☆☆', tone: 'warn' }; if (cc > 50) return { stars: '★★☆☆☆', tone: 'warn' }; if (cc > 20) return { stars: '★★★☆☆', tone: 'warn' }; return { stars: '★★★★★', tone: 'good' } }
+/* 星空评分：云量/降水定基数，可选月相（0-100 亮度）修正——新月（<20%）不扣、满月（>80%）压暗最多 -2 星、中间线性；null 与旧行为一致 */
+function calcStar(cc, pp, moonBright) {
+  var stars = cc > 80 || pp > 50 ? 1 : cc > 50 ? 2 : cc > 20 ? 3 : 5
+  if (moonBright != null && !isNaN(moonBright)) {
+    var penalty = Math.round(moonBright / 100 * 2)
+    stars = Math.max(1, stars - penalty)
+  }
+  return { stars: '★'.repeat(Math.min(5, Math.max(1, stars))) + '☆'.repeat(5 - Math.min(5, Math.max(1, stars))), tone: stars >= 5 ? 'good' : 'warn' }
+}
 function snowProb(snow, minT, codes) { if (snow != null && snow > 0) return { label: (snow > 5 ? '中雪' : '小雪') + '(' + snow + 'cm)', tone: 'warn' }; if (Array.isArray(codes) && codes.some(isSnowCode)) return { label: '天气码含雪，留意', tone: 'warn' }; if (minT != null && minT > 2) return { label: '0', tone: 'good' }; if (minT != null && minT <= 0) return { label: '边界可能', tone: 'warn' }; return { label: '0', tone: 'good' } }
+
+/* ---- 天文派生（全部本地计算，零网络请求、零 key 配额） ---- */
+var MOON_SYNODIC = 29.53058867   // 朔望月（天）
+function _mday(s) { if (s == null) return null; var m = /(\d{1,2}):(\d{2})/.exec(String(s)); return m ? (+m[1]) * 60 + (+m[2]) : null }   // 'HH:MM' / 'YYYY-MM-DDTHH:MM' → 当日分钟
+function _pad2(n) { return (n < 10 ? '0' : '') + n }
+function _fmtMin(min) { if (min == null || isNaN(min)) return null; var m = Math.round(min); m = ((m % 1440) + 1440) % 1440; var h = Math.floor(m / 60), mm = m % 60; if (mm === 60) { h = (h + 1) % 24; mm = 0 } return _pad2(h) + ':' + _pad2(mm) }
+/* 月相：由日期本地推算（Gregorian 儒略日；历元 2000-01-06 新月）→ { name, bright, phase }；无日期返回 null */
+function moonPhase(dateStr) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr || '')
+  if (!m) return null
+  var y = +m[1], mo = +m[2], d = +m[3]
+  var jd = 367 * y - Math.floor(7 * (y + Math.floor((mo + 9) / 12)) / 4) + Math.floor(275 * mo / 9) + d + 1721013.5
+  var age = ((jd - 2451549.5) % MOON_SYNODIC + MOON_SYNODIC) % MOON_SYNODIC   // 2000-01-06 新月起算月龄（天）
+  var ph = age / MOON_SYNODIC   // 0..1：0=新月、0.5=满月
+  var bright = Math.round((1 - Math.cos(2 * Math.PI * ph)) / 2 * 100)
+  var names = ['新月', '蛾眉月', '上弦月', '盈凸月', '满月', '亏凸月', '下弦月', '残月']
+  return { name: names[Math.floor(ph * 8 + 0.5) % 8], bright: bright, phase: ph }
+}
+/* 白昼时长：日出/日落（源缺失走本地天文）→ { text:'14h10m', minutes }；不可得返回 null */
+function daylightHours(d) {
+  if (!d) return null
+  var r = d.sunrise, s = d.sunset
+  if ((!r || !s) && d.lat != null && typeof sunTimesLocal === 'function') {
+    var sn = sunTimesLocal(d.lat, d.lon != null ? d.lon : d.lng, d.date)
+    r = r || (sn && sn.sunrise); s = s || (sn && sn.sunset)
+  }
+  var rm = _mday(r), sm = _mday(s)
+  if (rm == null || sm == null) return null
+  var mins = sm - rm; if (mins < 0) mins += 1440
+  var h = Math.floor(mins / 60), mm = Math.round(mins % 60)
+  if (mm === 60) { h++; mm = 0 }
+  return { text: h + 'h' + _pad2(mm) + 'm', minutes: mins }
+}
+/* 黄金/蓝调时段：日出后、日落前 ±45min 黄金；日出前、日落后 25min 蓝调 → { amGolden, pmGolden, amBlue, pmBlue }（分钟时刻）；不可得返回 null */
+function goldenBlueTimes(d) {
+  if (!d) return null
+  var r = d.sunrise, s = d.sunset
+  if ((!r || !s) && d.lat != null && typeof sunTimesLocal === 'function') {
+    var sn = sunTimesLocal(d.lat, d.lon != null ? d.lon : d.lng, d.date)
+    r = r || (sn && sn.sunrise); s = s || (sn && sn.sunset)
+  }
+  var rm = _mday(r), sm = _mday(s)
+  if (rm == null || sm == null) return null
+  return { amGolden: [rm, rm + 45], pmGolden: [sm - 45, sm], amBlue: [rm - 25, rm], pmBlue: [sm, sm + 25] }
+}
+function goldenBlueText(d) {
+  var gb = goldenBlueTimes(d)
+  if (!gb) return null
+  return '晨 ' + _fmtMin(gb.amGolden[0]) + '–' + _fmtMin(gb.amGolden[1]) + ' · 昏 ' + _fmtMin(gb.pmGolden[0]) + '–' + _fmtMin(gb.pmGolden[1])
+}
+/* WBGT 热应激（简化近似）：白天温 + 湿度 + 云量折算黑球升温 → { value, level, tone }；缺输入返回 null */
+function wbgtIndex(d) {
+  if (!d || d.tempMax == null || d.humidity == null) return null
+  var t = d.tempMax, rh = d.humidity
+  var tw = t * Math.atan(0.151977 * Math.sqrt(rh + 8.313659)) + Math.atan(t + rh) - Math.atan(rh - 1.676331) + 0.00391838 * Math.pow(rh, 1.5) * Math.atan(0.023101 * rh) - 4.686035   // Stull(2011) 湿球近似
+  var solar = d.cloudCover == null ? 6 : Math.max(0, (1 - d.cloudCover / 100) * 12)   // 多云默认 +6° 黑球
+  var wbgt = 0.7 * tw + 0.2 * (t + solar) + 0.1 * t
+  var level = wbgt >= 33 ? '极高' : wbgt >= 28 ? '高' : wbgt >= 26 ? '中' : '低'
+  return { value: Math.round(wbgt) + '°', level: level, tone: wbgt >= 28 ? 'warn' : (wbgt >= 26 ? '' : 'good') }
+}
+/* 结冰 / 涉水旗标：夜间最低 <0°→结冰；同日降水≥阈值或河流量超阈→涉水谨慎 */
+function freezeFordFlags(d) {
+  var out = []
+  if (!d) return out
+  if (d.nightMin != null && d.nightMin < 0) out.push({ key: 'freeze', label: '结冰', tone: 'cold' })
+  var trig = (typeof appConfig !== 'undefined' && appConfig && appConfig.precipTriggerPct != null) ? appConfig.precipTriggerPct : 40
+  var rt = (typeof appConfig !== 'undefined' && appConfig && appConfig.riverFlowThreshold != null) ? appConfig.riverFlowThreshold : 100
+  if ((d.precipProb != null && d.precipProb >= trig) || (d.riverDischarge != null && d.riverDischarge > rt)) out.push({ key: 'ford', label: '涉水谨慎', tone: 'warn' })
+  return out
+}
 
 /* ---- 主题（头部下拉切换，持久化 theme；无自定义强调色）---- */
 function applyTheme(theme) {
@@ -1512,10 +1636,46 @@ function amapGeocode(q) {
     .catch(function () { return [] })
 }
 
+/* ---- 天地图地理编码（免费国内兜底，需 tk；CORS 已实测开放） ---- */
+function tdtKey() { return (appConfig && appConfig.tiandituKey) || '' }
+function tdtGeocode(q) {
+  var k = tdtKey()
+  if (!k) return Promise.resolve([])
+  var ds = encodeURIComponent(JSON.stringify({ keyWord: q, type: 'geocode' }))
+  return fetch('https://api.tianditu.gov.cn/geocoder?ds=' + ds + '&tk=' + encodeURIComponent(k), { signal: AbortSignal.timeout(8000) })
+    .then(function (r) { return r.json().catch(function () { return null }) })
+    .then(function (d) {
+      // 天地图 geocoder 返回 { status, msg, location:{lon,lat,level,keyWord} }（注意不是 result.location）
+      if (!d || d.status !== '0') return []
+      var loc = d.location || (d.result && d.result.location)
+      if (!loc) return []
+      var lon = +(loc.lon), lat = +(loc.lat)
+      if (isNaN(lon) || isNaN(lat)) return []
+      return [{ name: q, admin1: '', country: 'CN', lat: lat, lng: lon, ele: 0, src: '天地图', coarse: true }]
+    })
+    .catch(function () { return [] })
+}
+/* 天地图逆地理编码（坐标 → 地名；免费国内兜底） */
+function tdtReverse(lat, lng) {
+  var k = tdtKey()
+  if (!k || lat == null || lng == null || isNaN(+lat) || isNaN(+lng)) return Promise.resolve(null)
+  var ps = encodeURIComponent(JSON.stringify({ lon: +lng, lat: +lat, ver: 1 }))
+  return fetch('https://api.tianditu.gov.cn/geocoder?postStr=' + ps + '&type=georeverse&tk=' + encodeURIComponent(k), { signal: AbortSignal.timeout(8000) })
+    .then(function (r) { return r.json().catch(function () { return null }) })
+    .then(function (d) {
+      if (!d || d.status !== '0' || !d.result) return null
+      var addr = d.result.formatted_address || d.result.address || ''
+      var n = d.result.formatted_address || d.result.address || d.result.pois && d.result.pois[0] && d.result.pois[0].name || ''
+      return { name: String(n || '').trim() || addr || (lat.toFixed(4) + ', ' + lng.toFixed(4)), admin1: d.result.address || d.result.province || '', city: '', found: !!n, src: '天地图' }
+    })
+    .catch(function () { return null })
+}
+
 function suggest(q) {
   var fast = []
   if (amapKey()) fast.push(amapPlaceText(q), amapGeocode(q))   // 有高德 key → POI 检索(带类型) + 地理编码兜底
   fast.push(omGeocode(q))   // Open-Meteo 地理编码（免 key、快）
+  if (tdtKey()) fast.push(tdtGeocode(q))   // 天地图地理编码（有 key → 国内兜底）
   var slow = [photonSearch(q)]   // 慢/兜底源不阻塞主下拉：photon 在你网络常 8s 超时，和风仅配置了 host 才请求
   if (appConfig && appConfig.qweather && appConfig.qweather.host) slow.push(qweatherGeo(q))
   return Promise.all(fast).then(function (results) {
@@ -1666,9 +1826,25 @@ function initPlaceMap() {
   if (!el || typeof L === 'undefined') { $('pickCoord').textContent = '地图组件加载失败（需联网加载 Leaflet CDN）'; return }
   placeInited = true
   placeMap = L.map(el, { zoomControl: false })
-  L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', { subdomains: ['1', '2', '3', '4'], attribution: '© 高德' }).addTo(placeMap)
+  // 叠层专用 tile pane（zIndex 高于底图 tilePane）：保证等高线/卫星/地形永远在底图之上，底图切换不影响叠层
+  placeMap.createPane('ovTilePane')
+  var _ovp = placeMap.getPane('ovTilePane')
+  if (_ovp) _ovp.style.zIndex = 350
+  setBaseMap((appConfig && appConfig.baseMap) || 'amap')
+  if (typeof syncBaseMapSel === 'function') syncBaseMapSel()
+  // 叠层恢复（等高线 / 卫星 / 天地图地形）：按持久化状态叠加，不可达时看门狗自动降级
+  if (appConfig) {
+    if (appConfig.topo) { topoLayerInit(); if (topoOv) topoOv.add() }
+    if (appConfig.satellite) { satLayerInit(); if (satOv) satOv.add() }
+    if (appConfig.tdt) { tdtLayerInit(); if (tdtOv) tdtOv.add() }
+    if (appConfig.ibo) { iboLayerInit(); if (iboOv) iboOv.add() }
+  }
+  if (typeof syncTopoBtn === 'function') syncTopoBtn()
+  if (typeof syncSatBtn === 'function') syncSatBtn()
+  if (typeof syncTdtBtn === 'function') syncTdtBtn()
+  if (typeof syncIboBtn === 'function') syncIboBtn()
   if (selLoc) {
-    var g0 = wgs84ToGcj02(selLoc.lat, selLoc.lng)
+    var g0 = mapBaseLL(selLoc)
     placeMap.setView([g0.lat, g0.lng], mapZoomForKm(5))   // 默认视野 5km
     placePin({ lat: selLoc.lat, lng: selLoc.lng })
   } else {
@@ -1688,8 +1864,8 @@ function initPlaceMap() {
     clearTimeout(_fcT)
     _fcT = setTimeout(function () { if (typeof renderHomeMapFc === 'function') renderHomeMapFc() }, 600)
   })
-  // 主地图默认折叠（appConfig.mapCollapsed 默认 true；折叠只收地图，预报面板保持常开）
-  if (appConfig && appConfig.mapCollapsed !== false) {
+  // 主地图折叠：默认展开；仅用户显式收起（mapCollapsed===true）才折叠（折叠只收地图，预报面板保持常开）
+  if (appConfig && appConfig.mapCollapsed === true) {
     var _mp = $('placeMap'), _b = $('mapCollapseBtn')
     if (_mp) _mp.classList.add('collapsed')
     if (_b) _b.textContent = '⏷ 展开地图'
@@ -1699,6 +1875,231 @@ function initPlaceMap() {
     new ResizeObserver(function () { if (placeMap) placeMap.invalidateSize() }).observe(el)
   }
 }
+
+/* ---- 地图叠层（等高线 OpenTopoMap / 卫星 高德 style=6；免费瓦片无 key） ----
+   健壮性：透明错误瓦片防灰格 + 8s 悬挂看门狗（源不可达 → 移除并 toast 反馈） */
+var TRANSPARENT_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+function makeOverlayTile(url, subdomains, label, cfgKey, syncBtn) {
+  /* url 可为字符串（单层）或数组 [{u, s?}]（多层成组，如 地形晕渲+注记）；看门狗监控首层 */
+  var defs = Array.isArray(url) ? url : [{ u: url, s: subdomains || [] }]
+  var group = L.layerGroup()
+  var monitor = null
+  defs.forEach(function (d) {
+    var tl = L.tileLayer(d.u, { attribution: '', maxZoom: 18, errorTileUrl: TRANSPARENT_PNG, subdomains: d.s || subdomains || [], pane: 'ovTilePane', opacity: d.o != null ? d.o : 1 })
+    tl.addTo(group)
+    if (!monitor) monitor = tl
+  })
+  var layer = group
+  var watchdog = null, errTimer = null, loaded = false
+  /* 真实瓦片成功（errorTileUrl 占位的“load”不算成功） */
+  monitor.on('tileload', function (e) {
+    if (e.tile && String(e.tile.src).indexOf(TRANSPARENT_PNG) === 0) return
+    loaded = true; clearTimeout(watchdog); clearTimeout(errTimer)
+  })
+  /* 有错误且 2.5s 无真实成功 → 源不可达（快失败路径：连接拒绝/418） */
+  monitor.on('tileerror', function () {
+    if (loaded) return
+    clearTimeout(errTimer)
+    errTimer = setTimeout(fail, 2500)
+  })
+  function fail() {
+    clearTimeout(watchdog); clearTimeout(errTimer)
+    if (placeMap && placeMap.hasLayer(layer)) {
+      placeMap.removeLayer(layer)
+      if (appConfig) { appConfig[cfgKey] = false; if (typeof saveConfig === 'function') saveConfig() }
+      if (typeof syncBtn === 'function') syncBtn()
+      if (typeof toast === 'function') toast(label + ' 源不可达，已恢复原底图')
+    }
+  }
+  function add() {
+    if (!placeMap || placeMap.hasLayer(layer)) return
+    loaded = false
+    layer.addTo(placeMap)
+    clearTimeout(watchdog); clearTimeout(errTimer)
+    watchdog = setTimeout(fail, 8000)   // 悬挂兜底：无成功也无错误（如超时挂起）
+  }
+  function remove() { clearTimeout(watchdog); clearTimeout(errTimer); if (placeMap && placeMap.hasLayer(layer)) placeMap.removeLayer(layer) }
+  return { layer: layer, add: add, remove: remove }
+}
+/* ---- 底图切换（高德 / 天地图矢量·影像）与坐标系匹配 ----
+   高德瓦片 GCJ02、天地图 CGCS2000≈WGS84、OpenTopoMap WGS84。mapBaseLL 按当前底图返回显示坐标，
+   保证路线/点位在任意底图上都不偏。天地图底图需 key。 */
+function tdtTileUrl(layerName) {
+  return 'https://t{s}.tianditu.gov.cn/' + layerName + '_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=' + layerName + '&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=' + encodeURIComponent(tdtKey())
+}
+var baseMapGroup = null
+function setBaseMap(id) {
+  if (!placeMap || typeof L === 'undefined') return
+  if ((id === 'tdt_vec' || id === 'tdt_img') && !tdtKey()) id = 'amap'   // 天地图底图无 key → 回退高德
+  if (baseMapGroup) { placeMap.removeLayer(baseMapGroup); baseMapGroup = null }
+  appConfig.baseMap = id
+  if (typeof saveConfig === 'function') saveConfig()
+  baseMapGroup = L.layerGroup()
+  var defs = []
+  if (id === 'tdt_vec') defs = [{ u: tdtTileUrl('vec'), a: '© 天地图' }, { u: tdtTileUrl('cva'), a: '' }]
+  else if (id === 'tdt_img') defs = [{ u: tdtTileUrl('img'), a: '© 天地图' }, { u: tdtTileUrl('cia'), a: '' }]
+  else defs = [{ u: 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', s: ['1', '2', '3', '4'], a: '© 高德' }]
+  defs.forEach(function (d) {
+    L.tileLayer(d.u, { subdomains: d.s || ['0', '1', '2', '3', '4', '5', '6', '7'], attribution: d.a || '', maxZoom: 18 }).addTo(baseMapGroup)
+  })
+  placeMap.addLayer(baseMapGroup)
+  // 坐标系随底图变化：已有路线/风险图层用新坐标系重绘（保点位不偏移）
+  if (typeof renderRouteDisplay === 'function' && route && route.length > 1) renderRouteDisplay()
+  if (typeof syncBaseMapSel === 'function') syncBaseMapSel()
+}
+function syncBaseMapSel() {
+  var s = $('baseMapSel')
+  if (s) s.value = (appConfig && appConfig.baseMap) || 'amap'   // 兼容旧引用
+  var b = (appConfig && appConfig.baseMap) || 'amap'
+  var seg = document.querySelectorAll('#moBase button')
+  for (var i = 0; i < seg.length; i++) seg[i].classList.toggle('on', seg[i].dataset.b === b)
+}
+/* 「🗺 地图选项」面板：展开/收起 + 面板外点击关闭 */
+function toggleMapOpts() {
+  var p = $('mapOptPop')
+  if (!p) return
+  var show = p.style.display === 'none' || !p.style.display
+  p.style.display = show ? 'block' : 'none'
+  var b = $('mapOptBtn')
+  if (b) b.classList.toggle('on', show)
+  if (show) syncBaseMapSel()
+}
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('click', function (e) {
+    var p = $('mapOptPop')
+    if (!p || p.style.display === 'none') return
+    var hit = (e.target && e.target.closest) ? e.target.closest('.map-opt, #mapOptBtn') : null
+    if (!hit) { p.style.display = 'none'; var b = $('mapOptBtn'); if (b) b.classList.remove('on') }
+  })
+}
+/* 显示坐标：高德底图 → GCJ02，天地图底图 → WGS84 原样 */
+function mapBaseLL(wgs) {
+  return (appConfig && appConfig.baseMap === 'amap') ? wgs84ToGcj02(wgs.lat, wgs.lng) : { lat: wgs.lat, lng: wgs.lng }
+}
+/* 反解：显示坐标 → 数据坐标（WGS84）。高德底图 → GCJ02 逆转换，天地图底图 → 原样 */
+function mapDataLL(disp) {
+  return (appConfig && appConfig.baseMap === 'amap') ? gcj02ToWgs84(disp.lat, disp.lng) : { lat: disp.lat, lng: disp.lng }
+}
+var topoOv = null, satOv = null, tdtOv = null
+function topoLayerInit() { if (!topoOv) topoOv = makeOverlayTile('https://tile.opentopomap.org/{z}/{x}/{y}.png', [], '等高线', 'topo', syncTopoBtn) }
+function satLayerInit() { if (!satOv) satOv = makeOverlayTile('https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}', ['1', '2', '3', '4'], '卫星', 'satellite', syncSatBtn) }
+var TDT_SUBS = ['0', '1', '2', '3', '4', '5', '6', '7']
+function tdtLayerInit() {
+  if (tdtOv) return
+  var key = (appConfig && appConfig.tiandituKey) || ''
+  if (!key) return
+  tdtOv = makeOverlayTile([
+    { u: tdtTileUrl('ter'), s: TDT_SUBS, o: 0.7 },   // 地形晕渲（半透明，露出底图标注）
+    { u: tdtTileUrl('cta'), s: TDT_SUBS }            // 地形注记（天地图数据稀疏，best-effort）
+  ], TDT_SUBS, '地形', 'tdt', syncTdtBtn)
+}
+/* 全球境界（国界/省界线，需天地图 key；独立于地形/卫星/等高线可叠加） */
+var iboOv = null
+function iboLayerInit() { if (!iboOv) iboOv = makeOverlayTile(tdtTileUrl('ibo'), TDT_SUBS, '境界', 'ibo', syncIboBtn) }
+function toggleIbo() {
+  if (!placeInited) initPlaceMap()
+  if (!placeMap) return
+  var on = !(appConfig && appConfig.ibo)
+  if (on) {
+    if (!(appConfig && appConfig.tiandituKey)) { if (typeof toast === 'function') toast('请先在 ⚙ 配置 填写天地图 Key'); return }
+    iboLayerInit()
+    if (!iboOv) return
+    iboOv.add(); appConfig.ibo = true
+  } else { if (iboOv) iboOv.remove(); appConfig.ibo = false }
+  if (typeof saveConfig === 'function') saveConfig()
+  syncIboBtn()
+}
+function syncIboBtn() { var b = $('iboBtn'); if (b) b.classList.toggle('on', !!(appConfig && appConfig.ibo)) }
+
+/* ---- 点位海拔标注（app 自带高程：选点/路线点标海拔，不依赖天地图稀疏注记） ---- */
+var elevLayerGroup = null
+function clearElevMarkers() { if (elevLayerGroup) { elevLayerGroup.clearLayers(); elevLayerGroup = null } }
+function renderElevMarkers() {
+  clearElevMarkers()
+  if (!placeMap || typeof L === 'undefined') return
+  if (!(appConfig && appConfig.elevMarkers)) return
+  elevLayerGroup = L.layerGroup().addTo(placeMap)
+  function addBadge(wgs, ele, label) {
+    if (!wgs || wgs.lat == null) return
+    var g = mapBaseLL(wgs)
+    var txt = label || (ele != null && ele > 0 ? '⛰ ' + Math.round(ele).toLocaleString() + 'm' : '⛰ —')
+    L.marker([g.lat, g.lng], { icon: L.divIcon({ html: '<div class="elev-badge">' + txt + '</div>', className: '', iconSize: [0, 0] }), interactive: false }).addTo(elevLayerGroup)
+  }
+  if (selLoc && selLoc.lat != null) {
+    if (selLoc.ele > 0) addBadge(selLoc, selLoc.ele)
+    else if (typeof fetchElevation === 'function') {
+      addBadge(selLoc, null, '⛰ …')
+      fetchElevation(selLoc.lat, selLoc.lng).then(function (e) { if (e) { selLoc.ele = e; if (appConfig.elevMarkers) renderElevMarkers() } })
+    } else addBadge(selLoc, null)
+  }
+  if (splitPoints && splitPoints.length) splitPoints.forEach(function (p) { if (p.ele > 0) addBadge(p, p.ele) })
+}
+function toggleElev() {
+  if (!placeInited) initPlaceMap()
+  appConfig.elevMarkers = !(appConfig && appConfig.elevMarkers)
+  if (typeof saveConfig === 'function') saveConfig()
+  renderElevMarkers()
+  syncElevBtn()
+}
+function syncElevBtn() { var b = $('elevBtn'); if (b) b.classList.toggle('on', !!(appConfig && appConfig.elevMarkers)) }
+/* 天地图 key 变更后重建叠层（旧 URL 带旧 key 失效） */
+function tdtRebuild() {
+  if (tdtOv) { tdtOv.remove(); tdtOv = null }
+  if (appConfig && appConfig.tdt) {
+    tdtLayerInit()
+    if (tdtOv) tdtOv.add(); else { appConfig.tdt = false; if (typeof saveConfig === 'function') saveConfig() }
+  }
+  if (typeof syncTdtBtn === 'function') syncTdtBtn()
+}
+function toggleTopo() {
+  if (!placeInited) initPlaceMap()
+  if (!placeMap) return
+  topoLayerInit()
+  var on = !(appConfig && appConfig.topo)
+  if (on) {
+    if (typeof setBaseMap === 'function' && appConfig.baseMap !== 'tdt_vec') setBaseMap('tdt_vec')   // OpenTopoMap=WGS84 → 天地图底图对齐
+    if (satOv) satOv.remove(); appConfig.satellite = false
+    if (tdtOv) tdtOv.remove(); appConfig.tdt = false
+    topoOv.add(); appConfig.topo = true
+  } else { topoOv.remove(); appConfig.topo = false }
+  if (typeof saveConfig === 'function') saveConfig()
+  syncTopoBtn(); syncSatBtn(); syncTdtBtn()
+}
+function toggleSat() {
+  if (!placeInited) initPlaceMap()
+  if (!placeMap) return
+  satLayerInit()
+  var on = !(appConfig && appConfig.satellite)
+  if (on) {
+    if (typeof setBaseMap === 'function' && appConfig.baseMap !== 'amap') setBaseMap('amap')   // 高德卫星=GCJ02 → 高德底图对齐
+    if (topoOv) topoOv.remove(); appConfig.topo = false
+    if (tdtOv) tdtOv.remove(); appConfig.tdt = false
+    satOv.add(); appConfig.satellite = true
+  } else { satOv.remove(); appConfig.satellite = false }
+  if (typeof saveConfig === 'function') saveConfig()
+  syncTopoBtn(); syncSatBtn(); syncTdtBtn()
+}
+function toggleTdt() {
+  if (!placeInited) initPlaceMap()
+  if (!placeMap) return
+  var on = !(appConfig && appConfig.tdt)
+  if (on) {
+    if (!(appConfig && appConfig.tiandituKey)) { if (typeof toast === 'function') toast('请先在 ⚙ 配置 填写天地图地形 Key'); return }
+    tdtLayerInit()
+    if (!tdtOv) return
+    if (typeof setBaseMap === 'function' && appConfig.baseMap !== 'tdt_vec') setBaseMap('tdt_vec')   // 天地图地形=WGS84 → 天地图底图对齐
+    if (topoOv) topoOv.remove(); appConfig.topo = false
+    if (satOv) satOv.remove(); appConfig.satellite = false
+    tdtOv.add(); appConfig.tdt = true
+    // 默认 z12：让海拔/垭口标注可见（cta 注记在缩放≥11 的山区才有内容）
+    if (placeMap.getZoom && placeMap.getZoom() < 11) placeMap.setZoom(12)
+  } else { if (tdtOv) tdtOv.remove(); appConfig.tdt = false }
+  if (typeof saveConfig === 'function') saveConfig()
+  syncTopoBtn(); syncSatBtn(); syncTdtBtn()
+}
+function syncTopoBtn() { var b = $('topoBtn'); if (b) b.classList.toggle('on', !!(appConfig && appConfig.topo)) }
+function syncSatBtn() { var b = $('satBtn'); if (b) b.classList.toggle('on', !!(appConfig && appConfig.satellite)) }
+function syncTdtBtn() { var b = $('tdtBtn'); if (b) b.classList.toggle('on', !!(appConfig && appConfig.tdt)) }
 
 /* 点地图/拖针即用：逆地理 → 直接确认当前位置（无“使用此位置”二次确认） */
 function useLocationDirect(wgs) {
@@ -1710,20 +2111,21 @@ function clearMapPin() { if (placeMap && placeMarker) { placeMarker.remove(); pl
 function placePin(wgs) {
   if (!placeMap) return
   if (typeof clearRouteLayers === 'function') clearRouteLayers()   // 选点模式：清掉只读路线图层
-  var g = wgs84ToGcj02(wgs.lat, wgs.lng)
+  var g = mapBaseLL(wgs)
   if (placeMarker) placeMarker.remove()
   placeMarker = L.marker([g.lat, g.lng], {
     draggable: true,
     icon: L.divIcon({ html: '<div class="mk" style="width:18px;height:18px"></div>', className: '', iconSize: [18, 18], iconAnchor: [9, 9] })
   })
-  placeMarker.on('drag', function () { var ll = placeMarker.getLatLng(); var w2 = gcj02ToWgs84(ll.lat, ll.lng); $('pickCoord').textContent = w2.lat.toFixed(4) + '°N, ' + w2.lng.toFixed(4) + '°E' })
-  placeMarker.on('dragend', function () { var ll = placeMarker.getLatLng(); useLocationDirect(gcj02ToWgs84(ll.lat, ll.lng)) })
+  placeMarker.on('drag', function () { var ll = placeMarker.getLatLng(); var w2 = mapDataLL(ll); $('pickCoord').textContent = w2.lat.toFixed(4) + '°N, ' + w2.lng.toFixed(4) + '°E' })
+  placeMarker.on('dragend', function () { var ll = placeMarker.getLatLng(); useLocationDirect(mapDataLL(ll)) })
   placeMarker.addTo(placeMap)
   $('pickCoord').textContent = wgs.lat.toFixed(4) + '°N, ' + wgs.lng.toFixed(4) + '°E'
+  if (typeof renderElevMarkers === 'function') renderElevMarkers()
 }
 function syncPlaceMap(lat, lng) {
   if (!placeMap) return
-  var g = wgs84ToGcj02(lat, lng)
+  var g = mapBaseLL({ lat: lat, lng: lng })
   placeMap.setView([g.lat, g.lng], mapZoomForKm(5))   // 默认视野 5km
   placePin({ lat: lat, lng: lng })
 }
@@ -1758,7 +2160,7 @@ function mapSetViewKm(km) {
     lat = (minLat + maxLat) / 2; lon = (minLon + maxLon) / 2
   } else { toast('请先选择地点或导入路线'); return }
   var zoom = mapZoomForKm(km)
-  var g = wgs84ToGcj02(lat, lon)
+  var g = mapBaseLL({ lat: lat, lng: lon })
   placeMap.setView([g.lat, g.lng], zoom)
   toast('视野约 ' + km + 'km（zoom ' + zoom + '）')
 }
@@ -1778,14 +2180,18 @@ function locateMe() {
 
 /* ---- 逆地理：BigDataCloud 免 key + 坐标字符串兜底（不阻断流程；found=false 表示未匹配到地名）---- */
 function reverseGeocode(lat, lng) {
-  return fetch(BDC_REVERSE + '?latitude=' + lat + '&longitude=' + lng + '&localityLanguage=zh-Hans', { signal: AbortSignal.timeout(6000) })
-    .then(function (r) { if (!r.ok) throw 0; return r.json() })
-    .then(function (d) {
-      var nm = d.locality || d.city || d.principalSubdivision || ''
-      if (nm) return { name: nm, admin1: d.principalSubdivision || d.countryName || '', city: d.city || '', found: true }
-      throw 0
-    })
-    .catch(function () { return { name: lat.toFixed(4) + ', ' + lng.toFixed(4), admin1: '', city: '', found: false } })
+  var tdt = tdtKey() ? tdtReverse(lat, lng) : Promise.resolve(null)   // 天地图（国内）优先
+  return tdt.then(function (tm) {
+    if (tm && tm.name && tm.name !== (lat.toFixed(4) + ', ' + lng.toFixed(4))) return { name: tm.name, admin1: tm.admin1 || '', city: tm.city || '', found: !!tm.found }
+    return fetch(BDC_REVERSE + '?latitude=' + lat + '&longitude=' + lng + '&localityLanguage=zh-Hans', { signal: AbortSignal.timeout(6000) })
+      .then(function (r) { if (!r.ok) throw 0; return r.json() })
+      .then(function (d) {
+        var nm = d.locality || d.city || d.principalSubdivision || ''
+        if (nm) return { name: nm, admin1: d.principalSubdivision || d.countryName || '', city: d.city || '', found: true }
+        throw 0
+      })
+      .catch(function () { return { name: lat.toFixed(4) + ', ' + lng.toFixed(4), admin1: '', city: '', found: false } })
+  })
 }
 
 /* ---- 海拔兜底：Open-Meteo 高程接口（免 key、CORS 开放），选点来源缺海拔时补齐 ---- */
@@ -2621,15 +3027,16 @@ function dateDiffDays(a, b) {
 /* ---- C5 天黑返程：出发时刻 + 耗时 → 返程 vs 日落 三态 ---- */
 function timeToMin(hm) { if (hm == null) return null; var m = /(\d{1,2}):(\d{2})/.exec(String(hm)); return m ? (+m[1]) * 60 + (+m[2]) : null }   // 兼容 'HH:MM' 与 'YYYY-MM-DDTHH:MM'
 function fmtMin(min) { if (min == null || isNaN(min)) return null; var h = ((Math.floor(min / 60)) % 24 + 24) % 24, m = ((min % 60) + 60) % 60; return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m }
-/* 纯函数：返程=出发+耗时，对比日落 → {state: red|amber|green, returnTime, sunset}；缺输入 → green（无警告） */
+function fmtMargin(min) { if (min == null || isNaN(min)) return null; var m = Math.round(min), h = Math.floor(m / 60), mm = m % 60; return h > 0 ? h + 'h' + (mm < 10 ? '0' : '') + mm + 'm' : mm + 'm' }
+/* 纯函数：返程=出发+耗时，对比日落 → {state: red|amber|green, returnTime, sunset, marginMin}；缺输入 → green（无警告） */
 function returnDarkCheck(departureTime, hours, sunset, marginH) {
   marginH = marginH == null ? 1 : marginH
   var dep = timeToMin(departureTime), set = timeToMin(sunset)
-  if (dep == null || set == null || hours == null || isNaN(hours)) return { state: 'green', returnTime: null, sunset: sunset }
+  if (dep == null || set == null || hours == null || isNaN(hours)) return { state: 'green', returnTime: null, sunset: sunset, marginMin: null }
   var ret = dep + Math.round(hours * 60)
-  if (ret >= set) return { state: 'red', returnTime: fmtMin(ret), sunset: fmtMin(set) }
-  if (set - ret < marginH * 60) return { state: 'amber', returnTime: fmtMin(ret), sunset: fmtMin(set) }
-  return { state: 'green', returnTime: fmtMin(ret), sunset: fmtMin(set) }
+  if (ret >= set) return { state: 'red', returnTime: fmtMin(ret), sunset: fmtMin(set), marginMin: ret - set }
+  if (set - ret < marginH * 60) return { state: 'amber', returnTime: fmtMin(ret), sunset: fmtMin(set), marginMin: set - ret }
+  return { state: 'green', returnTime: fmtMin(ret), sunset: fmtMin(set), marginMin: set - ret }
 }
 /* 参考日：单日=当天、多日=末日（回程那天）；出发时刻缺省用参考日日出 */
 function returnDarkRef() {
@@ -2827,7 +3234,12 @@ var WX_TEMPLATE = [
   { id: 'aqi', label: 'AQI/PM2.5', icon: '🌫', unit: '' },
   { id: 'pollen', label: '花粉', icon: '🌸', unit: '' },
   { id: 'wave', label: '波高/海表温', icon: '🌊', unit: '' },
-  { id: 'river', label: '河流流量', icon: '💦', unit: '' }
+  { id: 'river', label: '河流流量', icon: '💦', unit: '' },
+  { id: 'moon', label: '月相', icon: '🌙', unit: '' },
+  { id: 'daylight', label: '白昼时长', icon: '🕐', unit: '' },
+  { id: 'golden_hour', label: '黄金时段', icon: '📸', unit: '' },
+  { id: 'wbgt', label: '热应激WBGT', icon: '🥵', unit: '°C' },
+  { id: 'freeze', label: '结冰涉水', icon: '🧊', unit: '' }
 ]
 var ALT_ZONES = [['低', '低海拔'], ['中', '中海拔'], ['高', '高海拔'], ['超高', '超高海拔'], ['极高', '极高海拔（专业）']]
 function altZoneLevel(ele) { if (ele == null) ele = 0; if (ele < 1500) return 0; if (ele < 2500) return 1; if (ele < 3500) return 2; if (ele < 5500) return 3; return 4 }
@@ -2874,7 +3286,7 @@ function resolveItem(id, d) {
     case 'uvi': { var u = d.uvi; var uv = u != null ? Math.round(u) + (u >= 8 ? ' 很强' : u >= 6 ? ' 强' : u >= 3 ? ' 中等' : ' 弱') : '—'; return { value: uv, tone: (u || 0) >= 7 ? 'warn' : '' } }
     case 'dewpoint': { var dp = d.dewPoint; return { value: dp != null ? Math.round(dp) + '°' : '—', tone: dp >= 18 ? 'warn' : (dp < 0 ? 'cold' : '') } }
     case 'sun_rise_set': { var _r = d.sunrise, _s = d.sunset; if ((!_r || !_s) && d.lat != null && (d.lon != null || d.lng != null)) { var _sn = sunTimesLocal(d.lat, d.lon != null ? d.lon : d.lng, d.date); _r = _r || (_sn && _sn.sunrise); _s = _s || (_sn && _sn.sunset) } return { value: fmtTime(_r) + '/' + fmtTime(_s), tone: '' } }
-    case 'stars': { if (d.cloudCover == null && d.precipProb == null) return { value: '—', tone: '' }; var s = calcStar(d.cloudCover, d.precipProb); return { value: s.stars, tone: s.tone } }
+    case 'stars': { if (d.cloudCover == null && d.precipProb == null) return { value: '—', tone: '' }; var _mp0 = moonPhase(d.date); var s = calcStar(d.cloudCover, d.precipProb, _mp0 ? _mp0.bright : null); return { value: s.stars, tone: s.tone } }
     case 'trend': { if (!weather || !weather.days[d.dayIndex + 1]) return no; var nx = weather.days[d.dayIndex + 1]; if (d.tempMax == null || nx.tempMax == null) return no; var diff = nx.tempMax - d.tempMax; if (diff > 1) return { value: '↑转好', tone: 'good' }; if (diff < -1) return { value: '↓转差', tone: 'warn' }; return { value: '→平稳', tone: '' } }
     case 'cloud_sea': { var cs = calcCloudSea(d.humidity, d.cloudCover, d.ele); return { value: cs.level, tone: cs.tone } }
     case 'hail': return { value: d.hail ? '较高' : (d.thunder ? '低' : '无'), tone: d.hail ? 'warn' : (d.thunder ? '' : 'good') }
@@ -2895,6 +3307,12 @@ function resolveItem(id, d) {
       var _over = d.riverDischarge > _rt
       return { value: fmtNum(d.riverDischarge) + ' m³/s' + (_over ? ' · 注意涉水' : ''), tone: _over ? 'warn' : '' }
     }
+    /* 派生指标（纯计算，不写入 weather.days）：月相 / 白昼 / 黄金时段 / WBGT / 结冰涉水 */
+    case 'moon': { var _mp = moonPhase(d.date); return _mp ? { value: '🌙 ' + _mp.name + ' · ' + _mp.bright + '%', tone: _mp.bright <= 20 ? 'good' : '' } : no }
+    case 'daylight': { var _dl = daylightHours(d); return _dl ? { value: _dl.text, tone: '' } : no }
+    case 'golden_hour': { var _gt = goldenBlueText(d); return _gt ? { value: _gt, tone: '' } : no }
+    case 'wbgt': { var _wb = wbgtIndex(d); return _wb ? { value: _wb.value + ' · ' + _wb.level, tone: _wb.tone } : no }
+    case 'freeze': { var _ff = freezeFordFlags(d); return _ff.length ? { value: _ff.map(function (f) { return (f.key === 'freeze' ? '🧊' : '💧') + ' ' + f.label }).join(' · '), tone: _ff.some(function (f) { return f.tone === 'warn' }) ? 'warn' : 'cold' } : no }
     default: return no
   }
 }
@@ -3032,13 +3450,14 @@ function renderDailyLoc() {
   })
 }
 
-/* C5 天黑返程胶囊：红/黄 → 展示；绿 → 空（不警告） */
+/* C5 天黑返程胶囊：有到达时刻与日落即展示（含余量）；绿/黄/红三态 tone；无日落或耗时不显示 */
 function timeSafetyDisplay() {
   if (!weather || !weather.days || !weather.days.length) return ''
   var rd = returnDarkRef()
-  if (!rd || rd.state === 'green' || !rd.returnTime) return ''
-  var cls = rd.state === 'red' ? 'red' : 'orange'
-  return '<div style="margin-top:8px"><span class="risk ' + cls + '" style="margin-right:6px">返程 ' + esc(rd.returnTime) + ' · 日落 ' + esc(rd.sunset || '—') + (rd.state === 'red' ? ' · 天黑未归' : ' · 接近日落') + '</span></div>'
+  if (!rd || !rd.returnTime || !rd.sunset) return ''
+  var cls = rd.state === 'red' ? 'red' : rd.state === 'amber' ? 'orange' : 'green'
+  var tail = rd.state === 'red' ? ' · 天黑未归' : ' · 余 ' + fmtMargin(rd.marginMin)
+  return '<div style="margin-top:8px"><span class="risk ' + cls + '" style="margin-right:6px">预计 ' + esc(rd.returnTime) + ' 到达 · 日落 ' + esc(rd.sunset) + tail + '</span></div>'
 }
 /* C5 UV 累计暴露：≥阈值 展示；正午高温叠加遮荫提示 */
 function uvDisplay() {
@@ -4160,7 +4579,8 @@ var CARD_WX = [
   ['feels_day', '体感'], ['precip', '降水'], ['wind', '风'], ['snowline', '雪线'],
   ['uvi', 'UV'], ['humidity', '湿度'], ['visibility', '能见度'], ['cloud', '云量'],
   ['sun_rise_set', '日出/日落'], ['wind_dir', '风向'], ['dewpoint', '露点'], ['thunder', '雷暴'],
-  ['aqi', '空气质量'], ['stars', '星空'], ['precip_intensity', '降水强度'], ['windchill', '风寒']
+  ['aqi', '空气质量'], ['stars', '星空'], ['precip_intensity', '降水强度'], ['windchill', '风寒'],
+  ['moon', '月相']
 ]
 var WX_MAX = 8
 var card = { wx: ['feels_day', 'precip', 'wind', 'uvi', 'humidity', 'visibility', 'cloud', 'windchill'], gearFilter: [], scene: 'mountain', bg: '', type: 'gear' }
@@ -4196,7 +4616,8 @@ function resolveCardWx(id) {
     case 'dewpoint': { var dp = mx('dewPoint'); return dp != null ? v(Math.round(dp) + '°') : null }
     case 'thunder': return v(days.some(function (d) { return d.thunder }) ? '关注' : '无')
     case 'aqi': return v('—')
-    case 'stars': { var st = days.map(function (d) { return (d.cloudCover != null || d.precipProb != null) ? calcStar(d.cloudCover, d.precipProb).stars : null }).filter(function (x) { return x != null }); var worst = st.length ? Math.min.apply(null, st) : null; return v(worst != null ? worst : '—') }
+    case 'stars': { var st = days.map(function (d) { if (d.cloudCover == null && d.precipProb == null) return null; var _mb = moonPhase(d.date); return calcStar(d.cloudCover, d.precipProb, _mb ? _mb.bright : null).stars }).filter(function (x) { return x != null }); var worst = st.length ? Math.min.apply(null, st) : null; return v(worst != null ? worst : '—') }
+    case 'moon': { var _mpm = moonPhase(d0.date); return _mpm ? v(_mpm.name + ' ' + _mpm.bright + '%') : null }
     case 'precip_intensity': { var s = mx('precipSum') || 0; return v(s <= 0 ? '无' : s < 10 ? '小雨' : s < 25 ? '中雨' : '大雨') }
     case 'windchill': { var wc = mn('windchill'); return wc != null ? v(Math.round(wc) + '°') : null }
   }
@@ -4394,7 +4815,7 @@ function renderDepartureCard() {
     var rd = returnDarkRef()
     if (rd && rd.state !== 'green' && rd.returnTime) {
       var cls = rd.state === 'red' ? 'red' : 'orange'
-      timeHtml = '<div class="ov-sec"><div class="ov-lab">时间安全</div><span class="risk ' + cls + '">返程 ' + esc(rd.returnTime) + ' · 日落 ' + esc(rd.sunset || '—') + (rd.state === 'red' ? ' · 天黑未归' : ' · 接近日落') + '</span></div>'
+      timeHtml = '<div class="ov-sec"><div class="ov-lab">时间安全</div><span class="risk ' + cls + '">预计 ' + esc(rd.returnTime) + ' 到达 · 日落 ' + esc(rd.sunset || '—') + (rd.state === 'red' ? ' · 天黑未归' : ' · 余 ' + fmtMargin(rd.marginMin)) + '</span></div>'
     }
   }
   // 预警（快照只记录不占位）
@@ -4467,6 +4888,20 @@ function renderCardWeather() {
   }).join('')
 }
 
+/* 分享卡「风险路段」元素：沿路线风险段列表（无风险 / 未勾选 → 不渲染，不影响其余卡片） */
+function renderCardRiskSeg() {
+  var box = $('cardRiskSeg')
+  if (!box) return
+  var el = $('elRiskSeg')
+  var segs = (typeof routeRiskSegments === 'function') ? routeRiskSegments() : []
+  var on = el && el.checked && segs.length > 0
+  box.style.display = on ? 'block' : 'none'
+  if (!on) { box.innerHTML = ''; return }
+  box.innerHTML = '<div class="card-riskseg-h">风险路段</div>' + segs.map(function (s) {
+    return '<div class="rs-row"><b>段' + s.idx + '</b>' + s.tags.map(function (t) { return '<span class="rs-tag" style="background:' + t.color + '">' + esc(t.label) + '</span>' }).join('') + '</div>'
+  }).join('')
+}
+
 /* ---- 卡片渲染 ---- */
 function renderCardWx() {
   var box = $('wxSel')
@@ -4529,6 +4964,7 @@ function updateCardEl() {
   })
   renderCardRoute()
   updateCardQr()
+  if (typeof renderCardRiskSeg === 'function') renderCardRiskSeg()
 }
 /* 决策合成/分享：QR 码元素（勾选则生成紧凑种子 QR；超容量/库缺失提示） */
 function updateCardQr() {
@@ -4568,6 +5004,7 @@ function updateCardMeta() {
 }
 function renderCard() {
   renderCardWx(); renderGearSel(); updateCardGear(); updateCardEl(); updateCardMeta()
+  if (typeof renderCardRiskSeg === 'function') renderCardRiskSeg()
   updateCardType()
   setScene(card.scene)
   // 路线元素：仅路线行程显示复选框；非路线强制隐藏
@@ -4765,6 +5202,13 @@ function buildCardData() {
     })
   }
   var routeShow = route && route.length > 1 && $('elRoute') && $('elRoute').checked
+  // 风险路段（勾选且存在风险才导出；无风险 → null 不渲染）
+  var riskSeg = null
+  var elRS = $('elRiskSeg')
+  if (elRS && elRS.checked && typeof routeRiskSegments === 'function') {
+    var _rss = routeRiskSegments()
+    if (_rss && _rss.length) riskSeg = _rss.map(function (s) { return { idx: s.idx, labels: s.tags.map(function (t) { return t.label }), colors: s.tags.map(function (t) { return t.color }) } })
+  }
   // 决策合成：难度元素（导出/预览一致；未勾选为空串）
   var diffTxt = ''
   var elDiffSec = $('elDiff')
@@ -4781,6 +5225,7 @@ function buildCardData() {
     difficulty: diffTxt,
     qr: qrData,
     type: card.type, risks: risks, forecast: forecast,
+    riskSeg: riskSeg,
     scene: { name: card.scene, grad: tm[card.scene].grad },
     precip: precip, bg: card.bg,
     route: routeShow ? routeSvg(route) : '',
@@ -4810,6 +5255,7 @@ function renderShareHtml(data, seed, snapshot, ts) {
     '<div class="card-head"><div class="card-head-l"><div class="card-brand" id="brand"></div><div class="card-title" id="title"></div></div><div class="card-route" id="route" style="display:none"></div></div>' +
     '<div class="card-meta" id="meta"></div><div class="card-difficulty" id="diff" style="display:none"></div><div class="card-qr" id="cardqr" style="display:none"></div><div class="card-div"></div>' +
     '<div class="card-risks" id="risks" style="display:none"></div>' +
+    '<div class="card-riskseg" id="riskseg" style="display:none"></div>' +
     '<div class="card-wx" id="wx"></div><div class="card-forecast" id="fc" style="display:none"></div><div class="card-gear" id="gear"></div></div></div>' +
     '<script>var D=' + JSON.stringify(data).replace(/</g, '\\u003c') + ';' + seedBlock + snapBlock + tsBlock +
     "function e(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;')};" +
@@ -4819,6 +5265,7 @@ function renderShareHtml(data, seed, snapshot, ts) {
     "if(D.qr){var cq=document.getElementById('cardqr');cq.innerHTML='<img src=\"'+D.qr+'\" style=\"width:64px;height:64px;border-radius:6px\">';cq.style.display=''}" +
     "if(D.route){document.getElementById('route').innerHTML=D.route;document.getElementById('route').style.display='';}" +
     "document.getElementById('wx').innerHTML=D.wx.map(function(w){return '<div class=\\\"wi\\\"><b>'+e(w.v)+'</b><i>'+e(w.l)+'</i></div>'}).join('');" +
+    "if(D.riskSeg&&D.riskSeg.length){var rsg=document.getElementById('riskseg');rsg.style.display='';rsg.innerHTML='<div style=\\\"font-size:10px;letter-spacing:.06em;color:rgba(255,255,255,.55);margin-bottom:6px\\\">风险路段</div>'+D.riskSeg.map(function(s){return '<div style=\\\"display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 0;border-bottom:1px dotted rgba(255,255,255,.25)\\\"><b>段'+s.idx+'</b>'+s.labels.map(function(l,i){return '<span style=\\\"color:#fff;border-radius:999px;padding:2px 8px;font-size:11px;background:'+s.colors[i]+'\\\">'+e(l)+'</span>'}).join('')+'</div>'}).join('')}" +
     "if(D.type==='gear'){var gb=document.getElementById('gear');" +
     "gb.innerHTML=D.gear.map(function(x){return '<div class=\\\"cgh\\\">'+e(x.g)+'</div><div class=\\\"cg-grid\\\">'+x.items.map(function(n){return '<div class=\\\"gi ckrow\\\"><span>'+e(n)+'</span><span class=\\\"tk\\\">✓</span></div>'}).join('')+'</div>'}).join('');" +
     "var total=D.gearTotal||0,rk=D.routeKey||'';" +
@@ -6279,10 +6726,12 @@ function goNoGo() {
   var conf = (weather && weather.confidence) || 'high'
   items.push({ key: 'conf', state: conf === 'high' ? 'green' : 'orange', label: '预报可信度', note: conf === 'high' ? '高' : conf === 'low' ? '低' : '中' })
 
-  // 返程天黑（red → 阻塞；amber → 警告）
+  // 返程天黑（red → 阻塞；amber → 警告）；有到达时刻时显式展示（ETA 显式化）
   var rd = (typeof returnDarkRef === 'function') ? returnDarkRef() : { state: 'green' }
   var rs = (rd && rd.state) || 'green'
-  items.push({ key: 'dark', state: rs === 'red' ? 'red' : (rs === 'amber' ? 'orange' : 'green'), label: '返程天黑', note: rs === 'red' ? '天黑未归' : rs === 'amber' ? '接近日落' : '日落前返回' })
+  var darkNote = rs === 'red' ? '天黑未归' : rs === 'amber' ? '接近日落' : '日落前返回'
+  if (rd && rd.returnTime) darkNote = '预计 ' + rd.returnTime + ' 到达' + (rd.sunset ? ' · 日落 ' + rd.sunset : '') + ' · ' + darkNote
+  items.push({ key: 'dark', state: rs === 'red' ? 'red' : (rs === 'amber' ? 'orange' : 'green'), label: '返程天黑', note: darkNote })
 
   // 装备完成度（缺底线项 → 警告级；只提示不阻塞）
   var baseIds = (typeof effectiveCatalog === 'function') ? effectiveCatalog().filter(function (it) { return it.p }).map(function (it) { return it.id }) : []
@@ -6662,6 +7111,44 @@ function corrShowSegment(list, idx) {
   renderHourlyCurves(cv, [{ hourly: seg.hourly || [], sunrise: d.sunrise, sunset: d.sunset }], 0)
 }
 
+/* 路线风险段（纯函数，零网络请求）：复用走廊等分采样点 → 逐点映射到所在天 → 三条件判断 → 合并相邻同风险为段。
+   返回 [{ idx, tags:[{key,label,color}], from:{lat,lon,ele,t}, to:{lat,lon,ele,t} }]；无风险/无路线/无天气返回 [] */
+function routeRiskSegments() {
+  if (!route || route.length <= 1) return []
+  if (!weather || !weather.days || !weather.days.length) return []
+  var pts = corrSamplePoints()
+  if (!pts.length) return []
+  var days = weather.days
+  var trig = (appConfig && appConfig.precipTriggerPct != null) ? appConfig.precipTriggerPct : 40
+  var rt = (appConfig && appConfig.riverFlowThreshold != null) ? appConfig.riverFlowThreshold : 100
+  function dayFor(t) {
+    if (days.length <= 1) return 0
+    if (!splitPoints || splitPoints.length < 2) return Math.min(days.length - 1, Math.max(0, Math.floor(t * days.length)))
+    var best = 0, bd = Infinity
+    splitPoints.forEach(function (sp, i) {
+      var dt = Math.abs((sp.t != null ? sp.t : i / (splitPoints.length - 1)) - t)
+      if (dt < bd) { bd = dt; best = i }
+    })
+    return Math.min(best, days.length - 1)
+  }
+  var tagged = pts.map(function (p) {
+    var d = days[dayFor(p.t)]
+    var tags = []
+    if (d.uvi != null && d.uvi >= 8 && d.cloudCover != null && d.cloudCover <= 30) tags.push({ key: 'sun', label: '暴晒', color: '#e08e3c' })
+    if (p.ele != null && p.ele >= 2000 && d.nightMin != null && d.nightMin < 0 && (d.snowfall > 0 || (d.precipProb != null && d.precipProb >= trig))) tags.push({ key: 'snow', label: '可能积雪', color: '#4a90d9' })
+    if ((d.riverDischarge != null && d.riverDischarge > rt) || (d.precipProb != null && d.precipProb >= 60)) tags.push({ key: 'ford', label: '涉水', color: '#14b8a6' })
+    return { pt: p, tags: tags }
+  })
+  var spans = [], cur = null
+  tagged.forEach(function (x) {
+    if (!x.tags.length) { cur = null; return }
+    var k = x.tags.map(function (t) { return t.key }).join(',')
+    if (cur && cur.key === k) cur.to = x.pt
+    else { cur = { key: k, from: x.pt, to: x.pt, tags: x.tags }; spans.push(cur) }
+  })
+  return spans.map(function (sp, i) { return { idx: i + 1, tags: sp.tags, from: sp.from, to: sp.to } })
+}
+
 </script>
 <script>
 /* ============ Windy 地图预报（embed.windy.com 官方组件 iframe，免 key）============
@@ -6798,7 +7285,7 @@ var DEFAULT_CFG = {
   weatherPriority: ['qweather', 'open-meteo', 'meteoblue', 'amap'],
   alertSource: 'off', activeWindow: [8, 18],
   overnightMarginC: 5, precipTriggerPct: 40, riverFlowThreshold: 100,
-  mapCollapsed: true,   // 第 1 步主选点地图默认折叠（需选点时展开；持久化用户偏好）
+  mapCollapsed: false,   // 第 1 步主选点地图默认展开（用户可收起；持久化偏好）
   baseline: { fullSizeOnHeavy: true, fullSizeOnHours: 8, fullSizeOnElevation: 3000 },
   packWeightLimit: { light: 8000, heavy: 15000, trail: 8000, city: 6000 },
   theme: 'ridge',
@@ -6806,6 +7293,13 @@ var DEFAULT_CFG = {
   weatherIndicators: [], overviewRows: [],
   ownedGear: [], customGear: [], tripMode: 'light', highAltitude: false, cardWeather: [],
   gearOverrides: {}, weatherPriorityMeta: {},
+  topo: false,   // ①步地图 OpenTopoMap 等高线叠层开关（免费瓦片，持久化）
+  satellite: false,   // ①步地图高德卫星叠层开关（免费瓦片，持久化）
+  tdt: false,   // ①步地图天地图地形晕渲叠层开关（需 tiandituKey）
+  ibo: false,   // ①步地图天地图全球境界叠层开关（需 tiandituKey，独立可叠加）
+  tiandituKey: '',   // 天地图浏览器端 tk（lbs.tianditu.gov.cn 免费注册）
+  baseMap: 'tdt_img',   // ①步底图：amap 高德 / tdt_vec 天地图矢量 / tdt_img 天地图影像（默认影像；无 key 回退高德）
+  elevMarkers: false,   // ①步地图点位/路线点海拔标注（app 自带 Open-Meteo 高程）
   freshness: null,   // 预报新鲜度阈值（C2）：缺省用 FRESHNESS_DEFAULT.bands
   ensCfg: null       // 集合一致度阈值（C6 升级）：缺省 {tempC:4, windKmh:15, precipMm:20, precipBand:[40,60]}
 }
@@ -6816,6 +7310,11 @@ async function loadConfig() {
   } catch (e) { appConfig = Object.assign({}, DEFAULT_CFG) }
   if (!enabledInd) enabledInd = new Set(appConfig.weatherIndicators.length ? appConfig.weatherIndicators : WX_TEMPLATE.map(function (i) { return i.id }))
   try { var _k = await idbGet('qw-key', 'key'); if (_k) { appConfig.qweather.hasKey = true; _qwKey = _k } } catch (e) {}
+  if (typeof syncTopoBtn === 'function') syncTopoBtn()   // 地形叠层开关状态恢复（按钮在 DOM）
+  if (typeof syncSatBtn === 'function') syncSatBtn()
+  if (typeof syncTdtBtn === 'function') syncTdtBtn()
+  if (typeof syncIboBtn === 'function') syncIboBtn()
+  if (typeof syncElevBtn === 'function') syncElevBtn()
 }
 function saveConfig() { idbSet('config', 'user', appConfig).catch(function () {}) }
 function saveCfgField(k, v) { appConfig[k] = v; saveConfig(); if (k === 'alertSource') { /* 预警源变更后重新拉取 */ if (weather) renderAlertCard() } }
@@ -6859,6 +7358,7 @@ function syncCfgUi() {
   if ($('amapKey')) $('amapKey').value = ((appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta.amap) || {}).key || ''
   if ($('mbKey')) $('mbKey').value = ((appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta.meteoblue) || {}).key || ''
   if ($('windyKey')) $('windyKey').value = ((appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta.windy) || {}).key || ''
+  if ($('tdtKey')) $('tdtKey').value = appConfig.tiandituKey || ''
   if ($('qwKeyStatus')) { $('qwKeyStatus').textContent = appConfig.qweather.hasKey ? '已导入' : '未导入'; $('qwKeyStatus').className = 'risk ' + (appConfig.qweather.hasKey ? 'green' : 'orange') }
   // 徽标恢复上次接通测试结果（未测过保持「未测试」；高德开机自检会自己刷新）
   ;['amap', 'meteoblue', 'windy', 'qweather'].forEach(function (id) {
@@ -6956,6 +7456,41 @@ function saveWindyKey(v) {
   if (!appConfig.weatherPriorityMeta) appConfig.weatherPriorityMeta = {}
   appConfig.weatherPriorityMeta.windy = { key: String(v || '').trim() }
   saveConfig(); renderSrcList()
+}
+function saveTdtField(v) {
+  appConfig.tiandituKey = String(v || '').trim()
+  saveConfig()
+  // 已开启的地形叠层随 key 变更重建（旧 URL 带旧 key 无效）
+  if (appConfig.tdt && typeof tdtRebuild === 'function') tdtRebuild()
+  // 天地图底图用新 key 重建
+  if ((appConfig.baseMap === 'tdt_vec' || appConfig.baseMap === 'tdt_img') && typeof setBaseMap === 'function') setBaseMap(appConfig.baseMap)
+}
+/* 天地图 key 接通测试：真实调一次地理编码验证 key 与网络 */
+function testTdtKey() {
+  var btn = document.getElementById('keyTest_tdt')
+  var st = document.getElementById('keyState_tdt')
+  if (btn) { btn.textContent = '测试中…'; btn.disabled = true }
+  if (st) { st.textContent = '测试中…'; st.className = 'risk orange' }
+  probeTdt().then(function (r) {
+    if (btn) { btn.textContent = r.ok ? '✓ 接通' : '✕ 失败'; btn.disabled = false }
+    if (st) { st.textContent = r.ok ? '✓ 已接通' : ('✕ ' + (r.txt || '失败')); st.className = 'risk ' + (r.ok ? 'green' : 'orange') }
+    appConfig.tdtLastTest = r; saveConfig()
+    toast((r.ok ? '✓ ' : '✕ ') + '天地图 key 测试' + (r.ok ? '成功' : '失败') + ' ' + r.txt)
+  })
+}
+function probeTdt() {
+  return new Promise(function (resolve) {
+    var k = (appConfig && appConfig.tiandituKey) || ''
+    if (!k) { resolve({ ok: false, txt: '未配置 Key' }); return }
+    var ds = encodeURIComponent(JSON.stringify({ keyWord: '北京', type: 'geocode' }))
+    fetch('https://api.tianditu.gov.cn/geocoder?ds=' + ds + '&tk=' + encodeURIComponent(k), { signal: AbortSignal.timeout(8000) })
+      .then(function (r) { return r.json().catch(function () { return null }) })
+      .then(function (j) {
+        if (j && j.status === '0' && (j.location || (j.result && j.result.location))) resolve({ ok: true, txt: '· 天地图地理编码可用' })
+        else resolve({ ok: false, txt: '· ' + ((j && (j.msg || j.message)) || '返回异常') })
+      })
+      .catch(function () { resolve({ ok: false, txt: '· 网络/CORS 失败' }) })
+  })
 }
 /* Windy 深链 zoom：单点=13（约 10km 近景）；路线按跨度自适应。纯函数可测。 */
 function windyFitZoom(lat, route) {
@@ -7311,6 +7846,34 @@ function clearRouteLayers() {
   if (!placeMap) return
   ;(routeDrawLayers || []).forEach(function (l) { placeMap.removeLayer(l) })
   routeDrawLayers = []
+  clearRiskLayers()
+  if (typeof clearElevMarkers === 'function') clearElevMarkers()
+}
+
+/* 路线风险段地图展示：天气就绪后沿折线着色 + 中点徽章（无风险不画，幂等） */
+var riskLayerGroup = null
+function clearRiskLayers() {
+  if (riskLayerGroup) { riskLayerGroup.clearLayers(); riskLayerGroup = null }
+}
+function renderRouteRisk() {
+  clearRiskLayers()
+  if (!placeMap || typeof L === 'undefined') return
+  if (!(route && route.length > 1)) return
+  if (!weather || !weather.days || !weather.days.length) return
+  var segs = (typeof routeRiskSegments === 'function') ? routeRiskSegments() : []
+  if (!segs.length) return
+  riskLayerGroup = L.layerGroup().addTo(placeMap)
+  segs.forEach(function (sp) {
+    if (!sp.from || !sp.to) return
+    var g1 = mapBaseLL(sp.from), g2 = mapBaseLL(sp.to)
+    var col = sp.tags[0].color
+    L.polyline([[g1.lat, g1.lng], [g2.lat, g2.lng]], { color: col, weight: 6, opacity: 0.75 }).addTo(riskLayerGroup)
+    var mid = { lat: (g1.lat + g2.lat) / 2, lng: (g1.lng + g2.lng) / 2 }
+    var lbl = sp.tags.map(function (t) { return t.label }).join('/')
+    L.marker([mid.lat, mid.lng], {
+      icon: L.divIcon({ html: '<div class="risk-badge" style="border-color:' + col + ';color:' + col + '">' + esc(lbl) + '</div>', className: '', iconSize: [46, 20], iconAnchor: [23, 10] })
+    }).addTo(riskLayerGroup)
+  })
 }
 
 /* 按当前模式同步共享地图：imp+路线→只读路线；否则→选点；路线模式隐藏选点操作栏 */
@@ -7347,7 +7910,7 @@ function renderRouteDisplay() {
   var boundsArr = []
   segs.forEach(function (b) {
     var latlngs = []
-    for (var i = b[0]; i <= b[1]; i++) { var g = wgs84ToGcj02(route[i].lat, route[i].lon); latlngs.push([g.lat, g.lng]); boundsArr.push([g.lat, g.lng]) }
+    for (var i = b[0]; i <= b[1]; i++) { var g = mapBaseLL(route[i]); latlngs.push([g.lat, g.lng]); boundsArr.push([g.lat, g.lng]) }
     routeDrawLayers.push(L.polyline(latlngs, { color: 'var(--accent)', weight: 4 }).addTo(placeMap))
   })
   if (!boundsArr.length) return
@@ -7356,7 +7919,7 @@ function renderRouteDisplay() {
   splitPoints = splitByDays(route, days, segEnds)
   for (var k = 1; k < splitPoints.length - 1; k++) {
     ;(function (k) {
-      var g = wgs84ToGcj02(splitPoints[k].lat, splitPoints[k].lon)
+      var g = mapBaseLL(splitPoints[k])
       var mk = L.marker([g.lat, g.lng], { icon: L.divIcon({ html: '<div class="mk">' + (k + 1) + '</div>', className: '', iconSize: [22, 22], iconAnchor: [11, 11] }) })
       mk.on('click', function () { go(2); setView3('ov') })
       routeDrawLayers.push(mk.addTo(placeMap))
@@ -7364,6 +7927,8 @@ function renderRouteDisplay() {
   }
   // 默认视野 5km：fitBounds maxZoom 13（短路线不贴太近、显示约 5km 上下文；长路线仍全部可见）
   placeMap.fitBounds(boundsArr, { padding: [24, 24], maxZoom: 13 })
+  renderRouteRisk()
+  if (typeof renderElevMarkers === 'function') renderElevMarkers()
   showRouteProfile()
 }
 
@@ -7462,6 +8027,7 @@ function setView3(v) {
   if (v === 'corr' && typeof renderCorridor === 'function') renderCorridor()
   // 不自动查天气：由「🔍 搜索天气」按钮手动触发（renderWxList 无天气时展示搜索入口）
   renderAlertCard(); renderWxList(); renderDayIndGrid()
+  if (typeof renderRouteRisk === 'function') renderRouteRisk()
 }
 
 /* ================= 自动定位（打开第 1 步无选点时） ================= */
