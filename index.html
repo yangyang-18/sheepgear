@@ -2214,10 +2214,13 @@ function reverseGeocode(lat, lng) {
 }
 
 /* ---- 海拔兜底：Open-Meteo 高程接口（免 key、CORS 开放），选点来源缺海拔时补齐 ---- */
+var _elevCache = {}   // 按坐标缓存海拔（4位小数键），重复选点/刷新不再重新请求
 function fetchElevation(lat, lng) {
   if (lat == null || lng == null || isNaN(+lat) || isNaN(+lng)) return Promise.resolve(null)
-  function tryOM() {   // Open-Meteo /v1/elevation（部分网络不可达）
-    return fetch(OM_ELEV + '?latitude=' + (+lat) + '&longitude=' + (+lng), { signal: AbortSignal.timeout(6000) })
+  var key = (+lat).toFixed(4) + ',' + (+lng).toFixed(4)
+  if (_elevCache[key] != null) return Promise.resolve(_elevCache[key])
+  function tryOM() {   // Open-Meteo /v1/elevation（部分网络不可达，超时缩短到 4s）
+    return fetch(OM_ELEV + '?latitude=' + (+lat) + '&longitude=' + (+lng), { signal: AbortSignal.timeout(4000) })
       .then(function (r) { if (!r.ok) throw 0; return r.json() })
       .then(function (d) {
         var e = d && d.elevation
@@ -2226,7 +2229,7 @@ function fetchElevation(lat, lng) {
       })
       .catch(function () { return null })
   }
-  function tryOE() {   // Open-Elevation 兜底（免 key、全球 SRTM）
+  function tryOE() {   // Open-Elevation（免 key、全球 SRTM）
     return fetch('https://api.open-elevation.com/api/v1/lookup?locations=' + (+lat) + ',' + (+lng), { signal: AbortSignal.timeout(8000) })
       .then(function (r) { if (!r.ok) throw 0; return r.json() })
       .then(function (d) {
@@ -2235,7 +2238,14 @@ function fetchElevation(lat, lng) {
       })
       .catch(function () { return null })
   }
-  return tryOM().then(function (e) { return e != null ? e : tryOE() })
+  // 并行竞速：先成功的立即返回（OE 通常比 OM 快/可用）；全失败 → null
+  return new Promise(function (resolve) {
+    var done = false, ps = [tryOM(), tryOE()]
+    ps.forEach(function (p) {
+      p.then(function (v) { if (!done && v != null) { done = true; _elevCache[key] = v; resolve(v) } }).catch(function () {})
+    })
+    Promise.all(ps).then(function () { if (!done) resolve(null) })
+  })
 }
 
 
