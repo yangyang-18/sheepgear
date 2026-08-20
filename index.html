@@ -1014,7 +1014,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
       <div id="srcList" style="display:flex;flex-direction:column;gap:6px"></div>
       <div class="cfg-row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap">
         <select id="srcAdd" aria-label="添加天气源" style="width:auto" onchange="srcAddChange(this)"><option value="">＋ 添加天气源…</option></select>
-        <span style="font-size:11px;color:var(--text-muted)">中央气象台免 key · 高德/Meteoblue/Windy 需 key · 和风需 JWT</span>
+        <span style="font-size:11px;color:var(--text-muted)">Open-Meteo/NWS/DWD 免 key · 高德/Meteoblue/Windy 需 key · 和风需 JWT</span>
       </div>
       <div id="srcEditQw" style="display:none;border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
         <div class="cfg-row"><div>和风 API Host<div class="desc">独立 API Host，如 {账号}.{项目}.qweatherapi.com</div></div><input id="qwHost" placeholder="输入 Host" onchange="saveQwField('host',this.value)"></div>
@@ -1039,9 +1039,6 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
       <div id="srcEditTdt" style="border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
         <div class="cfg-row"><div>天地图 Key<div class="desc">lbs.tianditu.gov.cn 注册获取浏览器端 tk（免费）；用于底图切换（矢量/影像）、地名搜索兜底与「🗻 地形」晕渲叠层</div></div><input id="tdtKey" placeholder="输入 Key" onchange="saveTdtField(this.value)"></div>
         <div class="cfg-row" style="justify-content:flex-start;gap:8px"><button class="btn" style="padding:4px 12px;font-size:12px" id="keyTest_tdt" onclick="testTdtKey()">接通测试</button><span class="risk orange" id="keyState_tdt">未测试</span></div>
-      </div>
-      <div id="srcEditNmc" style="display:none;border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
-        <div class="cfg-row"><div>中央气象台<div class="desc">免 key 直连；预警按省，天气按站号（best-effort）</div></div><span class="risk green">免 key</span></div>
       </div>
 
       <h4 style="margin-top:14px">预警源</h4>
@@ -1123,8 +1120,6 @@ function wmoOf(c) { if (WMO_MAP[c]) return { zh: WMO_MAP[c][0], icon: WMO_MAP[c]
 function isSnowCode(c) { return (c >= 71 && c <= 77) || c === 85 || c === 86 }
 function isThunderCode(c) { return c >= 95 && c <= 99 }
 function isHailCode(c) { return c === 96 || c === 99 }
-function isFogCode(c) { return c === 45 || c === 48 }
-
 /* ---- 风向 / 风级 / 风寒 ---- */
 function beaufortKmh(kmh) { var T = [0, 1, 6, 12, 20, 29, 39, 50, 62, 75, 89, 103, 118], ZH = ['无风', '软风', '轻风', '微风', '和风', '清风', '强风', '疾风', '大风', '烈风', '狂风', '暴风', '飓风']; if (typeof kmh !== 'number' || isNaN(kmh)) return { level: 0, zh: '无风' }; for (var i = T.length - 1; i >= 0; i--) if (kmh >= T[i]) return { level: i, zh: ZH[i] }; return { level: 0, zh: '无风' } }
 function windDir16(deg) { if (typeof deg !== 'number' || isNaN(deg)) return '--'; var dirs = ['北', '北东北', '东北', '东东北', '东', '东东南', '东南', '南南东', '南', '南南西', '西南', '西西南', '西', '西西北', '西北', '北北西'], cuts = [11.25, 33.75, 56.25, 78.75, 101.25, 123.75, 146.25, 168.75, 191.25, 213.75, 236.25, 258.75, 281.25, 303.75, 326.25, 348.75]; for (var i = 0; i < cuts.length; i++) if (deg < cuts[i]) return dirs[i]; return dirs[0] }
@@ -2408,8 +2403,6 @@ function mapSetViewKm(km) {
   placeMap.setView([g.lat, g.lng], zoom)
   toast('视野约 ' + km + 'km（zoom ' + zoom + '）')
 }
-function mapViewPreset(km) { mapSetViewKm(km) }
-
 /* ---- 定位到当前位置（地图选点区按钮；GPS 失败提示，不静默）---- */
 function locateMe() {
   if (typeof navigator === 'undefined' || !navigator.geolocation) { toast('当前环境不支持定位'); return }
@@ -2705,10 +2698,17 @@ var OM_AIR = 'https://air-quality-api.open-meteo.com/v1/air-quality'
 var OM_MARINE = 'https://marine-api.open-meteo.com/v1/marine'
 var OM_FLOOD = 'https://flood-api.open-meteo.com/v1/flood'
 var QW_TTL = 30 * 60 * 1000
-var CACHE_TTL = 3 * 60 * 60 * 1000   // 3h（被 C2 forecastFreshness 分档阈值取代，保留作参考常量）
-var WEATHER_CACHE_VER = 12   // 天气缓存 schema 版本：v11=逐点集合+风/降水离散；v12=新增 雪线/土壤/雪深/气压 字段（旧缓存缺字段→升版强制重查）
+var WEATHER_CACHE_VER = 13   // 天气缓存 schema 版本：v11=逐点集合+风/降水离散；v12=新增 雪线/土壤/雪深/气压 字段；v13=雪线/雪深加雪情境门槛+雪深改厘米（旧缓存含未过门槛/米单位数据→升版强制重查）
 var alertStatus = ''   // 预警拉取状态：''=ok/空 | 'fail'=接口不可用
 var LAPSE_RATE = 6.5 / 1000   // 气温垂直递减率（ISA 标准，°C/米）：海拔每升 1000m 降 6.5°C，用于网格→路线海拔校正
+/* 雪情境判据常量：决定「雪线/雪深」指标何时对目的地有意义（snowRelevant 见 aggregateDays 前）
+   SNOW_ALT_FLOOR=高海拔门槛（≥此海拔雪情境天然存在）；SNOW_REACH_MARGIN=零度层可达容差（零度层低于
+   海拔+此值视为够得着地面/够冷，含雨夹雪冻雨可低于零度层数百米）；SNOW_UNKNOWN_ELE=海拔缺失兜底；
+   SNOW_MAX_M=雪深上限（源侧极端值夹取，防止坏值以 800cm 量级出现） */
+var SNOW_ALT_FLOOR = 2500
+var SNOW_REACH_MARGIN = 1000
+var SNOW_UNKNOWN_ELE = 3500
+var SNOW_MAX_M = 5
 var perDay = []        // 逐日聚合视图（C1 perday-aggregation）：路线逐日切分 + 逐日天气 + 逐时，供逐日类功能消费
 
 /* ================= 预报新鲜度（C2 forecast-freshness）：年龄 × 出发剩余天数 → 三态 ================= */
@@ -3037,7 +3037,6 @@ function fetchPointWeather(lat, lng, days) {
     else if (id === 'open-meteo') jobs.push(omForecast(lat, lng, days).then(function (om) { return toUnifiedOM(om, 'open-meteo') }))
     else if (id === 'amap') jobs.push(amapDaily(lat, lng, days))
     else if (id === 'meteoblue') jobs.push(mbKey() ? mbForecast(lat, lng).then(function (mb) { return toUnifiedMB(mb, days) }) : Promise.resolve(null))
-    else if (id === 'nmc') jobs.push(nmcDaily(lat, lng, days))
     else if (id === 'windy') jobs.push(windyKey() ? windyPoint(lat, lng).then(function (w) { return toUnifiedWindy(w, days) }) : Promise.resolve(null))
     else if (id === 'nws') jobs.push(nwsForecast(lat, lng, days))
     else if (id === 'dwd') jobs.push(brightskyForecast(lat, lng, days))
@@ -3068,7 +3067,6 @@ function sourceEnabled(id) {
   if (id === 'open-meteo') return true
   if (id === 'amap') { var k = (appConfig.weatherPriorityMeta || {}).amap; return !!(k && k.key) }
   if (id === 'meteoblue') return !!mbKey()
-  if (id === 'nmc') return true   // 免 key；best-effort（站点解析失败返回空，cascade 跳过）
   if (id === 'windy') return !!windyKey()
   if (id === 'nws' || id === 'dwd') return true   // 国际源免 key；未加入优先级则不请求
   return false
@@ -3192,7 +3190,6 @@ var MB_PICTO_DAY_TO_WMO = { 1: 0, 2: 1, 3: 2, 4: 3, 5: 45, 6: 61, 7: 80, 8: 95, 
 var MB_PICTO_HOUR_TO_WMO = { 1: 0, 2: 0, 3: 1, 4: 1, 5: 1, 6: 1, 7: 2, 8: 2, 9: 2, 10: 2, 11: 2, 12: 2, 13: 45, 14: 45, 15: 45, 16: 45, 17: 45, 18: 45, 19: 3, 20: 3, 21: 3, 22: 3, 23: 61, 24: 71, 25: 65, 26: 75, 27: 95, 28: 95, 29: 86, 30: 95, 31: 80, 32: 85, 33: 61, 34: 71, 35: 69 }
 function mbPictoToWmo(p, set) { var tbl = set === 'hour' ? MB_PICTO_HOUR_TO_WMO : MB_PICTO_DAY_TO_WMO; return tbl[p] != null ? tbl[p] : 0 }
 function mbNum(arr, i) { return arr && arr[i] != null ? arr[i] : null }
-function mbScalar(v) { return Array.isArray(v) ? v[v.length - 1] : v }
 function pad2(n) { return String(n).padStart(2, '0') }
 function mbSun(arr, i) {
   var s = arr && arr[i]
@@ -3262,11 +3259,6 @@ function toUnifiedMB(mb, days) {
     }
   }).filter(function (x) { return keep[String(x.time).slice(0, 10)] })
   return { daily: daily, hourly: hourly, elevation: mb.metadata && mb.metadata.height != null && mb.metadata.height > 0 ? Math.round(mb.metadata.height) : null, src: 'meteoblue' }
-}
-
-/* ---- 中央气象台天气适配器（best-effort）：免 key、CORS 可用，但按站号查询；站点解析接口未确认 → 返回空，级联跳过 ---- */
-function nmcDaily(lat, lng, days) {
-  return Promise.resolve(null)
 }
 
 /* ================= Windy Point Forecast 适配器（需 key，api.windy.com CORS 已实测反射 Origin） =================
@@ -3489,6 +3481,16 @@ function syncTripTime() {
   el.value = rise ? fmtTime(rise) : ''
 }
 
+/* 雪情境判据：零度层高度 fl（=当日雪线）与目的地海拔 ele 决定该地是否可能遇雪。
+   物理依据：零度层以上降水落为雪、以下落为雨；fl 本身已编码纬度/季节/天气，故无需地域/季节分支。
+   ① 高海拔（≥SNOW_ALT_FLOOR）→ 雪情境天然存在；② 否则零度层够得着地面（≤ 海拔+容差）→ 够冷有雪。
+   返回 false 时把 snowline/snowDepth 置 null，使展示/走廊标签/装备联动统一降级为 '—'/不触发。 */
+function snowRelevant(fl, ele) {
+  if (fl == null) return false
+  if (ele != null && ele > 0 && ele >= SNOW_ALT_FLOOR) return true
+  var e = (ele != null && ele > 0) ? ele : SNOW_UNKNOWN_ELE
+  return fl <= e + SNOW_REACH_MARGIN
+}
 function aggregateDays(pointWeatherList, splitPts, offset, ensList) {
   var days = [], valid = 0
   offset = offset || 0   // 出发日期对齐：预报从「今天」起，偏移到 startDate 对应索引
@@ -3547,6 +3549,8 @@ function aggregateDays(pointWeatherList, splitPts, offset, ensList) {
     var _ec = ensCfg()
     var _dayPrecipU = d0.precipProbMax != null && d0.precipProbMax >= _ec.precipBand[0] && d0.precipProbMax <= _ec.precipBand[1]
     var _dayConf = confLevel(lowCons.length, unavailRatio, null, _dayPrecipU, _ensTemp, _ensWind, _ensPrecip, _ec)
+    // 雪情境判据：零度层够不着且非高海拔 → 雪线/雪深置 null（珠海等低海拔暖地降级为 '—'/不触发）
+    var _snowOK = snowRelevant(d0.snowline, p.ele)
     days.push({
       date: d0.date || String(k + 1) + '天', dayIndex: k, weatherCode: d0.weatherCode,
       ele: p.ele, lat: p.lat, lon: p.lon,
@@ -3574,9 +3578,9 @@ function aggregateDays(pointWeatherList, splitPts, offset, ensList) {
       waveHeight: (u && u.ext && u.ext.waveHeight != null) ? u.ext.waveHeight : null,
       waveTemp: (u && u.ext && u.ext.waveTemp != null) ? u.ext.waveTemp : null,
       riverDischarge: (u && u.ext && u.ext.riverDischarge != null) ? u.ext.riverDischarge : null,
-      snowline: d0.snowline != null ? Math.round(d0.snowline) : null,
+      snowline: _snowOK ? Math.round(d0.snowline) : null,
       soil: d0.soil != null ? Math.round(d0.soil * 100) / 100 : null,
-      snowDepth: d0.snowDepth != null ? Math.round(d0.snowDepth * 10) / 10 : null,
+      snowDepth: _snowOK && d0.snowDepth != null ? Math.round(Math.min(d0.snowDepth, SNOW_MAX_M) * 100) : null,
       pressure: d0.pressure != null ? Math.round(d0.pressure) : null
     })
   }
@@ -5619,26 +5623,6 @@ function snapshotOf() {
     ts: new Date().toISOString()
   }
 }
-/* 装备翻转 diff：快照 vs 最新，按 C4 margin 判 真实翻转/临界抖动/无变化 */
-function gearFlipDiff(snapGear, latestGear, marginTh) {
-  marginTh = marginTh == null ? 5 : marginTh
-  var snapById = {}, latestById = {}
-  ;(snapGear || []).forEach(function (g) { snapById[g.id] = g })
-  ;(latestGear || []).forEach(function (g) { latestById[g.id] = g })
-  var ids = {}
-  Object.keys(snapById).concat(Object.keys(latestById)).forEach(function (id) { ids[id] = 1 })
-  var out = []
-  Object.keys(ids).forEach(function (id) {
-    var s = snapById[id], l = latestById[id]
-    if (s && !l) { out.push({ id: id, name: s.name, type: 'removed', note: '已取消（快照 ' + (s.reason || '触发') + ' → 最新未命中）' }); return }
-    if (!s && l) {
-      var m = (l.margins && l.margins.length) ? Math.min.apply(null, l.margins) : null
-      if (m != null && m < marginTh) out.push({ id: id, name: l.name, type: 'critical', note: '⚠ 临界 · 波动即翻转（最新 ' + (l.reason || '触发') + '）' })
-      else out.push({ id: id, name: l.name, type: 'added', note: '新触发（最新 ' + (l.reason || '触发') + '）' })
-    }
-  })
-  return out
-}
 /* 反打开入口脚本（导出页内）：URL seed 优先，超长走 localStorage ?sid=；携带 {seed, snapshot, ts} 包 */
 function reverseOpenScript() {
   return "function revOpen(){try{var p={seed:SEED,snapshot:SNAP,ts:ST};if(!SEED){return}var s=JSON.stringify(p);" +
@@ -7109,8 +7093,6 @@ function tripDifficulty() {
   if (!wxOk) reason += (facets.length ? ' · ' : '') + '天气因素未知'
   return { level: level, label: DIFF_LABELS[level], reason: reason, stars: difficultyStars(level) }
 }
-function difficultyText() { var d = tripDifficulty(); return '难度 ' + d.stars + ' · ' + d.label + '（' + d.reason + '）' }
-
 /* ---------- 2. 装包重量预算（design D3：按模式阈值） ---------- */
 function packWeightLimit() {
   var m = (appConfig && appConfig.packWeightLimit) || {}
@@ -7279,7 +7261,6 @@ function qrForCard() {
   if (!url) return null
   return makeQR(url)
 }
-function qrTooLong() { return false }   // 占位：makeQR 失败即视为超容量/库缺失，由调用方区分文案
 
 </script>
 <script>
@@ -7774,10 +7755,10 @@ var DEFAULT_CFG = {
   overnightMarginC: 5, precipTriggerPct: 40, riverFlowThreshold: 100,
   mapCollapsed: false,   // 第 1 步主选点地图默认展开（用户可收起；持久化偏好）
   baseline: { fullSizeOnHeavy: true, fullSizeOnHours: 8, fullSizeOnElevation: 3000 },
-  packWeightLimit: { light: 8000, heavy: 15000, trail: 8000, city: 6000 },
+  packWeightLimit: { light: 8000, heavy: 15000, city: 6000 },
   theme: 'ridge',
   qweather: { host: '', kid: '', projectId: '', hasKey: false },
-  weatherIndicators: [], overviewRows: [],
+  weatherIndicators: [],
   ownedGear: [], customGear: [], tripMode: 'light', highAltitude: false, cardWeather: [],
   gearOverrides: {}, weatherPriorityMeta: {},
   topo: false,   // ①步地图 OpenTopoMap 等高线叠层开关（免费瓦片，持久化）
@@ -7867,7 +7848,7 @@ function syncCfgUi() {
 }
 
 /* ================= 天气源优先级编辑器（增删排序 + 逐源配置 + 启停校验） ================= */
-var SRC_META = { qweather: { label: '和风天气 QWeather', need: '需 JWT' }, 'open-meteo': { label: 'Open-Meteo', need: '免 key' }, nmc: { label: '中央气象台', need: '免 key' }, amap: { label: '高德🔍地名', need: '需 key' }, meteoblue: { label: 'Meteoblue', need: '需 key' }, windy: { label: 'Windy Point Forecast', need: '需 key' }, nws: { label: 'NWS 美国', need: '免 key' }, dwd: { label: 'DWD 德国', need: '免 key' } }
+var SRC_META = { qweather: { label: '和风天气 QWeather', need: '需 JWT' }, 'open-meteo': { label: 'Open-Meteo', need: '免 key' }, amap: { label: '高德🔍地名', need: '需 key' }, meteoblue: { label: 'Meteoblue', need: '需 key' }, windy: { label: 'Windy Point Forecast', need: '需 key' }, nws: { label: 'NWS 美国', need: '免 key' }, dwd: { label: 'DWD 德国', need: '免 key' } }
 function srcEnabledState(id) {
   if (id === 'qweather') return (appConfig.qweather && appConfig.qweather.host) ? '' : '配置不完整，未启用'
   if (id === 'amap') return (appConfig.weatherPriorityMeta && appConfig.weatherPriorityMeta.amap && appConfig.weatherPriorityMeta.amap.key) ? '' : '配置不完整，未启用'
@@ -7910,10 +7891,9 @@ function renderSrcList() {
    Windy/天地图 Key 常显（config-key-always-visible）：Windy 未入优先级显示「未启用」提示，不再隐藏输入框 */
 function syncSrcEditors() {
   var prio = appConfig.weatherPriority || []
-  var qw = $('srcEditQw'), am = $('srcEditAmap'), nm = $('srcEditNmc'), mb = $('srcEditMb')
+  var qw = $('srcEditQw'), am = $('srcEditAmap'), mb = $('srcEditMb')
   if (qw) qw.style.display = prio.indexOf('qweather') >= 0 ? 'block' : 'none'
   if (am) am.style.display = prio.indexOf('amap') >= 0 ? 'block' : 'none'
-  if (nm) nm.style.display = prio.indexOf('nmc') >= 0 ? 'block' : 'none'
   if (mb) mb.style.display = prio.indexOf('meteoblue') >= 0 ? 'block' : 'none'
   var wne = $('windyNotEnabled')
   if (wne) wne.style.display = prio.indexOf('windy') >= 0 ? 'none' : 'flex'
@@ -8269,8 +8249,6 @@ function applyTrack(parsed, fbName) {
   }
   throw new Error('gpx.invalid')
 }
-
-/* ================= 清空导入（imp 模式有路线时显示「✕ 清空路线」） ================= */
 
 /* ---- 清空导入（imp 模式有路线时显示「✕ 清空路线」） ---- */
 function updateClearRouteBtn() {
