@@ -2745,6 +2745,8 @@ var QW_TOKEN_MARGIN = 300  // 过期前提前重签余量（秒），避免缓�
 function b64url(buf) { var b = new Uint8Array(buf), s = ''; for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') }
 function qwImportPem(pem) {
   _qwTokenCache = null   // 换私钥 → 旧签名作废，清缓存
+  // 非安全上下文（http / iOS file://）无 WebCrypto：reject 而非抛同步错，让调用方能给出明确提示
+  if (!(window.crypto && crypto.subtle)) return Promise.reject(new Error('qw.insecure'))
   var b64 = String(pem).replace(/-----[^-]+-----/g, '').replace(/\s+/g, '')
   var der = Uint8Array.from(atob(b64), function (c) { return c.charCodeAt(0) })
   return crypto.subtle.importKey('pkcs8', der, { name: 'Ed25519' }, false, ['sign']).then(function (k) { _qwKey = k })
@@ -8731,13 +8733,24 @@ async function init() {
   $('qwPem').addEventListener('change', function () {
     var f = this.files && this.files[0]
     if (!f) return
+    // WebCrypto 仅限安全上下文（HTTPS / localhost）；http 或 iOS file:// 下 crypto.subtle 不存在，
+    // 若不拦截会静默失败（无 toast、状态仍是「未导入」）——直接给出明确提示
+    if (!window.isSecureContext || !(window.crypto && crypto.subtle)) {
+      toast('⚠ 非 HTTPS 环境无法导入私钥，请打开线上 https://yangyang-18.github.io/sheepgear/ 再导入')
+      return
+    }
     var rd = new FileReader()
     rd.onload = function () {
-      qwImportPem(String(rd.result)).then(function () {
+      Promise.resolve().then(function () { return qwImportPem(String(rd.result)) }).then(function () {
         return idbSet('qw-key', 'key', _qwKey)
       }).then(function () {
         appConfig.qweather.hasKey = true; saveConfig(); syncCfgUi(); toast('✓ 和风私钥已导入（不可导出 CryptoKey）')
-      }).catch(function () { toast('私钥导入失败：请确认是 Ed25519 PKCS8 PEM') })
+      }).catch(function (e) {
+        var m = String((e && e.message) || (e && e.name) || '')
+        toast(/qw\.insecure/.test(m) ? '⚠ 非 HTTPS 环境无法导入私钥，请打开线上 https://yangyang-18.github.io/sheepgear/ 再导入'
+          : /not supported|unknown algorithm|notsupported|Ed25519/i.test(m) ? '私钥导入失败：当前浏览器不支持 Ed25519（需 iOS Safari 17.4+ / 新版 Chrome/Edge/Firefox）'
+          : '私钥导入失败：请确认是 Ed25519 PKCS8 PEM（非加密）私钥文件')
+      })
     }
     rd.readAsText(f)
   })
