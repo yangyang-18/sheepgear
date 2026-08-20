@@ -2804,7 +2804,7 @@ function qweatherDaily(lat, lng, days) {
     var h = rs[1].status === 'fulfilled' ? rs[1].value : null
     if (!d && !h) return null
     var daily = ((d && d.daily) || []).map(function (x) {
-      return { date: String(x.fxDate || '').slice(0, 10), weatherCode: qwTextToWmo(x.textDay || x.textNight || ''), tempMax: qwF(x.tempMax), tempMin: qwF(x.tempMin), tempMean: null, appMax: null, appMin: null, precipSum: qwF(x.precip), precipProbMax: qwF(x.precipProb), snowfallSum: null, windSpeedMax: qwF(x.windSpeedDay), windDirDominant: qwF(x.wind360Day), uviMax: qwF(x.uvIndex), sunrise: x.sunrise || null, sunset: x.sunset || null, src: 'qweather' }
+      return { date: String(x.fxDate || '').slice(0, 10), weatherCode: qwTextToWmo(x.textDay || x.textNight || ''), tempMax: qwF(x.tempMax), tempMin: qwF(x.tempMin), tempMean: null, appMax: null, appMin: null, precipSum: qwF(x.precip), precipProbMax: qwF(x.precipProb), snowfallSum: null, windSpeedMax: qwF(x.windSpeedDay), windDirDominant: qwF(x.wind360Day), uviMax: qwF(x.uvIndex), sunrise: x.sunrise || null, sunset: x.sunset || null, pressure: qwF(x.pressure), src: 'qweather' }
     }).slice(0, days)
     var hourly = ((h && h.hourly) || []).map(function (x) {
       return { time: String(x.fxTime || '').slice(0, 16), temp: qwF(x.temp), appTemp: null, humidity: qwF(x.humidity), precipProb: qwF(x.pop), precip: qwF(x.precip), weatherCode: qwTextToWmo(x.text), windSpeed: qwF(x.windSpeed), windGust: null, windDir: qwF(x.wind360), visibility: qwF(x.vis), snowfall: null, dewPoint: qwF(x.dew), cloudCover: qwF(x.cloud), uvi: null }
