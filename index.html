@@ -3030,7 +3030,7 @@ function cascadeMerge(list) {
   return { daily: daily, hourly: hourly, srcs: list.map(function (s) { return s.src }) }
 }
 function fetchPointWeather(lat, lng, days) {
-  var prio = (appConfig.weatherPriority || ['qweather', 'open-meteo', 'meteoblue', 'amap']).filter(sourceEnabled)
+  var prio = (appConfig.weatherPriority || ['meteoblue', 'qweather', 'open-meteo', 'amap']).filter(sourceEnabled)
   var jobs = []
   prio.forEach(function (id) {
     if (id === 'qweather') jobs.push(qweatherDaily(lat, lng, days))
@@ -3255,9 +3255,23 @@ function toUnifiedMB(mb, days) {
       windSpeed: toKmh(mbNum(h.windspeed, i)), windGust: toKmh(mbNum(h.windgust, i)),
       windDir: mbNum(h.winddirection, i), visibility: mbNum(h.visibility, i),
       snowfall: snowMm(mbNum(h.precipitation, i), mbNum(h.snowfraction, i)), dewPoint: mbNum(h.dewpoint, i),
-      cloudCover: mbNum(h.cloudcover, i), uvi: mbNum(h.uvindex, i)
+      cloudCover: mbNum(h.cloudcover, i), uvi: mbNum(h.uvindex, i),
+      snowlineH: mbNum(h.zerolevel, i), pressureH: mbNum(h.sealevelpressure != null ? h.sealevelpressure : h.pressure, i)
     }
   }).filter(function (x) { return keep[String(x.time).slice(0, 10)] })
+  /* 扩展字段（meteoblue best-effort，与 OM 同口径）：雪线=当日零度层最低、气压=当日均值；字段缺失→null，由级联兜底 */
+  daily.forEach(function (dd) {
+    var inDay = hourly.filter(function (hh) { return String(hh.time).slice(0, 10) === dd.date })
+    function agg(pick, mode) {
+      var vals = inDay.map(pick).filter(function (x) { return x != null && !isNaN(+x) })
+      if (!vals.length) return null
+      if (mode === 'min') return Math.min.apply(null, vals)
+      if (mode === 'max') return Math.max.apply(null, vals)
+      return vals.reduce(function (a, b) { return a + b }, 0) / vals.length
+    }
+    dd.snowline = agg(function (x) { return x.snowlineH }, 'min')
+    dd.pressure = agg(function (x) { return x.pressureH }, 'mean')
+  })
   return { daily: daily, hourly: hourly, elevation: mb.metadata && mb.metadata.height != null && mb.metadata.height > 0 ? Math.round(mb.metadata.height) : null, src: 'meteoblue' }
 }
 
