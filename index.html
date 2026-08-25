@@ -7895,6 +7895,19 @@ function wsSelectSlot(i) {
   applySlot()
   renderWeightSys()
 }
+function wsDelSlot(i) {
+  if (wsSlots.length <= 1) { toast('至少保留 1 个方案'); return }
+  var name = (wsSlots[i] && wsSlots[i].name) || ('方案' + (i + 1))
+  if (!confirm('删除方案「' + name + '」？')) return
+  wsSlots.splice(i, 1)
+  // 当前槽被删 → 切到相邻（保持同 index 或回退到最后一个）
+  if (wsCur > i) wsCur--
+  else if (wsCur === i) { if (wsCur >= wsSlots.length) wsCur = wsSlots.length - 1 }
+  applySlot()
+  commitSlot()
+  renderWeightSys()
+  toast('已删除方案：' + name)
+}
 function wsClearSlot() {
   if (!wsItems.length && !wsCats.length) return
   wsItems = []
@@ -7991,8 +8004,11 @@ function renderWeightSys() {
 function wsSlotsHtml() {
   var h = '<div class="ws-slots" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">'
   wsSlots.forEach(function (s, i) {
-    h += '<button class="ws-slot' + (i === wsCur ? ' on' : '') + '" onclick="wsSelectSlot(' + i + ')" title="' + esc(s.name) + '">' +
-      esc(s.name) + '</button>'
+    h += '<span class="ws-slot-wrap" style="display:inline-flex;align-items:center;gap:2px">' +
+      '<button class="ws-slot' + (i === wsCur ? ' on' : '') + '" onclick="wsSelectSlot(' + i + ')" title="' + esc(s.name) + '">' +
+      esc(s.name) + '</button>' +
+      '<button class="ws-slot-del" onclick="wsDelSlot(' + i + ')" title="删除该方案" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:11px;padding:0 2px">✕</button>' +
+    '</span>'
   })
   h += '<button class="ws-slot add" onclick="wsAddSlot()" title="新增方案">＋ 新增</button>'
   h += '</div>'
