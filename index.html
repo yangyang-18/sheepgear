@@ -7969,7 +7969,10 @@ function initWeightSys() {
     if (box) box.innerHTML = ''
   })
   // 页面滚动 → 关闭联想下拉（fixed 定位不随滚动，避免错位残留）
-  window.addEventListener('scroll', function () {
+  // 注意：下拉自身滚动（滚轮/拖滚动条）不算页面滚动，不能关——否则选不到列表项
+  window.addEventListener('scroll', function (e) {
+    var t = e.target
+    if (t && t.closest && t.closest('#wsBrandBox')) return
     var box = $('wsBrandBox')
     if (box) box.innerHTML = ''
   }, true)
@@ -8264,12 +8267,17 @@ function wsBrandSuggest(kw) {
   })
   hits = hits.slice(0, 12)
   if (!hits.length) { box.innerHTML = ''; return }
-  // 基于输入框视口坐标定位 fixed 下拉
+  // 基于输入框视口坐标定位 fixed 下拉；下方空间不足时翻到输入框上方
   var inp = $('wsNewName')
-  var top = 0, left = 0, width = 260
+  var top = 0, left = 0, width = 260, maxH = 240
   if (inp) {
     var r = inp.getBoundingClientRect()
-    top = r.bottom + 4
+    var estH = Math.min(maxH, hits.length * 38)
+    if (r.bottom + 4 + estH > window.innerHeight && r.top - 4 - estH > 0) {
+      top = r.top - 4 - estH   // 下方放不下 → 翻到输入框上方
+    } else {
+      top = r.bottom + 4
+    }
     left = r.left
     width = Math.max(r.width, 220)
   }
