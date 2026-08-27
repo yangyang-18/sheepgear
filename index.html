@@ -33,6 +33,7 @@ body[data-theme="night"]{--bg:#0D0D0D;--surface:#161616;--surface-2:#1F1F1F;--te
 body.light[data-theme="night"]{--bg:#101010;--surface:#191919;--surface-2:#222222;--text:#EDEDED;--text-muted:#8F8F8F;--border:#333;--accent:#59D9C2;--accent-strong:#2FB8A0;--accent-soft:#12322C}
 
 *{box-sizing:border-box;margin:0;padding:0}
+html{overflow-x:hidden}   /* 统一等比缩放兜底：避免滚动条宽度引起的 1~2px 横向溢出 */
 body{font-family:var(--f-b);background:var(--bg);color:var(--text);line-height:1.6;transition:background .2s,color .2s;-webkit-font-smoothing:antialiased;padding-bottom:80px}
 .wrap{max-width:820px;margin:0 auto;padding:0 20px}
 
@@ -258,7 +259,6 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .elev-wrap{display:block;margin-top:6px}
 .elev-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
 .elev-scroll canvas{display:block;min-width:720px;max-width:100%}
-@media(max-width:640px){.elev-scroll canvas{min-width:720px}}
 .daily-loc{display:flex;gap:8px;overflow-x:auto;margin-top:14px;padding-bottom:4px}
 .daily-loc .dl-card{flex:0 0 150px;border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--surface)}
 .daily-loc .dl-card .dl-h{font-size:12px;font-weight:700;font-family:var(--f-d)}
@@ -435,6 +435,9 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .wssys .ws-item .ws-item-total{width:76px;text-align:right;font-family:var(--f-m);color:var(--accent);font-size:12px}
 .wssys .ws-item .ws-item-del{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;padding:0 2px}
 .wssys .ws-collapse:hover{color:var(--accent);border-color:var(--accent)}
+/* 折叠提醒：默认折叠时按钮放大高亮 + 轻浮动，提示可展开 */
+.wssys .ws-collapse.ws-collapse-alert{background:var(--accent);color:#1F1C1A;border-color:var(--accent);font-weight:700;font-size:14px;padding:8px 18px;border-radius:999px;box-shadow:0 0 0 4px var(--accent-soft),0 2px 10px rgba(0,0,0,.35);animation:ws-alert-bob 1.8s ease-in-out infinite}
+@keyframes ws-alert-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
 /* ===== 轻提示 ===== */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:13px;z-index:1200;box-shadow:0 4px 16px rgba(0,0,0,.3)}
 
@@ -455,6 +458,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
   .cfg.closing .cfg-box{animation:none}
   .card.card-in{animation:none}
   .card-cfg-hint{animation:none}
+  .wssys .ws-collapse.ws-collapse-alert{animation:none}
 }
 
 /* ===== 布局：品牌置顶 / 导航上移（配合 .panel 顶部 .nav） ===== */
@@ -497,6 +501,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 
 /* ===== 总览卡（长图）:地图快照/行程/预警/天气表格/装备/免责 ===== */
 #ovCard{width:720px;max-width:94vw;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin:18px auto}
+.ov-wx{overflow-x:auto}   /* ⑤步总览卡天气表格：超宽时可横向滚动（原移动端规则，统一缩放后并入基础样式） */
 .ov-card-map{width:100%;min-height:300px;background:var(--surface-2);position:relative}
 .ov-card-map img.ov-map-img{display:block;width:100%;height:auto}
 .ov-map-load,.ov-map-fail{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text-muted)}
@@ -518,91 +523,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 .ov-gcat-i .w{font-family:var(--f-m);color:var(--text-muted);white-space:nowrap}
 .ov-foot{margin-top:18px;font-size:10px;color:var(--text-muted);line-height:1.8}
 
-/* ===== 移动端（≤640px）显示覆盖：装备清单单列 / 降水网格换行 / 总览卡 / 搜索下拉（桌面 >640px 不受影响） ===== */
-@media (max-width:640px){
-  /* 重量系统（置顶模块）：手机端不拥挤 */
-  .wssys .ws-viz{flex-direction:column;gap:12px}
-  .wssys .ws-donut-wrap{align-self:flex-start;width:180px !important;height:180px !important}
-  .wssys .ws-breakdown{min-width:0}
-  .wssys .ws-hdr input{flex:1;font-size:12px}
-  .wssys .ws-hdr{flex-wrap:wrap}
-  /* 主题栏：标题 + 装备行紧凑换行 */
-  .wssys .ws-cat-h{padding:8px 10px}
-  .wssys .ws-cat-h button{order:10}
-  .wssys .ws-cat-h .ws-cat-total{order:5}
-  /* 表头：手机端显示紧凑版（克重/金额/数量在上方），隐藏分类列对齐装备行 */
-  .wssys .ws-gear-hdr{gap:3px;padding:3px 8px;font-size:10px}
-  .wssys .ws-gear-hdr .ws-hdr-cat{display:none}
-  .wssys .ws-gear-hdr .ws-hdr-name{font-size:10px}
-  .wssys .ws-gear-hdr .ws-hdr-w,.wssys .ws-gear-hdr .ws-hdr-p{width:40px}
-  .wssys .ws-gear-hdr .ws-hdr-q{width:34px}
-  .wssys .ws-gear-hdr .ws-hdr-t{width:44px;min-width:0;text-align:right;font-size:10px}
-  .wssys .ws-gear-hdr .ws-hdr-x{width:18px;flex-shrink:0}
-  /* 装备行：单行紧凑 —— 名称占满剩余空间，输入框固定窄宽度 */
-  .wssys .ws-item{flex-wrap:nowrap;padding:6px 12px 6px 8px;gap:3px}
-  .wssys .ws-item .ws-item-cat{display:none}
-  .wssys .ws-item .ws-item-name{flex:1;min-width:0;font-size:11px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .wssys .ws-item input{flex:none;width:40px;font-size:11px;padding:4px 2px;text-align:right}
-  .wssys .ws-item input:nth-of-type(3){width:34px}
-  .wssys .ws-item .ws-item-total{flex:0 0 auto;font-size:10px;width:44px;white-space:nowrap}
-  .wssys .ws-item .ws-item-del{font-size:12px;padding:0 1px}
-  /* 新增行：搜索框占整行，输入框换行 */
-  .wssys .ws-addrow>div{flex-wrap:wrap;gap:6px}
-  .wssys .ws-addrow #wsNewName{flex:1 1 100%;min-width:0}
-  .wssys .ws-addrow input{flex:1;min-width:52px}
-  /* 槽位/按钮紧凑 */
-  .wssys .ws-slot{padding:4px 10px;font-size:11px}
-  .wssys .ws-titlebar{flex-wrap:wrap}
-  .wssys .ws-collapse{margin-left:auto}
-  /* ④步装备清单：每个类目独占一行（桌面两列不变） */
-  .gear-list{grid-template-columns:1fr}
-  /* ③步降水情况：0–23h 条单行 flex 一次排满（日期标签换行到条上方、条形区独占整行），无需横向滚动 */
-  .dt-precip-day{flex-wrap:wrap;gap:4px 6px}
-  .dt-precip-lab{width:100%;flex:none}
-  .dt-precip-bars{display:flex;flex:1 1 100%;gap:1px;align-items:stretch;height:30px;min-width:0}
-  .dt-precip-bars .tlt-bar{flex:1 1 0;min-width:0;max-width:none;gap:1px}
-  .dt-precip-bars .tlt-t{font-size:8px;line-height:1;letter-spacing:-.3px}
-  .dt-precip-bars .tlt-h{max-height:18px}
-  /* ⑤步总览卡：天气表格可横向滚动（不截断）、指标名称列字号缩小 */
-  .ov-wx{overflow-x:auto}
-  .ov-wx .dg-lb{font-size:9px}
-  /* ⑤步总览卡：地图区 min-height 降为加载占位，消除地图下方大片空白 */
-  .ov-card-map{min-height:120px}
-  /* ③步指标字体：手机端缩小——每日明细指标小方框（图标/标签/值）+ 概览表格固定列与值（桌面 >640px 不变） */
-  .ind-cell .ic-ico{font-size:11px}
-  .ind-cell .ic-l{font-size:9px}
-  .ind-cell .ic-v{font-size:12px}
-  .dt-grid>.dg-cell{font-size:11px}
-  .dt-grid>.dg-lb{font-size:11px;padding:6px 6px}
-  .dt-grid>.dg-hd{font-size:10px}
-  /* ③步每日明细指标网格：手机端固定 3 列（替代 auto-fill 在稍宽屏挤压成 4 列 + 1fr 拉伸留空），框体收紧 */
-  .ind-grid{grid-template-columns:repeat(3,1fr);gap:5px}
-  .ind-cell{padding:5px 6px;gap:1px}
-  .ind-cell .ic-top{gap:3px}
-  /* ①步搜索下拉：缩小字号、长地名单行完整显示不折行 */
-  .srd-item{font-size:11px;padding:8px 10px;gap:6px}
-  .srd-item .nm{font-size:12px}
-  .srd-item .ad,.srd-item .cr{font-size:10px}
-  .srd-item .src,.srd-item .mt-tag{font-size:9px;padding:0 3px}
-  /* ①步定行程：手机端 5 字段一行并列；出发日期列加宽（日期完整显示） */
-  .trip{grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:6px;margin-top:10px}
-  .trip label{font-size:10px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .trip input,.trip select{font-size:12px;padding:6px 4px}
-  /* ①步模式 chips：手机端 5 项一行并列 */
-  .chips{gap:6px;margin-top:12px}
-  .chip{padding:5px 8px;font-size:11px}
-  /* ①步整体：手机端字体收紧 + 间距压缩（限定 #p1，不影响其它步骤） */
-  #p1 .step-h{font-size:20px}
-  #p1 .step-s{font-size:12px}
-  #p1 .dual-tab{font-size:12px}
-  #p1 .search input{font-size:13px}
-  #p1 .region{margin-top:8px}
-  #p1 .mt{padding:10px 12px}
-  #p1 .mt-name{font-size:14px}
-  #p1 .mt-loc{font-size:11px}
-  #p1 .chips{margin-top:8px}
-  #p1 .trip{margin-top:6px}
-}
+/* ===== 移动端（≤640px）显示覆盖：已随「统一等比缩放」移除 —— 全站单一桌面布局按视口等比缩放（zoom=min(2,视口宽/820)），移动端不再换行重排 ===== */
 /* ===== ③步天气：路线走廊（路线段 × 小时 矩阵） ===== */
 .corr-wrap{overflow:hidden;border:1px solid var(--border);border-radius:10px;background:var(--surface-2)}
 .corr-scroll{overflow-x:auto;max-width:100%}
@@ -669,11 +590,6 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 @media (prefers-reduced-motion: reduce){
   .boot-sheep,.boot-food span,.boot-cloud,.boot-sun,.boot-title,.boot-hint{animation:none !important}
   .boot-sheep{transform:none}
-}
-/* 窄屏：emoji 盒偏宽，缩小字号避免场景溢出视口 */
-@media (max-width:360px){
-  .boot-food{font-size:28px}
-  .boot-sheep{font-size:60px}
 }
 
 </style>
@@ -7923,6 +7839,14 @@ function wsItemW(it) { return Math.max(0, parseFloat(it.w) || 0) * Math.max(1, p
 function wsItemP(it) { return Math.max(0, parseFloat(it.p) || 0) * Math.max(1, parseInt(it.qty) || 1) }
 function wsTotal() { return wsItems.reduce(function (s, it) { return s + wsItemW(it) }, 0) }
 function wsTotalPrice() { return wsItems.reduce(function (s, it) { return s + wsItemP(it) }, 0) }
+/* ---- 件数计算（数量=单件 qty；同名多件按 qty 重复计入件数） ---- */
+function wsItemCount(it) { return Math.max(1, parseInt(it.qty) || 1) }
+function wsTotalCount() { return wsItems.reduce(function (s, it) { return s + wsItemCount(it) }, 0) }
+function wsByCatCount() {
+  var map = {}
+  wsItems.forEach(function (it) { var c = it.cat || '未分类'; map[c] = (map[c] || 0) + wsItemCount(it) })
+  return map
+}
 function wsByCat() {
   var map = {}
   wsItems.forEach(function (it) { map[it.cat || '未分类'] = (map[it.cat || '未分类'] || 0) + wsItemW(it) })
@@ -7957,7 +7881,8 @@ function schemeEmpty() { return !wsItems.length }
 
 /* ---- 主要入口：初始化（loadConfig 后由 app.js 调用） ---- */
 function initWeightSys() {
-  wsCollapsed = !!(appConfig && appConfig.wsCollapsed)
+  // 默认折叠：无保存偏好 → 折叠，靠高亮放大按钮提醒；已保存偏好则尊重
+  wsCollapsed = !(appConfig && appConfig.wsCollapsed === false)
   loadSlots().then(function () {
     renderWeightSys()
     wsEmitChange()
@@ -7991,7 +7916,10 @@ function renderWeightSys() {
   if (!body) return
   body.style.display = wsCollapsed ? 'none' : ''
   var btn = $('wsCollapseBtn')
-  if (btn) btn.textContent = wsCollapsed ? '展开 ▾' : '折叠 ▴'
+  if (btn) {
+    btn.textContent = wsCollapsed ? '展开 ▾' : '折叠 ▴'
+    btn.classList.toggle('ws-collapse-alert', wsCollapsed)
+  }
   if (wsCollapsed) return
   body.innerHTML =
     wsSlotsHtml() +
@@ -8033,6 +7961,7 @@ function wsVizHtml() {
   var byCat = wsByCat()
   var total = wsTotal()
   var priceMap = wsByCatPrice()
+  var countMap = wsByCatCount()
   var totalP = wsTotalPrice()
   var h = '<div class="ws-viz" style="display:flex;gap:28px;align-items:stretch;margin-top:12px;flex-wrap:wrap">'
   // 环形饼图
@@ -8041,6 +7970,7 @@ function wsVizHtml() {
        '<div class="ws-donut-center" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">' +
          '<span style="font-size:10px;color:var(--text-muted)">Total</span>' +
          '<span style="font-family:var(--f-m);font-size:14px;font-weight:700">' + wsKg(total) + '</span>' +
+         '<span style="font-family:var(--f-m);font-size:10px;color:var(--text-muted);margin-top:1px">' + wsTotalCount() + ' 件</span>' +
          '<span style="font-family:var(--f-m);font-size:10px;color:var(--accent);margin-top:2px">¥' + wsPriceFmt(totalP) + '</span>' +
        '</div>' +
        '<div id="wsDonutTip" style="position:absolute;pointer-events:none;display:none;background:rgba(0,0,0,.85);color:#fff;font-size:11px;padding:4px 9px;border-radius:6px;z-index:5;font-family:var(--f-m)"></div>' +
@@ -8053,6 +7983,7 @@ function wsVizHtml() {
     '<span style="width:10px;flex-shrink:0"></span>' +
     '<span style="flex:1">分类</span>' +
     '<span style="width:80px;text-align:right">重量</span>' +
+    '<span style="width:42px;text-align:right">件数</span>' +
     '<span style="width:42px;text-align:right">%</span>' +
     '<span style="width:64px;text-align:right">金额</span>' +
   '</div>'
@@ -8062,6 +7993,7 @@ function wsVizHtml() {
       '<span class="ws-dot" style="width:10px;height:10px;border-radius:3px;background:' + WS_FMT_COLORS[i % WS_FMT_COLORS.length] + ';flex-shrink:0"></span>' +
       '<span style="flex:1">' + esc(b.cat) + '</span>' +
       '<span style="font-family:var(--f-m);width:80px;text-align:right">' + wsKg(b.grams) + '</span>' +
+      '<span style="font-family:var(--f-m);width:42px;text-align:right;color:var(--text-muted)">' + (countMap[b.cat] || 0) + '</span>' +
       '<span style="width:42px;text-align:right;color:var(--text-muted)">' + pct + '%</span>' +
       '<span style="font-family:var(--f-m);width:64px;text-align:right;color:var(--text-muted);font-size:11px">¥' + wsPriceFmt(priceMap[b.cat] || 0) + '</span>' +
     '</div>'
@@ -8073,6 +8005,7 @@ function wsVizHtml() {
     '<span style="width:10px;flex-shrink:0"></span>' +
     '<span style="flex:1">Total</span>' +
     '<span style="font-family:var(--f-m);width:80px;text-align:right">' + wsKg(total) + '</span>' +
+    '<span style="font-family:var(--f-m);width:42px;text-align:right">' + wsTotalCount() + '</span>' +
     '<span style="width:42px;text-align:right;color:var(--text-muted)">' + pctSum + '%</span>' +
     '<span style="font-family:var(--f-m);width:64px;text-align:right;color:var(--accent)">¥' + wsPriceFmt(totalP) + '</span></div>'
   h += '</div></div>'
@@ -8147,13 +8080,14 @@ function wsListHtml() {
   wsCats.forEach(function (cat) {
     var items = wsItems.filter(function (it) { return it.cat === cat })
     var catW = items.reduce(function (s, it) { return s + wsItemW(it) }, 0)
+    var catN = items.reduce(function (s, it) { return s + wsItemCount(it) }, 0)
     var o = wsOpenCat(cat)
     h += '<div class="ws-cat" style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden">' +
       '<div class="ws-cat-h" style="display:flex;align-items:center;gap:6px;padding:9px 12px;background:var(--surface-2);cursor:pointer;font-weight:700" onclick="wsToggleCat(\'' + esc(cat).replace(/'/g, "\\'") + '\')">' +
         '<span style="transition:transform .15s;display:inline-block">' + (o ? '▾' : '▸') + '</span>' +
         '<span style="flex:1;font-size:12px">' + esc(cat) + '</span>' +
         '<button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;padding:0 2px" onclick="event.stopPropagation();wsDelCat(\'' + esc(cat).replace(/'/g, "\\'") + '\')" title="删除该主题及全部装备">✕</button>' +
-        '<span class="ws-cat-total" style="font-family:var(--f-m);font-size:12px;color:var(--text-muted);text-align:right">' + wsKg(catW) + '</span>' +
+        '<span class="ws-cat-total" style="font-family:var(--f-m);font-size:12px;color:var(--text-muted);text-align:right;white-space:nowrap">' + wsKg(catW) + ' · ' + catN + ' 件</span>' +
       '</div>' +
       (o ? '<div class="ws-cat-body">' +
         wsGearHeader() +
@@ -8164,6 +8098,15 @@ function wsListHtml() {
         '</div></div>' : '') +
     '</div>'
   })
+  // 最后合计：总件数 + 总重 + 总金额（有装备时显示，作清单底部收口）
+  if (wsItems.length) {
+    h += '<div class="ws-final-total" style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-top:4px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);font-weight:700">' +
+      '<span style="flex:1;font-size:12px">最后合计</span>' +
+      '<span style="font-family:var(--f-m);font-size:13px;color:var(--accent)">' + wsKg(wsTotal()) + '</span>' +
+      '<span style="font-family:var(--f-m);font-size:12px">' + wsTotalCount() + ' 件</span>' +
+      '<span style="font-family:var(--f-m);font-size:12px;color:var(--text-muted)">¥' + wsPriceFmt(wsTotalPrice()) + '</span>' +
+    '</div>'
+  }
   // 新增大类主题入口
   h += '<div style="text-align:center;margin-top:6px">' +
     (wsPendingAdd && wsPendingAdd.cat === '__new' ? wsNewThemeHtml() :
@@ -9345,6 +9288,7 @@ function departureEntryClick() {
 }
 
 async function init() {
+  initViewportZoom()   // 统一等比缩放：尽可能早应用（boot 遮罩覆盖首帧，无闪烁）
   await loadConfig()
   document.body.dataset.theme = appConfig.theme
   var tsel = $('themeSel'); if (tsel) tsel.value = appConfig.theme
@@ -9443,6 +9387,26 @@ function initBoot() {
   setTimeout(bootDismiss, reduce ? 500 : 2700)
 }
 initBoot()
+
+/* ================= 统一等比缩放（unify-mobile-desktop-scaling） =================
+ * 全站单一桌面布局按视口宽等比缩放：zoom = min(2, 物理视口宽/820)。
+ * 桌面端放大（上限 2 倍）、移动端同一布局缩小到手机宽、不换行。
+ * 依赖 CSS zoom（Chrome/Edge/Safari/FF≥126），不支持则跳过（保持现状）。
+ * 注意：常量用字面量内联——本段位于文件末尾，init() 在其赋值前即调用，var 提升为 undefined 会让 zoom=NaN。 */
+function applyViewportZoom() {
+  if (!('zoom' in document.documentElement.style)) return
+  // 物理视口宽：本环境 Chromium 实测 html zoom 不改变 window.innerWidth（恒为物理宽），直接取
+  var physW = window.innerWidth
+  // 上限 1：桌面端（≥820px）不缩放、恢复 820px 居中；移动端（<820px）等比缩小铺满手机宽（desktop-scale-rollback）
+  var z = Math.min(1, physW / 820)
+  document.documentElement.style.zoom = z
+}
+function initViewportZoom() {
+  applyViewportZoom()
+  var t = null
+  window.addEventListener('resize', function () { clearTimeout(t); t = setTimeout(applyViewportZoom, 120) })
+  window.addEventListener('orientationchange', applyViewportZoom)
+}
 
 
 </script>
