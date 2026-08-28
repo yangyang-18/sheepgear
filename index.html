@@ -8037,6 +8037,7 @@ var wsCats = []        // 当前方案显式主题（钉住的大类列表，顺
 var wsItems = []       // 当前方案装备行 [{cat,name,w,p,qty,manual}]
 var wsListeners = []   // 数据变更监听（分享卡刷新）
 var wsPendingAdd = null // 待添加状态：{cat:目标分类}（null=未在添加态）
+var wsPendingImport = null // 待导入方案：{name,cats,items}（文件解析成功后等待用户选追加/覆盖）
 var wsCollapsed = false // 整个模块折叠状态（仅收起内容，标题栏常驻）
 
 /* ---- 重量换算常量 ---- */
@@ -8232,6 +8233,90 @@ function wsClearSlot() {
   toast('已清空当前方案')
 }
 
+/* ---- 当前方案导出 / 导入（JSON，可备份/迁移/分享） ---- */
+/* 导出：从内存态构建（含未保存编辑），Blob 下载 */
+function wsExport() {
+  if (!wsItems.length && !wsCats.length) { toast('当前方案为空，无可导出'); return }
+  var scheme = { name: wsName, cats: wsCats.slice(), items: wsItems.map(function (i) {
+    return { cat: i.cat, name: i.name, w: i.w, p: i.p, qty: i.qty || 1, manual: !!i.manual }
+  }) }
+  var data = { app: 'SHEEPGEAR', type: 'gear-scheme', version: 1, name: scheme.name, cats: scheme.cats, items: scheme.items }
+  var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  var a = document.createElement('a')
+  var safe = (scheme.name || '方案').replace(/[\\/:*?"<>|]/g, '_')
+  a.href = URL.createObjectURL(blob)
+  a.download = 'SHEEPGEAR-方案-' + safe + '.json'
+  a.click()
+  toast('已导出方案「' + scheme.name + '」')
+}
+
+/* 导入入口：label 内 file input 触发，读文件 → 校验 → 渲染选择栏 */
+function wsImportFile(file) {
+  if (!file) return
+  var rd = new FileReader()
+  rd.onload = function () {
+    var d
+    try { d = JSON.parse(String(rd.result)) } catch (e) { toast('导入失败：不是有效的 JSON 文件'); return }
+    var s = wsNormalizeScheme(d)
+    if (!s) { toast('导入失败：文件中没有有效的装备方案'); return }
+    wsPendingImport = s
+    renderWeightSys()
+  }
+  rd.readAsText(file)
+}
+
+/* 校验清洗：兼容本功能导出格式 / 裸 {name,cats,items} / {scheme:{…}} 包裹 */
+function wsNormalizeScheme(d) {
+  if (!d || typeof d !== 'object') return null
+  var src = (d.type === 'gear-scheme' && d.name) ? d : (d.scheme && typeof d.scheme === 'object' ? d.scheme : d)
+  if (!src || typeof src !== 'object') return null
+  var name = (typeof src.name === 'string' && src.name.trim()) ? src.name.trim() : '导入方案'
+  var cats = Array.isArray(src.cats) ? src.cats.filter(function (c) { return typeof c === 'string' && c }) : []
+  var items = Array.isArray(src.items) ? src.items.filter(function (i) {
+    return i && typeof i === 'object' && (typeof i.name === 'string' || typeof i.name === 'number') && String(i.name).trim() !== ''
+  }) : []
+  if (!items.length && !cats.length) return null
+  items = items.map(function (i) {
+    return { id: '__ws' + (__wsSeq++), cat: (typeof i.cat === 'string' ? i.cat : ''), name: String(i.name).trim(),
+      w: Math.max(0, Math.round(parseFloat(i.w) || 0)), p: Math.max(0, Math.round(parseFloat(i.p) || 0)),
+      qty: Math.max(1, parseInt(i.qty) || 1), manual: !!i.manual }
+  })
+  return { name: name, cats: cats, items: items }
+}
+
+/* 导入模式选择栏：追加为新方案 / 覆盖全部 / 取消 */
+function wsImportBarHtml() {
+  if (!wsPendingImport) return ''
+  var s = wsPendingImport
+  return '<div class="ws-import-bar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding:8px 10px;border:1px dashed var(--accent);border-radius:8px;background:var(--surface)">' +
+    '<span style="font-size:12px">导入方案「' + esc(s.name) + '」' + (s.items.length ? '（' + s.items.length + ' 件装备）' : '') + '</span>' +
+    '<button class="btn primary" style="padding:4px 12px;font-size:12px" onclick="wsImportApply(true)">追加为新方案</button>' +
+    '<button class="btn" style="padding:4px 12px;font-size:12px" onclick="wsImportApply(false)">覆盖全部</button>' +
+    '<button class="btn" style="padding:4px 12px;font-size:12px" onclick="wsCancelImport()">取消</button>' +
+  '</div>'
+}
+function wsCancelImport() { wsPendingImport = null; renderWeightSys() }
+
+function wsImportApply(append) {
+  var s = wsPendingImport
+  if (!s) return
+  wsPendingImport = null
+  if (append) {
+    if (wsSlots.length >= WS_MAX_SLOTS) { toast('⚠ 方案数已达上限 ' + WS_MAX_SLOTS + '，无法追加'); renderWeightSys(); return }
+    wsSlots.push({ name: s.name, cats: s.cats, items: s.items })
+    wsCur = wsSlots.length - 1
+  } else {
+    if (!confirm('覆盖全部方案？现有 ' + wsSlots.length + ' 个方案将被替换，不可恢复。')) { renderWeightSys(); return }
+    wsSlots = [{ name: s.name, cats: s.cats, items: s.items }]
+    wsCur = 0
+  }
+  applySlot()
+  commitSlot()
+  renderWeightSys()
+  wsEmitChange()
+  toast(append ? '已追加方案「' + s.name + '」' : '已用导入方案覆盖全部方案')
+}
+
 /* ---- 重量计算 ---- */
 function wsItemW(it) { return Math.max(0, parseFloat(it.w) || 0) * Math.max(1, parseInt(it.qty) || 1) }
 function wsItemP(it) { return Math.max(0, parseFloat(it.p) || 0) * Math.max(1, parseInt(it.qty) || 1) }
@@ -8346,6 +8431,7 @@ function renderWeightSys() {
   if (!wsCollapsed) {
     body.innerHTML =
       wsSlotsHtml() +
+      wsImportBarHtml() +
       wsHeaderHtml() +
       '<div class="ws-body">' +
         wsVizHtml() +
@@ -8368,7 +8454,11 @@ function wsSlotsHtml() {
       '<button class="ws-slot-del" onclick="wsDelSlot(' + i + ')" title="删除该方案" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:11px;padding:0 2px">✕</button>' +
     '</span>'
   })
-  h += '<button class="ws-slot add" onclick="wsAddSlot()" title="新增方案">＋ 新增</button>'
+  h += '<button class="ws-slot add" onclick="wsAddSlot()" title="新增方案">＋ 新增</button>' +
+    '<button class="ws-slot add" onclick="wsExport()" title="导出当前方案为 JSON 文件">⇩ 导出</button>' +
+    '<label class="ws-slot add" style="cursor:pointer" title="从 JSON 文件导入方案">⇧ 导入' +
+      '<input type="file" accept="application/json,.json" style="display:none" onchange="wsImportFile(this.files&amp;&amp;this.files[0])">' +
+    '</label>'
   h += '</div>'
   return h
 }
