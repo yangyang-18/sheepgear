@@ -33,7 +33,7 @@ body[data-theme="night"]{--bg:#0D0D0D;--surface:#161616;--surface-2:#1F1F1F;--te
 body.light[data-theme="night"]{--bg:#101010;--surface:#191919;--surface-2:#222222;--text:#EDEDED;--text-muted:#8F8F8F;--border:#333;--accent:#59D9C2;--accent-strong:#2FB8A0;--accent-soft:#12322C}
 
 *{box-sizing:border-box;margin:0;padding:0}
-html{overflow-x:hidden}   /* 统一等比缩放兜底：避免滚动条宽度引起的 1~2px 横向溢出 */
+html{overflow-x:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%}   /* 统一等比缩放兜底：避免滚动条宽度引起的 1~2px 横向溢出；text-size-adjust 防止手机端自动放大字体撑破固定布局 */
 body{font-family:var(--f-b);background:var(--bg);color:var(--text);line-height:1.6;transition:background .2s,color .2s;-webkit-font-smoothing:antialiased;padding-bottom:80px}
 .wrap{max-width:820px;margin:0 auto;padding:0 20px}
 
@@ -430,6 +430,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .wssys .ws-breakdown .ws-empty{font-size:12px}
 .wssys .ws-addrow{background:var(--surface)}
 .wssys .ws-addrow input,.wssys .ws-addrow select{font-size:12px;padding:6px 8px}
+.wssys .ws-list{min-width:0}   /* 主题清单容器：允许收缩，避免被网格/窄容器挤压时输入组移位 */
 /* 装备表头（桌面/移动通用布局） */
 .wssys .ws-gear-hdr{display:flex;align-items:center;gap:8px;padding:5px 12px;font-size:11px;color:var(--text-muted);font-family:var(--f-m);letter-spacing:.03em;border-bottom:1px solid var(--border);background:var(--surface);user-select:none}
 .wssys .ws-gear-hdr .ws-hdr-cat{width:76px;flex-shrink:0}
@@ -8104,8 +8105,10 @@ function wsDonutMove(ev) {
   var tip = $('wsDonutTip')
   if (!tip) return
   var rect = $('wsDonut') ? $('wsDonut').getBoundingClientRect() : { left: 0, top: 0 }
-  tip.style.left = (ev.clientX - rect.left + 6) + 'px'
-  tip.style.top = (ev.clientY - rect.top + 6) + 'px'
+  // 与联想下拉同理：clientX/rect 为视觉坐标，absolute 定位用缩放坐标 → 除以 zoom
+  var z = parseFloat(document.documentElement.style.zoom) || 1
+  tip.style.left = ((ev.clientX - rect.left + 6) / z) + 'px'
+  tip.style.top = ((ev.clientY - rect.top + 6) / z) + 'px'
 }
 function wsDonutOut() { var t = $('wsDonutTip'); if (t) t.style.display = 'none' }
 
@@ -8131,9 +8134,9 @@ function wsPackLimit() {
 
 /* ---- 下方装备清单区：按显式主题（大类）渲染，空主题也固定显示 ---- */
 function wsListHtml() {
-  var h = '<div class="ws-list" style="margin-top:14px" id="wslistbody">'
+  var h = '<div class="ws-list" style="margin-top:14px;min-width:0" id="wslistbody">'
   if (!wsCats.length) {
-    h += '<div style="text-align:center;color:var(--text-muted);padding:16px;font-size:13px">尚未创建主题。点下方「＋ 新增大类主题」钉住一个分类。</div>'
+    h += '<div style="text-align:center;color:var(--text-muted);padding:16px;font-size:13px;grid-column:1/-1">尚未创建主题。点下方「＋ 新增大类主题」钉住一个分类。</div>'
   }
   wsCats.forEach(function (cat) {
     var items = wsItems.filter(function (it) { return it.cat === cat })
@@ -8158,15 +8161,15 @@ function wsListHtml() {
   })
   // 最后合计：总件数 + 总重 + 总金额（有装备时显示，作清单底部收口）
   if (wsItems.length) {
-    h += '<div class="ws-final-total" style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-top:4px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);font-weight:700">' +
+    h += '<div class="ws-final-total" style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-top:4px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);font-weight:700;grid-column:1/-1">' +
       '<span style="flex:1;font-size:12px">最后合计</span>' +
       '<span style="font-family:var(--f-m);font-size:13px;color:var(--accent)">' + wsKg(wsTotal()) + '</span>' +
       '<span style="font-family:var(--f-m);font-size:12px">' + wsTotalCount() + ' 件</span>' +
       '<span style="font-family:var(--f-m);font-size:12px;color:var(--text-muted)">¥' + wsPriceFmt(wsTotalPrice()) + '</span>' +
     '</div>'
   }
-  // 新增大类主题入口
-  h += '<div style="text-align:center;margin-top:6px">' +
+  // 新增大类主题入口（通栏；grid 场景下 span 两列，避免被挤进单列而移位/换行）
+  h += '<div style="text-align:center;margin-top:6px;grid-column:1/-1;min-width:0">' +
     (wsPendingAdd && wsPendingAdd.cat === '__new' ? wsNewThemeHtml() :
       '<button class="btn" style="padding:5px 14px;font-size:12px;border-style:dashed" onclick="wsNewTheme()">＋ 新增大类主题</button>') +
   '</div>'
@@ -8185,14 +8188,14 @@ function wsNewTheme() {
 function wsNewThemeHtml() {
   var cats = wsCatalogCats()
   var cur = (wsPendingAdd && wsPendingAdd.cat === '__new' ? '' : '')
-  return '<div class="ws-addrow" style="border:1px dashed var(--border);border-radius:8px;padding:9px;margin-top:6px;background:var(--surface)">' +
-    '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">' +
-      '<label style="font-size:11px;color:var(--text-muted)">新增大类主题</label>' +
-      '<select id="wsNewThemeCat" onchange="wsNewThemePick(this.value)" style="flex:0 0 130px">' +
+  return '<div class="ws-addrow" style="border:1px dashed var(--border);border-radius:8px;padding:9px;margin-top:6px;background:var(--surface);min-width:0">' +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-width:0">' +
+      '<label style="font-size:11px;color:var(--text-muted);white-space:nowrap;flex-shrink:0">新增大类主题</label>' +
+      '<select id="wsNewThemeCat" onchange="wsNewThemePick(this.value)" style="flex:0 1 130px;min-width:0;max-width:100%">' +
         '<option value="">选择大类…</option>' +
         cats.map(function (c) { return '<option value="' + esc(c) + '"' + (c === cur ? ' selected' : '') + '>' + esc(c) + '</option>' }).join('') +
       '</select>' +
-      '<button class="btn" style="padding:4px 9px;font-size:12px" onclick="wsCancelAdd()">✕</button>' +
+      '<button class="btn" style="padding:4px 9px;font-size:12px;flex-shrink:0" onclick="wsCancelAdd()">✕</button>' +
     '</div></div>'
 }
 function wsNewThemePick(cat) {
@@ -8220,15 +8223,15 @@ function wsDelCat(cat) {
 /* ---- 新增表单（联想 + 手填）：在主题栏内新增，主题已锁定（分类名来自 pending） ---- */
 function wsAddRowHtml() {
   var cur = (wsPendingAdd && wsPendingAdd.cat) || ''
-  var h = '<div class="ws-addrow" style="border:1px dashed var(--border);border-radius:8px;padding:9px;margin-top:6px;background:var(--surface)">' +
-    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+  var h = '<div class="ws-addrow" style="border:1px dashed var(--border);border-radius:8px;padding:9px;margin-top:6px;background:var(--surface);min-width:0">' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;min-width:0">' +
       '<span style="font-size:12px;font-weight:700;color:var(--accent);width:76px;flex-shrink:0">' + (cur ? esc(cur) : '主题') + '</span>' +
       '<input id="wsNewName" placeholder="搜索 ' + (cur ? esc(cur) : '') + ' 装备 / 关键字…" style="flex:1;min-width:140px" oninput="wsBrandSuggest(this.value)">' +
-      '<input id="wsNewW" type="number" placeholder="g" style="width:64px">' +
-      '<input id="wsNewP" type="number" placeholder="¥" style="width:64px">' +
-      '<input id="wsNewQty" type="number" value="1" min="1" style="width:48px">' +
-      '<button class="btn primary" style="padding:4px 11px;font-size:12px" onclick="wsConfirmAdd()">✓ 添加</button>' +
-      '<button class="btn" style="padding:4px 9px;font-size:12px" onclick="wsCancelAdd()">✕</button>' +
+      '<input id="wsNewW" type="number" placeholder="g" style="width:64px;flex-shrink:0">' +
+      '<input id="wsNewP" type="number" placeholder="¥" style="width:64px;flex-shrink:0">' +
+      '<input id="wsNewQty" type="number" value="1" min="1" style="width:48px;flex-shrink:0">' +
+      '<button class="btn primary" style="padding:4px 11px;font-size:12px;flex-shrink:0" onclick="wsConfirmAdd()">✓ 添加</button>' +
+      '<button class="btn" style="padding:4px 9px;font-size:12px;flex-shrink:0" onclick="wsCancelAdd()">✕</button>' +
     '</div>' +
     '<div id="wsBrandBox" style="position:relative"></div>' +
   '</div>'
@@ -8269,18 +8272,22 @@ function wsBrandSuggest(kw) {
   hits = hits.slice(0, 12)
   if (!hits.length) { box.innerHTML = ''; return }
   // 基于输入框视口坐标定位 fixed 下拉；下方空间不足时翻到输入框上方
+  // 注意：整页按 <html> zoom 等比缩放时，getBoundingClientRect() 返回视觉坐标，
+  // 而 position:fixed 的 top/left 使用缩放坐标——两者差一个 zoom 因子。
+  // 若直接用视觉坐标，下拉会被再缩放一次而跑到屏幕上方（手机端「组框移位」根因）。
   var inp = $('wsNewName')
   var top = 0, left = 0, width = 260, maxH = 240
   if (inp) {
+    var z = parseFloat(document.documentElement.style.zoom) || 1
     var r = inp.getBoundingClientRect()
-    var estH = Math.min(maxH, hits.length * 38)
+    var estH = Math.min(maxH, hits.length * 38) * z   // 视觉高度，用于下方空间判断
     if (r.bottom + 4 + estH > window.innerHeight && r.top - 4 - estH > 0) {
-      top = r.top - 4 - estH   // 下方放不下 → 翻到输入框上方
+      top = (r.top - 4 - estH) / z   // 下方放不下 → 翻到输入框上方
     } else {
-      top = r.bottom + 4
+      top = (r.bottom + 4) / z
     }
-    left = r.left
-    width = Math.max(r.width, 220)
+    left = r.left / z
+    width = Math.max(r.width, 220) / z
   }
   box.innerHTML = '<div style="position:fixed;top:' + top + 'px;left:' + left + 'px;width:' + width + 'px;background:var(--surface);border:1px solid var(--border);border-radius:8px;z-index:9999;max-height:240px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5)">' +
     hits.map(function (x) {
