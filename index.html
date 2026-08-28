@@ -782,6 +782,40 @@ body[data-sdir="back"] .panel.active{animation-name:panel-in-back}
 
 /* 动效层注：装备系统 / 天气系统共用 .wssys 卡框 + .ws-body-anim 折叠（见上方） */
 
+/* ux-delight-pack：天气图标克制动效（仅 transform/opacity，周期 1.6~6s） */
+.wx-ani{display:inline-block;position:relative}
+.wx-ani-sun{animation:wxSun 6s linear infinite}
+.wx-ani-cloud{animation:wxCloud 5s ease-in-out infinite alternate}
+.wx-ani-rain{animation:wxBob 1.6s ease-in-out infinite}
+.wx-ani-snow{animation:wxBob 2.4s ease-in-out infinite}
+.wx-ani-storm{animation:wxBob 1.8s ease-in-out infinite}
+.wx-ani-fog{animation:wxFog 4s ease-in-out infinite alternate}
+.wx-ani-rain::after,.wx-ani-snow::after{content:'';position:absolute;left:50%;top:68%;width:2px;height:2px;border-radius:50%;background:currentColor;opacity:.65;animation:wxDrop 1.1s linear infinite}
+.wx-ani-snow::after{animation-duration:1.7s}
+@keyframes wxSun{to{transform:rotate(360deg)}}
+@keyframes wxCloud{from{transform:translateX(-2px)}to{transform:translateX(2px)}}
+@keyframes wxBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2.5px)}}
+@keyframes wxDrop{0%{transform:translate(0,0);opacity:.65}100%{transform:translate(-1.5px,7px);opacity:0}}
+@keyframes wxFog{from{opacity:.7}to{opacity:1}}
+@media (prefers-reduced-motion: reduce){.wx-ani,.wx-ani::after,.ws-flash{animation:none!important}}
+
+/* ux-delight-pack：命令面板浮层 */
+.cp-overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding-top:14vh}
+.cp-box{width:min(520px,92vw);background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.4);overflow:hidden}
+.cp-input{width:100%;box-sizing:border-box;border:none;outline:none;background:var(--surface-2);color:var(--text);font-size:15px;padding:14px 16px;font-family:var(--f-b)}
+.cp-input:focus{box-shadow:inset 0 0 0 2px var(--accent)}
+.cp-list{max-height:min(50vh,380px);overflow-y:auto;padding:6px}
+.cp-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;font-size:13px;cursor:pointer;outline:none}
+.cp-item.sel{background:var(--accent-soft)}
+.cp-item .cp-l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp-item .cp-h{font-family:var(--f-m);font-size:10px;color:var(--text-muted);white-space:nowrap}
+.cp-none{padding:16px;text-align:center;color:var(--text-muted);font-size:13px}
+/* 出发提醒按钮激活态 */
+.btn.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+/* 装备定位闪烁 */
+.ws-flash{animation:wsFlash 1.4s ease}
+@keyframes wsFlash{0%,100%{background:transparent}25%,60%{background:var(--accent-soft)}}
+
 </style>
 </head>
 <body data-theme="ridge">
@@ -832,6 +866,15 @@ body[data-sdir="back"] .panel.active{animation-name:panel-in-back}
     <button class="tgl" onclick="openCfg()">⚙ 配置</button>
   </div>
 </header>
+
+<!-- ux-delight-pack：命令面板（⌘K / Ctrl+K 开关） -->
+<div class="cp-overlay" id="cpOverlay" role="dialog" aria-modal="true" aria-label="命令面板" style="display:none" onclick="if(event.target===this)cpClose()">
+  <div class="cp-box" role="presentation">
+    <input id="cpInput" class="cp-input" placeholder="搜索：切步骤 / 搜地点 / 搜装备 / 开设置…" autocomplete="off"
+      oninput="cpRender(this.value)">
+    <div class="cp-list" id="cpList"></div>
+  </div>
+</div>
 
 <!-- ============ 户外装备系统（置顶常驻模块） ============ -->
 <div class="wssys" id="wssys" aria-label="户外装备系统">
@@ -922,6 +965,12 @@ body[data-sdir="back"] .panel.active{animation-name:panel-in-back}
     <div><label title="留空自动按路线计算">预计耗时</label><input id="tripHours" placeholder="如 6.5 h" aria-label="预计耗时"></div>
     <div><label title="留空用出发日日出">出发时刻</label><input type="time" id="tripTime" aria-label="出发时刻"></div>
   </div>
+  <div style="margin-top:8px;font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <button class="btn" id="remindBtn" style="padding:3px 12px;font-size:12px" onclick="remindToggle()" title="出发前本地通知提醒（PWA）">🔔 出发提醒</button>
+    <label style="display:flex;align-items:center;gap:4px">提前 <select id="remindLead" aria-label="提醒提前量" onchange="remindResched()"><option value="1">1 小时</option><option value="2">2 小时</option><option value="6">6 小时</option><option value="12">12 小时</option><option value="24">24 小时</option></select></label>
+    <button class="btn" id="remindCopy" style="padding:3px 10px;font-size:11px;display:none" onclick="remindCopy()" title="复制提醒文案，粘贴到其他应用">📋 复制文案</button>
+    <span id="remindStatus"></span>
+  </div>
 
   <div class="chips" id="modeChips">
     <button class="chip on" type="button" data-mode="light" onclick="setMode('light')">轻装单日</button>
@@ -992,7 +1041,10 @@ body[data-sdir="back"] .panel.active{animation-name:panel-in-back}
   <div class="step-h" role="heading" aria-level="2" id="p2Title">天气</div>
   <div class="step-s">按天采样，逐日查看天气与风险。</div>
 
-  <div id="wxStatus" style="font-size:11px;color:var(--text-muted);font-family:var(--f-m)"></div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <div id="wxStatus" style="font-size:11px;color:var(--text-muted);font-family:var(--f-m)"></div>
+    <button id="wxVoiceBtn" class="btn" style="padding:2px 10px;font-size:11px;display:none" onclick="wxVoiceToggle()" title="语音播报天气摘要（骑车/手冷时用）">🔊 播报天气</button>
+  </div>
   <div id="wxProgress" class="wx-progress" style="display:none"><div id="wxProgressBar" class="wx-progress-bar"></div></div>
 
   <div class="sub-tabs">
@@ -1186,6 +1238,8 @@ body[data-sdir="back"] .panel.active{animation-name:panel-in-back}
     </div>
 
     <div class="cfg-sec" data-cfg="sys">
+      <h4>外观</h4>
+      <div class="cfg-row"><div>明暗模式<div class="desc">跟随系统 / 强制浅色 / 强制深色（默认跟随系统）</div></div><select id="cfgLightMode" aria-label="明暗模式" onchange="setLightMode(this.value)"><option value="auto">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></div>
       <h4>数据源 · 字段级补齐（并行拉取，优先级可配）</h4>
       <div class="cfg-row"><div>天气源优先级<div class="desc">字段级向下取：各源并行拉取，逐字段取排在前面的非空值。如和风缺「降雪」→ 取 Meteoblue → 再取 Open-Meteo。某源整体失败会自动跳过，其余源照常补齐</div></div></div>
       <div id="srcList" style="display:flex;flex-direction:column;gap:6px"></div>
@@ -1297,6 +1351,19 @@ function wmoOf(c) { if (WMO_MAP[c]) return { zh: WMO_MAP[c][0], icon: WMO_MAP[c]
 function isSnowCode(c) { return (c >= 71 && c <= 77) || c === 85 || c === 86 }
 function isThunderCode(c) { return c >= 95 && c <= 99 }
 function isHailCode(c) { return c === 96 || c === 99 }
+/* ux-delight-pack：天气图标动效分类（晴/云/雨/雪/雷/雾）+ 包裹 span */
+function wxAniCat(c) {
+  if (c >= 95 && c <= 99) return 'storm'
+  if (c >= 71 && c <= 77 || c === 85 || c === 86) return 'snow'
+  if (c >= 51 && c <= 69 || c >= 80 && c <= 82) return 'rain'
+  if (c === 45 || c === 48) return 'fog'
+  if (c === 0 || c === 1) return 'sun'
+  if (c === 2 || c === 3) return 'cloud'
+  return 'none'
+}
+function wxIconHtml(c) {
+  return '<span class="wx-ani wx-ani-' + wxAniCat(c) + '" aria-hidden="true">' + wmoOf(c).icon + '</span>'
+}
 /* ---- 风向 / 风级 / 风寒 ---- */
 function beaufortKmh(kmh) { var T = [0, 1, 6, 12, 20, 29, 39, 50, 62, 75, 89, 103, 118], ZH = ['无风', '软风', '轻风', '微风', '和风', '清风', '强风', '疾风', '大风', '烈风', '狂风', '暴风', '飓风']; if (typeof kmh !== 'number' || isNaN(kmh)) return { level: 0, zh: '无风' }; for (var i = T.length - 1; i >= 0; i--) if (kmh >= T[i]) return { level: i, zh: ZH[i] }; return { level: 0, zh: '无风' } }
 function windDir16(deg) { if (typeof deg !== 'number' || isNaN(deg)) return '--'; var dirs = ['北', '北东北', '东北', '东东北', '东', '东东南', '东南', '南南东', '南', '南南西', '西南', '西西南', '西', '西西北', '西北', '北北西'], cuts = [11.25, 33.75, 56.25, 78.75, 101.25, 123.75, 146.25, 168.75, 191.25, 213.75, 236.25, 258.75, 281.25, 303.75, 326.25, 348.75]; for (var i = 0; i < cuts.length; i++) if (deg < cuts[i]) return dirs[i]; return dirs[0] }
@@ -1390,6 +1457,19 @@ function applyTheme(theme) {
   document.body.dataset.theme = theme
   var tsel = $('themeSel'); if (tsel) tsel.value = theme
   if (window.appConfig) { appConfig.theme = theme; saveConfig() }
+}
+
+/* ---- 明暗模式：跟随系统 / 浅色 / 深色（持久化 lightMode，默认 auto）---- */
+function syncLightMode() {
+  var mode = (window.appConfig && appConfig.lightMode) || 'auto'
+  var light = mode === 'light' ? true : mode === 'dark' ? false
+    : !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)
+  document.body.classList.toggle('light', light)
+  var sel = $('cfgLightMode'); if (sel) sel.value = mode
+}
+function setLightMode(mode) {
+  if (window.appConfig) { appConfig.lightMode = mode; saveConfig() }
+  syncLightMode()
 }
 
 </script>
@@ -3987,9 +4067,9 @@ function renderDayTable(days, enabled, opts) {
   var rows = ''
   rows += row('条件', function (d) {
     var w = d.weatherCode != null ? wmoOf(d.weatherCode) : null
-    var t = w ? w.icon + ' ' + w.zh : '未知'
+    var t = w ? wxIconHtml(d.weatherCode) + ' ' + esc(w.zh) : '未知'
     if (d.nightAppTemp != null) t += ' · 夜感 ' + Math.round(d.nightAppTemp) + '°'
-    return '<span class="nowrap">' + esc(t) + '</span>'
+    return '<span class="nowrap">' + t + '</span>'
   })
   rows += row('风险', function (d) {
     var caps = [d.scenes.cold, d.scenes.wet, d.scenes.wind].filter(function (s) { return s && s.risk })
@@ -4100,13 +4180,13 @@ function renderDailyLoc() {
   var isRoute = !!(route && route.length > 1)
   box.innerHTML = '<div class="daily-loc">' + perDay.map(function (pd, k) {
     var w = pd.weather || {}
-    var cond = w.weatherCode != null ? (wmoOf(w.weatherCode).icon + ' ' + wmoOf(w.weatherCode).zh) : '—'
+    var cond = w.weatherCode != null ? wxIconHtml(w.weatherCode) + ' ' + esc(wmoOf(w.weatherCode).zh) : '—'
     var ele = (pd.point && pd.point.ele > 0) ? fmtInt(pd.point.ele) + 'm' : '—'
     var sum = (w.tempMin != null ? Math.round(w.tempMin) + '°' : '—') + '/' + (w.tempMax != null ? Math.round(w.tempMax) + '°' : '—') + ' · 降水' + (w.precipProb != null ? Math.round(w.precipProb) + '%' : '—')
     var dist = isRoute && pd.distKmFromStart != null ? ' · ' + pd.distKmFromStart + 'km' : ''
     return '<div class="dl-card"><div class="dl-h">Day ' + (k + 1) + ' · ' + esc(fmtShort(pd.date)) + '</div>' +
       '<div class="dl-sub"><span class="dl-name">…</span> · 海拔 ' + ele + dist + '</div>' +
-      '<div class="dl-wx">' + esc(cond) + ' · ' + esc(sum) + '</div></div>'
+      '<div class="dl-wx">' + cond + ' · ' + esc(sum) + '</div></div>'
   }).join('') + '</div>'
   var names = box.querySelectorAll ? box.querySelectorAll('.dl-name') : []
   perDay.forEach(function (pd, k) {
@@ -4162,6 +4242,7 @@ function confidenceDisplay() {
 function renderWxList() {
   var box = $('wxList')
   if (!box) return
+  if (typeof wxVoiceBtnSync === 'function') wxVoiceBtnSync()
   // 未查询天气：展示手动「搜索天气」入口（省 Key 配额，不再进第 3 步自动跑）
   if (!weather || !weather.days.length) {
     box.innerHTML = '<div class="wx-detail" style="padding:18px 14px;text-align:center"><div style="font-size:14px;color:var(--text-muted)">尚未查询天气</div>' +
@@ -4226,10 +4307,10 @@ function renderDayIndGrid() {
   var body = enabled.length
     ? '<div class="ind-grid">' + cells + '</div>'
     : '<div style="font-size:12px;color:var(--text-muted);margin-top:12px">未勾选任何指标，可在 ⚙ 配置指标 中勾选</div>'
-  var cond = d.weatherCode != null ? (wmoOf(d.weatherCode).icon + ' ' + wmoOf(d.weatherCode).zh) : ''
+  var cond = d.weatherCode != null ? wxIconHtml(d.weatherCode) + ' ' + esc(wmoOf(d.weatherCode).zh) : ''
   // C9 逐时曲线区：降水条逻辑已含于指标网格，曲线独立 canvas（不随指标勾选增删）
   var curve = '<div class="hc-wrap"><div class="hc-lab">逐时温度/风</div><div class="hc-scroll"><canvas id="hourlyCurves" width="720" height="180"></canvas></div></div>'
-  box.innerHTML = '<div class="wx-detail"><div class="wx-h"><div class="wx-cond">每日明细</div><div class="wx-src">逐日指标小方框 · 原版样式<br>' + esc(fmtShort(d.date)) + (cond ? ' · ' + esc(cond) : '') + '</div></div>' + dayTabs + body + curve + '</div>'
+  box.innerHTML = '<div class="wx-detail"><div class="wx-h"><div class="wx-cond">每日明细</div><div class="wx-src">逐日指标小方框 · 原版样式<br>' + esc(fmtShort(d.date)) + (cond ? ' · ' + cond : '') + '</div></div>' + dayTabs + body + curve + '</div>'
   var cv = $('hourlyCurves')
   if (cv && typeof renderHourlyCurves === 'function') renderHourlyCurves(cv, perDay, day)
 }
@@ -4365,6 +4446,10 @@ async function runWeather() {
   weatherLoading = true
   $('wxStatus').textContent = '查询天气中…（点 N / 共 ' + Math.max(1, trip.days) + ' 天）'
   $('mapErr').style.display = 'none'
+  // ux-delight-pack 骨架屏：查询期间占位，防内容跳动
+  var _sk = wsSkeleton('weather')
+  var _wl = $('wxList'); if (_wl && !weather) _wl.innerHTML = _sk
+  var _wd = $('wxDetail2'); if (_wd) _wd.innerHTML = _sk
   var cached = null, cacheFresh = { state: 'fresh', label: '' }   // C2：缓存与新鲜度（catch 兜底需在 try 外）
   try {
     var days = Math.max(1, Math.min(16, trip.days || 1))
@@ -4444,10 +4529,10 @@ async function runWeather() {
     renderAuroraCard()
     renderRouteDisplay()
     if (typeof syncTripTime === 'function') syncTripTime()
-    // ③步 profile：总距离 / 累计爬升 / 预计耗时
-    $('totalDist').textContent = routeMetrics ? routeMetrics.distanceKm.toFixed(1) + ' km' : (selLoc ? '目的地' : '—')
-    $('totalClimb').textContent = routeMetrics ? routeMetrics.climbM.toLocaleString() + ' m' : (trip.climbM != null ? trip.climbM.toLocaleString() + ' m' : '—')
-    $('totalHours').textContent = routeMetrics ? routeMetrics.hours.toFixed(1) + ' h' : (trip.hours != null ? trip.hours + ' h' : '—')
+    // ③步 profile：总距离 / 累计爬升 / 预计耗时（count-up 滚动）
+    animRouteMetric('totalDist', routeMetrics ? routeMetrics.distanceKm : null, ' km', 1, selLoc ? '目的地' : '—')
+    animRouteMetric('totalClimb', routeMetrics ? routeMetrics.climbM : (trip.climbM != null ? trip.climbM : null), ' m', null, '—')
+    animRouteMetric('totalHours', routeMetrics ? routeMetrics.hours : (trip.hours != null ? trip.hours : null), ' h', 1, '—')
     renderWxStatus(cacheFresh)
   } catch (e) {
     // C2 离线兜底：拉取失败但存在有效缓存（任何新鲜度）→ 用缓存出装备，三态标注；否则报错
@@ -4463,6 +4548,9 @@ async function runWeather() {
       $('mapErr').className = 'risk orange'
       $('mapErr').textContent = e && e.message === 'geo.not_found' ? '请先选择地点或导入路线' : '天气获取失败，请检查网络后重试'
       $('wxStatus').textContent = ''
+      // ux-delight-pack：骨架替换为错误提示，不残留
+      var _wl2 = $('wxList'); if (_wl2) _wl2.innerHTML = '<div class="wx-detail" style="padding:18px 14px;text-align:center;color:var(--warning);font-size:13px">天气获取失败，请检查网络后重试</div>'
+      var _wd2 = $('wxDetail2'); if (_wd2) _wd2.innerHTML = ''
     }
   } finally {
     weatherLoading = false
@@ -7953,6 +8041,101 @@ var wsCollapsed = false // 整个模块折叠状态（仅收起内容，标题�
 /* ---- 重量换算常量 ---- */
 var WS_FMT_COLORS = ['#E0A456', '#6BB4D6', '#8CB269', '#CE6F4A', '#9B7EC1', '#D97B45', '#5B8DB8', '#A8945F', '#C26E8A', '#7FAF6D', '#8A6DBB', '#D6604A', '#5A93B8', '#B8860B', '#708090']
 
+/* ============================================================
+ * ux-delight-pack 共享工具：count-up / 空状态 / 骨架屏 / 双环浅色板
+ * ============================================================ */
+/* 颜色混白（内环金额用同色相浅一档） */
+function wsMix(c, other, t) {
+  var r = parseInt(c.slice(1, 3), 16), g = parseInt(c.slice(3, 5), 16), b = parseInt(c.slice(5, 7), 16)
+  var o = [parseInt(other.slice(1, 3), 16), parseInt(other.slice(3, 5), 16), parseInt(other.slice(5, 7), 16)]
+  return '#' + [r, g, b].map(function (v, i) { var x = Math.round(v + (o[i] - v) * t); return (x < 16 ? '0' : '') + x.toString(16) }).join('')
+}
+var WS_FMT_LIGHT = WS_FMT_COLORS.map(function (c) { return wsMix(c, '#ffffff', 0.32) })
+
+/* 数值滚动：rAF + easeOutExpo；reduced-motion 直接写终值 */
+function animNum(el, from, to, ms, fmt) {
+  if (!el || !isFinite(from) || !isFinite(to)) return
+  if (from === to) { if (fmt) el.textContent = fmt(to); return }
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (reduce) { if (fmt) el.textContent = fmt(to); else el.textContent = String(Math.round(to)); return }
+  var dur = ms || 600, t0 = null
+  function set(v) { el.textContent = fmt ? fmt(v) : String(Math.round(v)) }
+  function step(ts) {
+    if (t0 == null) t0 = ts
+    var p = Math.min(1, (ts - t0) / dur)
+    var e = p === 1 ? 1 : 1 - Math.pow(2, -10 * p)
+    set(from + (to - from) * e)
+    if (p < 1) requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
+}
+
+/* 统一空状态卡片：图标 + 文案 + 可选行动按钮 */
+function emptyState(text, actionHtml) {
+  return '<div style="text-align:center;color:var(--text-muted);padding:22px 12px;font-size:13px;border:1px dashed var(--border);border-radius:10px">' +
+    '<div style="font-size:18px;margin-bottom:6px;opacity:.7">🧭</div>' + esc(text) +
+    (actionHtml ? '<div style="margin-top:8px">' + actionHtml + '</div>' : '') + '</div>'
+}
+
+/* 骨架屏占位：定尺寸灰块，防布局跳动（静态、无 shimmer，reduced-motion 天然安全） */
+function wsSkeleton(kind) {
+  function blk(h, w) {
+    return '<div style="height:' + (h || 60) + 'px;' + (w ? 'width:' + w + ';' : '') + 'border-radius:10px;background:var(--surface-2)"></div>'
+  }
+  if (kind === 'weather') {
+    return '<div style="display:flex;flex-direction:column;gap:10px" aria-hidden="true">' + blk(110) +
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">' + blk(72) + blk(72) + blk(72) + '</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">' + blk(44) + blk(44) + blk(44) + blk(44) + '</div></div>'
+  }
+  var h = '', i
+  for (i = 0; i < 5; i++) h += blk(16, '62%') + '<div style="height:9px"></div>'
+  return '<div style="display:flex;flex-direction:column;gap:4px" aria-hidden="true">' + h + '</div>'
+}
+
+/* 饼图分类聚合：>6 分类时前 6 大 + 其余并「其他」（明细表仍列全部分类） */
+function wsDonutCats(byCat) {
+  if (byCat.length <= 6) return byCat
+  var s = byCat.slice().sort(function (a, b) { return b.grams - a.grams })
+  var keep = s.slice(0, 6), rest = s.slice(6), g = 0
+  rest.forEach(function (x) { g += x.grams })
+  keep.push({ cat: '其他', grams: g })
+  return keep
+}
+
+/* 装备 viz 数值滚动：首次进入/数值变化时从旧值滚动到新值 */
+var __wsAnimCache = {}
+function wsAnimateViz() {
+  var nodes = document.querySelectorAll('#wsBody [data-anim]')
+  if (!nodes.length) return
+  Array.prototype.forEach.call(nodes, function (el) {
+    var kind = el.getAttribute('data-anim')
+    var target = parseFloat(el.getAttribute('data-v') || '0')
+    var fmt
+    if (kind === 'kg') fmt = function (v) { return (v / 1000).toFixed(2) + ' kg' }
+    else if (kind === 'price') fmt = function (v) { return '¥' + wsPriceFmt(Math.round(v)) }
+    else if (kind === 'count') fmt = function (v) { return String(Math.round(v)) }
+    else fmt = function (v) { return String(Math.round(v)) }
+    var key = (el.getAttribute('data-cat') || el.id || 'c') + ':' + kind
+    var prev = __wsAnimCache[key] == null ? 0 : __wsAnimCache[key]
+    if (prev === target) return
+    animNum(el, prev, target, 600, fmt)
+    __wsAnimCache[key] = target
+  })
+}
+
+/* 路线指标 count-up：总距离 / 累计爬升 / 预计耗时（数值从旧值滚动；无数值则显示 fallback） */
+function animRouteMetric(elId, val, unit, dec, fallback) {
+  var el = $(elId)
+  if (!el) return
+  if (val == null || !isFinite(parseFloat(val))) { el.textContent = fallback || '—'; el.removeAttribute('data-v'); return }
+  var target = parseFloat(val)
+  var prev = isFinite(parseFloat(el.getAttribute('data-v'))) ? parseFloat(el.getAttribute('data-v')) : 0
+  animNum(el, prev, target, 600, function (v) {
+    return (dec != null ? v.toFixed(dec) : Math.round(v).toLocaleString()) + unit
+  })
+  el.setAttribute('data-v', target)
+}
+
 /* ---- IndexedDB 封装：方案槽存入既有 config store（key='weightSchemes'），
  *      避免新 store 需升级 DB_VERSION（既有库版本已 3，onupgradeneeded 不触发） ---- */
 function wqOpen() {
@@ -8167,6 +8350,7 @@ function renderWeightSys() {
         wsVizHtml() +
         wsListHtml() +
       '</div>'
+    wsAnimateViz()
     showWeightToast(wsTotal())
   }
   var box = $('wssys')
@@ -8206,14 +8390,11 @@ function wsVizHtml() {
   var countMap = wsByCatCount()
   var totalP = wsTotalPrice()
   var h = '<div class="ws-viz" style="display:flex;gap:28px;align-items:stretch;margin-top:12px;flex-wrap:wrap">'
-  // 环形饼图
+  // 环形饼图（外环重量 + 内环金额，中心联动）
   h += '<div class="ws-donut-wrap" style="position:relative;width:280px;height:280px;flex-shrink:0">' +
        '<svg id="wsDonut" viewBox="0 0 100 100" style="width:100%;height:100%">' + wsDonut(byCat, total) + '</svg>' +
-       '<div class="ws-donut-center" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">' +
-         '<span class="ws-donut-total" style="color:var(--text-muted)">Total</span>' +
-         '<span class="ws-donut-w" style="font-family:var(--f-m);font-weight:700">' + wsKg(total) + '</span>' +
-         '<span class="ws-donut-count" style="font-family:var(--f-m);color:var(--text-muted);margin-top:1px">' + wsTotalCount() + ' 件</span>' +
-         '<span class="ws-donut-price" style="font-family:var(--f-m);color:var(--accent);margin-top:2px">¥' + wsPriceFmt(totalP) + '</span>' +
+       '<div id="wsDonutCenter" class="ws-donut-center" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">' +
+         wsDonutCenterHtml(total, totalP) +
        '</div>' +
        '<div id="wsDonutTip" style="position:absolute;pointer-events:none;display:none;background:rgba(0,0,0,.85);color:#fff;font-size:11px;padding:4px 9px;border-radius:6px;z-index:5;font-family:var(--f-m)"></div>' +
        '</div>'
@@ -8231,13 +8412,14 @@ function wsVizHtml() {
   '</div>'
   byCat.forEach(function (b, i) {
     var pct = total ? Math.round(b.grams / total * 100) : 0
+    var ck = b.cat
     h += '<div class="ws-row ws-cat" style="display:flex;align-items:center;gap:8px;padding:5px 0">' +
       '<span class="ws-dot" style="width:10px;height:10px;border-radius:3px;background:' + WS_FMT_COLORS[i % WS_FMT_COLORS.length] + ';flex-shrink:0"></span>' +
       '<span style="flex:1">' + esc(b.cat) + '</span>' +
-      '<span class="ws-break-w" style="font-family:var(--f-m);width:80px;text-align:right">' + wsKg(b.grams) + '</span>' +
-      '<span style="font-family:var(--f-m);width:42px;text-align:right;color:var(--text-muted)">' + (countMap[b.cat] || 0) + '</span>' +
+      '<span class="ws-break-w" data-anim="kg" data-v="' + b.grams + '" data-cat="' + esc(ck) + '" style="font-family:var(--f-m);width:80px;text-align:right">' + wsKg(b.grams) + '</span>' +
+      '<span data-anim="count" data-v="' + (countMap[b.cat] || 0) + '" data-cat="' + esc(ck) + '" style="font-family:var(--f-m);width:42px;text-align:right;color:var(--text-muted)">' + (countMap[b.cat] || 0) + '</span>' +
       '<span class="ws-break-pct" style="width:42px;text-align:right;color:var(--text-muted)">' + pct + '%</span>' +
-      '<span class="ws-cat-price" style="font-family:var(--f-m);width:64px;text-align:right;color:var(--text-muted)">¥' + wsPriceFmt(priceMap[b.cat] || 0) + '</span>' +
+      '<span class="ws-cat-price" data-anim="price" data-v="' + (priceMap[b.cat] || 0) + '" data-cat="' + esc(ck) + '" style="font-family:var(--f-m);width:64px;text-align:right;color:var(--text-muted)">¥' + wsPriceFmt(priceMap[b.cat] || 0) + '</span>' +
     '</div>'
   })
   if (!byCat.length) h += '<div class="ws-empty" style="color:var(--text-muted)">暂无装备</div>'
@@ -8246,10 +8428,10 @@ function wsVizHtml() {
   h += '<div class="ws-row ws-total" style="display:flex;align-items:center;gap:8px;padding:8px 0 4px;margin-top:6px;border-top:1px solid var(--border);font-weight:700">' +
     '<span style="width:10px;flex-shrink:0"></span>' +
     '<span style="flex:1">Total</span>' +
-    '<span style="font-family:var(--f-m);width:80px;text-align:right">' + wsKg(total) + '</span>' +
+    '<span data-anim="kg" data-v="' + total + '" style="font-family:var(--f-m);width:80px;text-align:right">' + wsKg(total) + '</span>' +
     '<span style="font-family:var(--f-m);width:42px;text-align:right">' + wsTotalCount() + '</span>' +
     '<span style="width:42px;text-align:right;color:var(--text-muted)">' + pctSum + '%</span>' +
-    '<span style="font-family:var(--f-m);width:64px;text-align:right;color:var(--accent)">¥' + wsPriceFmt(totalP) + '</span></div>'
+    '<span data-anim="price" data-v="' + totalP + '" style="font-family:var(--f-m);width:64px;text-align:right;color:var(--accent)">¥' + wsPriceFmt(totalP) + '</span></div>'
   h += '</div></div>'
   // 超重预警
   h += wsOverweightHtml(total)
@@ -8257,32 +8439,71 @@ function wsVizHtml() {
 }
 function wsPriceFmt(p) { return p >= 10000 ? (p / 1000).toFixed(1) + 'k' : String(Math.round(p)) }
 
-/* ---- 环形饼图 SVG（含 hover tooltip） ---- */
+/* ---- 环形饼图 SVG（含 hover tooltip + 中心联动）---- */
 function wsDonut(byCat, total) {
   if (!total || !byCat.length) return '<circle cx="50" cy="50" r="38" fill="none" stroke="var(--border)" stroke-width="10"/>'
-  var R = 38, C = 2 * Math.PI * R
-  var start = -90 // 12点钟方向
-  var segs = ''
-  byCat.forEach(function (b, i) {
-    var frac = b.grams / total
-    var len = frac * C
+  var cats = wsDonutCats(byCat)              // 聚合「其他」，保证 ≤6+1 段
+  var priceMap = wsByCatPrice()
+  var totalW = 0, totalP = 0
+  cats.forEach(function (b) { totalW += b.grams; totalP += priceMap[b.cat] || 0 })
+  var segs = '', startW = -90, startP = -90   // 两环同从 12 点钟起画
+  cats.forEach(function (b, i) {
+    var fracW = totalW ? b.grams / totalW : 0
+    var fracP = totalP ? (priceMap[b.cat] || 0) / totalP : 0
     var color = WS_FMT_COLORS[i % WS_FMT_COLORS.length]
-    segs += '<circle cx="50" cy="50" r="' + R + '" fill="none" stroke="' + color + '" stroke-width="10" ' +
-      'stroke-dasharray="' + len.toFixed(2) + ' ' + (C - len).toFixed(2) + '" ' +
-      'stroke-dashoffset="' + ((-start * C / 360) + 0).toFixed(2) + '" ' +
-      'stroke-linecap="butt" ' +
-      'data-cat="' + esc(b.cat) + '" data-w="' + b.grams + '" ' +
-      'onmouseenter="wsDonutHover(this)" onmousemove="wsDonutMove(event)" onmouseleave="wsDonutOut()" style="cursor:pointer;transition:opacity .15s" class="ws-seg">'
-    start += frac * 360
-    segs += '</circle>'
+    var light = WS_FMT_LIGHT[i % WS_FMT_LIGHT.length]
+    segs += wsSeg(38, startW, fracW, color, 'w', b.cat, b.grams, 10)
+    if (fracP > 0) segs += wsSeg(30, startP, fracP, light, 'p', b.cat, priceMap[b.cat] || 0, 8)
+    startW += fracW * 360
+    startP += fracP * 360
   })
   return segs
 }
+function wsSeg(R, start, frac, color, ring, cat, val, sw) {
+  var C = 2 * Math.PI * R
+  var gap = 4.5                                              // 期望可见间隙（度）
+  var over = 360 * (Math.atan((sw / 2) / R) / (2 * Math.PI)) // round 端帽外扩角
+  var totalDeg = frac * 360
+  var drawn = totalDeg - gap - 2 * over
+  if (drawn < 1.5) drawn = Math.max(0.4, totalDeg - gap)
+  var L = Math.max(0.2, drawn / 360 * C)
+  return '<circle cx="50" cy="50" r="' + R + '" fill="none" stroke="' + color + '" stroke-width="' + sw + '" ' +
+    'stroke-dasharray="' + L.toFixed(2) + ' ' + (C - L).toFixed(2) + '" ' +
+    'stroke-dashoffset="' + ((-start * C / 360)).toFixed(2) + '" ' +
+    'stroke-linecap="round" ' +
+    'data-cat="' + esc(cat) + '" data-ring="' + ring + '" ' +
+    'data-w="' + (ring === 'w' ? val : '') + '" data-p="' + (ring === 'p' ? val : '') + '" ' +
+    'onmouseenter="wsDonutHover(this)" onmousemove="wsDonutMove(event)" onmouseleave="wsDonutOut()" style="cursor:pointer;transition:opacity .15s" class="ws-seg"></circle>'
+}
+/* 中心默认内容（Total 重量/件数/金额） */
+function wsDonutCenterHtml(total, totalP) {
+  return '<span class="ws-donut-total" style="color:var(--text-muted)">Total</span>' +
+    '<span class="ws-donut-w" data-anim="kg" data-v="' + (total || 0) + '" style="font-family:var(--f-m);font-weight:700">' + wsKg(total) + '</span>' +
+    '<span class="ws-donut-count" style="font-family:var(--f-m);color:var(--text-muted);margin-top:1px">' + wsTotalCount() + ' 件</span>' +
+    '<span class="ws-donut-price" style="font-family:var(--f-m);color:var(--accent);margin-top:2px">¥' + wsPriceFmt(totalP) + '</span>'
+}
 function wsDonutHover(el) {
   var tip = $('wsDonutTip')
-  if (!tip) return
-  tip.textContent = el.getAttribute('data-cat') + '：' + wsKg(parseFloat(el.getAttribute('data-w')))
-  tip.style.display = 'block'
+  var cat = el.getAttribute('data-cat')
+  var ring = el.getAttribute('data-ring')
+  if (tip) {
+    tip.textContent = ring === 'p'
+      ? cat + '：¥' + wsPriceFmt(parseFloat(el.getAttribute('data-p')))
+      : cat + '：' + wsKg(parseFloat(el.getAttribute('data-w')))
+    tip.style.display = 'block'
+  }
+  var c = $('wsDonutCenter')
+  if (c) {
+    if (ring === 'p') {
+      c.innerHTML = '<span class="ws-donut-total" style="color:var(--text-muted)">' + esc(cat) + ' · 金额</span>' +
+        '<span class="ws-donut-w" style="font-family:var(--f-m);font-weight:700">¥' + wsPriceFmt(parseFloat(el.getAttribute('data-p'))) + '</span>'
+    } else {
+      var cm = wsByCatCount()
+      c.innerHTML = '<span class="ws-donut-total" style="color:var(--text-muted)">' + esc(cat) + '</span>' +
+        '<span class="ws-donut-w" style="font-family:var(--f-m);font-weight:700">' + wsKg(parseFloat(el.getAttribute('data-w'))) + '</span>' +
+        '<span class="ws-donut-count" style="font-family:var(--f-m);color:var(--text-muted);margin-top:1px">' + (cm[cat] || 0) + ' 件</span>'
+    }
+  }
 }
 function wsDonutMove(ev) {
   var tip = $('wsDonutTip')
@@ -8293,7 +8514,11 @@ function wsDonutMove(ev) {
   tip.style.left = ((ev.clientX - rect.left + 6) / z) + 'px'
   tip.style.top = ((ev.clientY - rect.top + 6) / z) + 'px'
 }
-function wsDonutOut() { var t = $('wsDonutTip'); if (t) t.style.display = 'none' }
+function wsDonutOut() {
+  var t = $('wsDonutTip'); if (t) t.style.display = 'none'
+  var c = $('wsDonutCenter')
+  if (c) c.innerHTML = wsDonutCenterHtml(wsTotal(), wsTotalPrice())
+}
 
 /* ---- 超重预警（复用可配置 packWeightLimit 阈值，按行程模式） ---- */
 function wsOverweightHtml(total) {
@@ -8330,8 +8555,8 @@ function wsListHtml() {
       '<div class="ws-cat-h" style="display:flex;align-items:center;gap:6px;padding:9px 12px;background:var(--surface-2);cursor:pointer;font-weight:700" onclick="wsToggleCat(\'' + esc(cat).replace(/'/g, "\\'") + '\')">' +
         '<span style="transition:transform .15s;display:inline-block">' + (o ? '▾' : '▸') + '</span>' +
         '<span class="ws-cat-name" style="flex:1">' + esc(cat) + '</span>' +
-        '<button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;padding:0 2px" onclick="event.stopPropagation();wsDelCat(\'' + esc(cat).replace(/'/g, "\\'") + '\')" title="删除该主题及全部装备">✕</button>' +
         '<span class="ws-cat-total" style="font-family:var(--f-m);font-size:12px;color:var(--text-muted);text-align:right;white-space:nowrap">' + wsKg(catW) + ' · ' + catN + ' 件</span>' +
+        '<button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;padding:0 2px" onclick="event.stopPropagation();wsDelCat(\'' + esc(cat).replace(/'/g, "\\'") + '\')" title="删除该主题及全部装备">✕</button>' +
       '</div>' +
       (o ? '<div class="ws-cat-body">' +
         wsGearHeader() +
@@ -8685,8 +8910,264 @@ function closeCfg(el) {
   el.addEventListener('animationend', finish)
   setTimeout(finish, 400)
 }
-/* 无障碍：Esc 跳过启动画面 / 关闭任一打开的弹层（键盘可达） */
+/* ============ 命令面板（command-palette，⌘K / Ctrl+K） ============ */
+var cpItems = [], cpSel = -1, cpLocTimer = null
+function cpOpen() {
+  var o = $('cpOverlay'); if (!o) return
+  o.style.display = 'flex'
+  var i = $('cpInput'); if (i) { i.value = ''; i.focus() }
+  cpRender('')
+}
+function cpClose() {
+  var o = $('cpOverlay'); if (o) o.style.display = 'none'
+  clearTimeout(cpLocTimer); cpItems = []; cpSel = -1
+}
+function cpSources() {
+  var cmds = []
+  document.querySelectorAll('#steps .step').forEach(function (s, i) {
+    var label = '前往 ' + (i + 1) + ' · ' + (s.textContent || '').trim()
+    cmds.push({ label: label, hint: '步骤', run: function () { go(i + 1) } })
+  })
+  cmds.push({ label: '⚙ 打开配置', hint: '设置', run: function () { if (typeof openCfg === 'function') openCfg() } })
+  if (typeof openHistory === 'function') cmds.push({ label: '🕘 历史记录', hint: '行程', run: function () { openHistory() } })
+  cmds.push({ label: '☀ / 🌙 明暗模式', hint: '自动→浅→深', run: function () { cpCycleLight() } })
+  ;(typeof wsItems !== 'undefined' ? wsItems : []).forEach(function (it) {
+    if (!it || !it.name) return
+    cmds.push({ label: '🎒 ' + it.name, hint: it.cat + ' · 装备', run: function () { cpGotoGear(it.name) } })
+  })
+  return cmds
+}
+function cpRender(q) {
+  q = (q || '').trim().toLowerCase()
+  var all = cpSources()
+  cpItems = all.filter(function (c) { return !q || c.label.toLowerCase().indexOf(q) >= 0 }).slice(0, 8)
+  cpDraw()
+  if (q && q.length >= 2 && typeof suggest === 'function') {
+    clearTimeout(cpLocTimer)
+    cpLocTimer = setTimeout(function () {
+      suggest(q).then(function (items) {
+        var inp = $('cpInput')
+        if (!inp || inp.value.trim().toLowerCase() !== q) return
+        if (!items || !items.length) return
+        var seen = {}
+        cpItems.forEach(function (c) { seen[c.label] = 1 })
+        items.slice(0, 3).forEach(function (it) {
+          var lab = '📍 ' + it.name + (it.admin1 ? ' · ' + it.admin1 : '')
+          if (seen[lab] || !lab) return
+          seen[lab] = 1
+          cpItems.push({ label: lab, hint: '地点', run: function () { if (typeof confirmLocation === 'function') confirmLocation(it) } })
+        })
+        cpDraw()
+      }).catch(function () {})
+    }, 250)
+  }
+}
+function cpDraw() {
+  cpSel = cpItems.length ? 0 : -1
+  var box = $('cpList'); if (!box) return
+  box.innerHTML = cpItems.length ? cpItems.map(function (c, i) {
+    return '<div class="cp-item' + (i === cpSel ? ' sel' : '') + '" data-i="' + i + '" onmousemove="cpHover(' + i + ')" onmousedown="cpPick(' + i + ')">' +
+      '<span class="cp-l">' + esc(c.label) + '</span><span class="cp-h">' + esc(c.hint || '') + '</span></div>'
+  }).join('') : '<div class="cp-none">无匹配结果</div>'
+}
+function cpHover(i) {
+  cpSel = i
+  var nodes = document.querySelectorAll('#cpList .cp-item')
+  Array.prototype.forEach.call(nodes, function (el, j) { el.classList.toggle('sel', j === i) })
+}
+function cpMove(d) {
+  if (!cpItems.length) return
+  cpSel = (cpSel + d + cpItems.length) % cpItems.length
+  var nodes = document.querySelectorAll('#cpList .cp-item')
+  Array.prototype.forEach.call(nodes, function (el, j) { el.classList.toggle('sel', j === cpSel) })
+  var s = nodes[cpSel]; if (s && s.scrollIntoView) s.scrollIntoView({ block: 'nearest' })
+}
+function cpPick(i) {
+  var it = cpItems[i]
+  if (!it) return
+  cpClose()
+  try { it.run() } catch (e) { toast('命令执行失败') }
+}
+function cpCycleLight() {
+  var cur = (appConfig && appConfig.lightMode) || 'auto'
+  var next = cur === 'auto' ? 'light' : cur === 'light' ? 'dark' : 'auto'
+  if (typeof setLightMode === 'function') setLightMode(next)
+  toast('明暗模式：' + (next === 'auto' ? '跟随系统' : next === 'light' ? '浅色' : '深色'))
+}
+function cpGotoGear(name) {
+  var box = $('wssys')
+  if (!box) return
+  if (typeof wsCollapsed !== 'undefined' && wsCollapsed && typeof wsToggleSys === 'function') wsToggleSys()
+  box.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  setTimeout(function () {
+    var rows = document.querySelectorAll('#wsBody .ws-item')
+    for (var i = 0; i < rows.length; i++) {
+      var nm = rows[i].querySelector('.ws-item-name')
+      if (nm && nm.textContent.indexOf(name) === 0) {
+        rows[i].classList.add('ws-flash')
+        setTimeout(function (r) { r.classList.remove('ws-flash') }, 1600, rows[i])
+        if (rows[i].scrollIntoView) rows[i].scrollIntoView({ behavior: 'smooth', block: 'center' })
+        return
+      }
+    }
+  }, 80)
+}
+
+/* ============ 语音播报（voice-weather-briefing，speechSynthesis） ============ */
+var wxVoicing = false
+function wxSummaryText() {
+  if (!weather || !weather.days || !weather.days.length) return ''
+  var ds = weather.days, tMin = null, tMax = null, pMax = 0, wMax = 0
+  ds.forEach(function (d) {
+    if (d.tempMin != null) tMin = tMin == null ? d.tempMin : Math.min(tMin, d.tempMin)
+    if (d.tempMax != null) tMax = tMax == null ? d.tempMax : Math.max(tMax, d.tempMax)
+    if (d.precipProb != null) pMax = Math.max(pMax, d.precipProb)
+    if (d.windLevel != null) wMax = Math.max(wMax, d.windLevel)
+  })
+  var s = []
+  if (tMin != null && tMax != null) s.push('气温' + Math.round(tMin) + ' 到 ' + Math.round(tMax) + ' 度')
+  else if (tMax != null) s.push('最高气温 ' + Math.round(tMax) + ' 度')
+  if (pMax > 0) s.push('最大降水概率 ' + Math.round(pMax / 10) + ' 成')
+  if (wMax >= 6) s.push('有大风日，风力等级 ' + wMax)
+  var risk = (typeof riskProfileText === 'function') ? riskProfileText() : ''
+  var alertsTxt = (typeof alerts !== 'undefined' && alerts && alerts.length)
+    ? '，有 ' + alerts.map(function (a) { return a.typeName }).join('、') + ' 预警' : ''
+  return '天气播报：' + s.join('，') + (risk ? '，' + risk : '') + alertsTxt + '。'
+}
+function wxVoiceToggle() {
+  if (!('speechSynthesis' in window)) { toast('当前浏览器不支持语音播报'); return }
+  if (!weather || !weather.days || !weather.days.length) { toast('请先查询天气'); return }
+  var btn = $('wxVoiceBtn')
+  if (wxVoicing) {
+    window.speechSynthesis.cancel(); wxVoicing = false
+    if (btn) btn.textContent = '🔊 播报天气'
+    return
+  }
+  var text = wxSummaryText()
+  if (!text) { toast('暂无天气摘要可播报'); return }
+  var u = new SpeechSynthesisUtterance(text)
+  u.lang = 'zh-CN'; u.rate = 1
+  function done() { wxVoicing = false; if (btn) btn.textContent = '🔊 播报天气' }
+  u.onend = done; u.onerror = done
+  window.speechSynthesis.cancel()
+  window.speechSynthesis.speak(u)
+  wxVoicing = true
+  if (btn) btn.textContent = '⏹ 停止播报'
+}
+function wxVoiceBtnSync() {
+  var btn = $('wxVoiceBtn')
+  if (!btn) return
+  btn.style.display = ('speechSynthesis' in window) && weather && weather.days && weather.days.length ? '' : 'none'
+  if (!wxVoicing) btn.textContent = '🔊 播报天气'
+}
+
+/* ============ 出发提醒（departure-reminder，本地 Notification 定时） ============ */
+var remindTimer = null
+function remindDepartureMs() {
+  if (!trip || !trip.startDate || !trip.departureTime) return null
+  var d = new Date(String(trip.startDate).slice(0, 10) + 'T' + trip.departureTime + ':00')
+  return isNaN(d.getTime()) ? null : d.getTime()
+}
+function remindEnabled() { return !!(appConfig && appConfig.reminder && appConfig.reminder.on) }
+function remindLeadH() { return (appConfig && appConfig.reminder && appConfig.reminder.leadH) || 1 }
+function _p2(n) { return (n < 10 ? '0' : '') + n }
+function fmtDT(t) { return (t.getMonth() + 1) + '/' + t.getDate() + ' ' + _p2(t.getHours()) + ':' + _p2(t.getMinutes()) }
+function remindCopyText() {
+  var d = remindDepartureMs()
+  var base = d ? '出发时间 ' + fmtDT(new Date(d)) + '。' : ''
+  var txt = (typeof wxSummaryText === 'function') ? wxSummaryText() : ''
+  return 'SHEEPGEAR 提醒：' + base + (txt || '（暂无天气摘要）') + ' 记得带齐装备，注意安全。'
+}
+function remindStatusText() {
+  if (!remindEnabled()) return ''
+  var dep = remindDepartureMs()
+  if (dep == null) return '需设置出发日期与时刻'
+  var when = new Date(dep - remindLeadH() * 3600000)
+  var t = '将于 ' + fmtDT(when) + ' 提醒'
+  if ('Notification' in window && Notification.permission === 'denied') t += ' · 通知被拒，可复制文案'
+  return t
+}
+function remindNotify() {
+  if (!remindEnabled()) return
+  if (remindDepartureMs() == null || typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+  try { new Notification('SHEEP🐏GEAR · 该出发了', { body: remindCopyText(), tag: 'sheepgear-depart' }) } catch (e) {}
+}
+function remindSchedule() {
+  clearTimeout(remindTimer); remindTimer = null
+  if (!remindEnabled()) return
+  var dep = remindDepartureMs()
+  if (dep == null) return
+  var fireAt = dep - remindLeadH() * 3600000
+  var delay = fireAt - Date.now()
+  if (delay <= 0) return  // 已过期跳过
+  if (delay <= 2147483647) remindTimer = setTimeout(function () { remindNotify(); remindSchedule() }, delay)
+  else remindTimer = setTimeout(function () { remindSchedule() }, 2147483647)  // 浏览器定时器上限 ~24.8 天，分段重算
+}
+function remindResched() {
+  var cfg = appConfig || {}
+  cfg.reminder = cfg.reminder || {}
+  cfg.reminder.leadH = parseInt($('remindLead') ? $('remindLead').value : '1', 10) || 1
+  if (typeof saveConfig === 'function') saveConfig()
+  remindSchedule(); remindSyncUi()
+}
+function remindToggle() {
+  if (typeof Notification === 'undefined') { toast('当前浏览器不支持通知'); return }
+  var cfg = appConfig || {}
+  cfg.reminder = cfg.reminder || {}
+  if (remindEnabled()) {
+    cfg.reminder.on = false
+    if (typeof saveConfig === 'function') saveConfig()
+    remindSchedule(); remindSyncUi()
+    toast('已关闭出发提醒')
+    return
+  }
+  if (Notification.permission === 'granted' || Notification.permission === 'denied') {
+    cfg.reminder.on = true
+    if (typeof saveConfig === 'function') saveConfig()
+    remindSchedule(); remindSyncUi()
+    toast(Notification.permission === 'granted' ? '出发提醒已开启' : '通知未授权，可点「复制文案」')
+    return
+  }
+  Notification.requestPermission().then(function (p) {
+    cfg.reminder.on = true
+    if (typeof saveConfig === 'function') saveConfig()
+    if (p === 'granted') toast('出发提醒已开启')
+    else toast('通知未授权，可点「复制文案」')
+    remindSchedule(); remindSyncUi()
+  })
+}
+function remindCopy() {
+  var txt = remindCopyText()
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(function () { toast('已复制提醒文案') }).catch(function () { fallbackCopy(txt) })
+  } else fallbackCopy(txt)
+}
+function fallbackCopy(txt) {
+  try { var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); toast('已复制提醒文案') } catch (e) { prompt('复制提醒文案', txt) }
+}
+function remindSyncUi() {
+  var b = $('remindBtn')
+  if (b) { b.classList.toggle('on', remindEnabled()); b.textContent = remindEnabled() ? '🔔 提醒已开' : '🔔 出发提醒' }
+  var c = $('remindCopy'); if (c) c.style.display = remindEnabled() ? '' : 'none'
+  var st = $('remindStatus'); if (st) st.textContent = remindStatusText()
+  var lead = $('remindLead'); if (lead) lead.value = remindLeadH()
+}
+
+/* 无障碍：Esc 跳过启动画面 / 关闭弹层 / 命令面板（键盘可达）；⌘K 打开命令面板 */
 document.addEventListener('keydown', function (e) {
+  var cpO = $('cpOverlay')
+  if (cpO && cpO.style.display !== 'none') {
+    if (e.key === 'Escape') { e.preventDefault(); cpClose() }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); cpMove(1) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); cpMove(-1) }
+    else if (e.key === 'Enter') { e.preventDefault(); cpPick(cpSel) }
+    return
+  }
+  // ⌘K / Ctrl+K 打开命令面板（避开输入框内场景由输入框自身处理）
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+    var tag = (e.target && e.target.tagName || '').toLowerCase()
+    if (tag !== 'input' && tag !== 'textarea') { e.preventDefault(); cpOpen(); return }
+  }
   if (e.key !== 'Escape') return
   var boot = document.getElementById('boot')
   if (boot && !boot.classList.contains('leaving')) { boot.classList.add('leaving'); return }
@@ -9343,9 +9824,9 @@ function showRouteProfile() {
   if (!(route && route.length > 1)) { box.style.display = 'none'; return }
   box.style.display = 'flex'
   if (routeMetrics) {
-    $('totalDist').textContent = routeMetrics.distanceKm.toFixed(1) + ' km'
-    $('totalClimb').textContent = routeMetrics.climbM.toLocaleString() + ' m'
-    $('totalHours').textContent = routeMetrics.hours.toFixed(1) + ' h'
+    animRouteMetric('totalDist', routeMetrics.distanceKm, ' km', 1)
+    animRouteMetric('totalClimb', routeMetrics.climbM, ' m', null)
+    animRouteMetric('totalHours', routeMetrics.hours, ' h', 1)
   }
   renderElevProfileCanvas()
 }
@@ -9571,13 +10052,20 @@ async function init() {
   await loadConfig()
   document.body.dataset.theme = appConfig.theme
   var tsel = $('themeSel'); if (tsel) tsel.value = appConfig.theme
+  if (typeof syncLightMode === 'function') syncLightMode()
+  if (window.matchMedia) {
+    var lmMq = window.matchMedia('(prefers-color-scheme: light)')
+    var lmOn = function (e) { if ((appConfig && appConfig.lightMode) === 'auto' && typeof syncLightMode === 'function') syncLightMode() }
+    if (lmMq.addEventListener) lmMq.addEventListener('change', lmOn); else if (lmMq.addListener) lmMq.addListener(lmOn)
+  }
   $('tripDate').value = today()
-  $('tripDate').addEventListener('change', function () { trip.startDate = this.value })
+  $('tripDate').addEventListener('change', function () { trip.startDate = this.value; if (typeof remindSchedule === 'function') { remindSchedule(); remindSyncUi() } })
   $('tripDays').addEventListener('input', function () { trip.days = Math.min(16, Math.max(1, parseInt(this.value) || 1)); trip.overNight = trip.days > 1; autoModeByDays(); invalidateWeather(); if (route && route.length > 1 && placeMap) renderRouteDisplay() })
   $('tripClimb').addEventListener('input', function () { trip.climbM = this.value ? parseFloat(this.value) : null })
   $('tripHours').addEventListener('input', function () { trip.hours = this.value ? parseFloat(this.value) : null })
-  var ttEl = $('tripTime'); if (ttEl) ttEl.addEventListener('change', function () { trip.departureTime = this.value || null; if (weather) { renderWxList(); renderGearConfirm(); updateCardGear() } })
+  var ttEl = $('tripTime'); if (ttEl) ttEl.addEventListener('change', function () { trip.departureTime = this.value || null; if (weather) { renderWxList(); renderGearConfirm(); updateCardGear() }; if (typeof remindSchedule === 'function') { remindSchedule(); remindSyncUi() } })
   $('themeSel').addEventListener('change', function () { applyTheme(this.value) })
+  if (typeof remindSyncUi === 'function') { remindSyncUi(); remindSchedule() }
 
   // 搜索：输入联想 + 外部点击关闭下拉
   $('locSearch').addEventListener('input', onSearchInput)
