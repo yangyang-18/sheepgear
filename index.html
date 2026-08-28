@@ -7,6 +7,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SHEEP🐏GEAR · 天气驱动徒步装备清单</title>
+<!-- 首帧防暗闪：先于首绘按「本地偏好/系统浅色」给 <html> 打 th-light 标记，使启动动画与主页同色（避免先黑后浅）；
+     app.js 的 syncLightMode 随后正式接管并移除该标记（见 geo.js） -->
+<script>
+  (function () {
+    try {
+      var ls = null;
+      try { ls = localStorage.getItem('sg-light-mode') } catch (e) {}
+      var light = false;
+      if (ls === 'light') light = true;
+      else if (ls === 'dark') light = false;
+      else light = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+      if (light) document.documentElement.classList.add('th-light');
+    } catch (e) {}
+  })();
+</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E🐏%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@500,700,900&display=swap" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@500,700,900&display=swap"></noscript>
@@ -38,6 +53,14 @@ body.light[data-theme="sandstone"]{--bg:#F6F0E6;--surface:#FFFFFF;--surface-2:#E
 /* 极夜（night）：暗夜绿调，极光青（保持恒暗） */
 body[data-theme="night"]{--bg:#0D110D;--surface:#161C17;--surface-2:#1F2721;--text:#EDEDED;--text-muted:#8F9790;--border:#2C332E;--accent:#63D6A8;--accent-strong:#3FB884;--accent-soft:#103024;--on-accent:#0B1F16}
 body.light[data-theme="night"]{--bg:#0D110D;--surface:#161C17;--surface-2:#1F2721;--text:#EDEDED;--text-muted:#8F9790;--border:#2C332E;--accent:#63D6A8;--accent-strong:#3FB884;--accent-soft:#103024;--success:#7FAF6D;--warning:#D97B45;--error:#E0694E;--info:#5A93B8;--on-accent:#0B1F16}
+/* 首帧防暗闪镜像：head 内联脚本按「系统浅色/本地偏好」在首个样式帧前给 <html> 打 th-light，
+   使启动动画与主页同色（不再先黑后浅）。值须与上方 body.light[data-theme=…] 完全一致；
+   syncLightMode 应用正式 .light 后移除该标记（此时以 body.light 为准）。夜主题恒暗，镜像即暗。 */
+html.th-light body{--bg:#F3F1EA;--surface:#FFFFFF;--surface-2:#ECEAE0;--text:#26251E;--text-muted:#6C6A5C;--border:#DDD9C8;--accent:#8F621A;--accent-strong:#7A5318;--accent-soft:#F2E8D2;--success:#45723A;--warning:#A04826;--error:#B33A28;--info:#41718F;--on-accent:#FBF6EA}
+html.th-light body[data-theme="glacier"]{--bg:#EDF4F7;--surface:#FFFFFF;--surface-2:#E4EDF1;--text:#17303D;--text-muted:#5C7A88;--border:#C7D9E0;--accent:#2F6F8F;--accent-strong:#245A76;--accent-soft:#DAE9F0;--on-accent:#F2FAFD}
+html.th-light body[data-theme="tundra"]{--bg:#F1F4EB;--surface:#FFFFFF;--surface-2:#E8EDE1;--text:#222D1B;--text-muted:#5F6F56;--border:#CCD5C0;--accent:#4E7A3B;--accent-strong:#3C5F2D;--accent-soft:#E3EBD6;--on-accent:#F4FAEC}
+html.th-light body[data-theme="sandstone"]{--bg:#F6F0E6;--surface:#FFFFFF;--surface-2:#EFE7DA;--text:#2B2119;--text-muted:#7D6B58;--border:#DDD1C0;--accent:#9C4B2C;--accent-strong:#783719;--accent-soft:#F2E3D5;--on-accent:#FDF3E8}
+html.th-light body[data-theme="night"]{--bg:#0D110D;--surface:#161C17;--surface-2:#1F2721;--text:#EDEDED;--text-muted:#8F9790;--border:#2C332E;--accent:#63D6A8;--accent-strong:#3FB884;--accent-soft:#103024;--success:#7FAF6D;--warning:#D97B45;--error:#E0694E;--info:#5A93B8;--on-accent:#0B1F16}
 
 *{box-sizing:border-box;margin:0;padding:0}
 html{overflow-x:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%}   /* 统一等比缩放兜底：避免滚动条宽度引起的 1~2px 横向溢出；text-size-adjust 防止手机端自动放大字体撑破固定布局 */
@@ -920,6 +943,64 @@ body[data-sdir="back"] .panel.active{animation-name:panel-in-back}
   .home-scene *{animation:none!important}
 }
 
+/* ==========================================================================
+   出行总览 Trip Hub / 天气择日 / 多目的地对比（opsx homepage-trip-hub）
+   复用 .wssys 卡框与既有主题 token；只动 transform/opacity/颜色，带 reduced-motion 降级。
+   ========================================================================== */
+#tripHub{overflow:hidden}
+.th-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.th-loc{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.th-loc b{font-family:var(--f-d);font-weight:900;font-size:16px;color:var(--text)}
+.th-meta{font-family:var(--f-m);font-size:11px;color:var(--text-muted)}
+.th-go{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.th-go-badge{font-size:14px;font-weight:800;padding:5px 12px}
+.th-go-items{display:flex;gap:6px;flex-wrap:wrap;font-size:11px}
+.th-go-empty{color:var(--text-muted);font-size:12px}
+.th-wx{display:flex;gap:8px;flex-wrap:wrap}
+.th-wx-i{font-family:var(--f-m);font-size:12px;color:var(--text);background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:4px 9px}
+.th-row-2{align-items:stretch}
+.th-gear{flex:1;min-width:200px}
+.th-gear-l{display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px}
+.th-gear-n{font-family:var(--f-m);color:var(--accent);font-weight:700}
+.th-bar{height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+.th-bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--accent),color-mix(in srgb,var(--accent) 55%,#fff));transition:width .3s ease}
+.th-cd{flex:1;min-width:200px;font-size:12px}
+.th-cd-l{color:var(--text-muted);margin-right:6px}
+.th-cd-v{font-family:var(--f-m);font-weight:700;color:var(--accent)}
+.th-quick{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.th-quick .btn{padding:4px 12px;font-size:12px}
+
+/* 择日 */
+.th-pick-h{font-size:12px;color:var(--text-muted);margin:10px 0 8px}
+.th-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.th-day{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);text-align:left;cursor:pointer;transition:border-color .15s ease,transform .15s ease}
+.th-day:hover{border-color:var(--accent);transform:translateY(-1px)}
+.th-day.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.th-day-d{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700}
+.th-day-s{font-family:var(--f-m);font-size:24px;font-weight:700}
+.th-day.a .th-day-s{color:var(--success)}
+.th-day.b .th-day-s{color:var(--accent)}
+.th-day.c .th-day-s{color:var(--warning)}
+.th-day-r{font-size:10px;color:var(--text-muted);line-height:1.4}
+.th-rec{font-size:10px;font-weight:700;color:var(--on-accent);background:var(--success);border-radius:999px;padding:1px 7px}
+
+/* 对比 */
+.th-cmp-wrap{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:12px 14px}
+.th-cmp-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;font-weight:700;margin-bottom:10px}
+.th-cmp{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.th-cmp-c{position:relative;display:flex;flex-direction:column;gap:6px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2);cursor:pointer;transition:border-color .15s ease,transform .15s ease}
+.th-cmp-c:hover{border-color:var(--accent);transform:translateY(-1px)}
+.th-cmp-name{font-weight:700;font-size:13px;padding-right:22px}
+.th-cmp-t{font-family:var(--f-m);font-size:20px;font-weight:700}
+.th-cmp-m{font-size:12px;color:var(--text)}
+.th-cmp-warn{color:var(--warning);font-weight:700}
+.th-cmp-empty{font-size:12px;color:var(--text-muted);text-align:center;padding:6px}
+.th-cmp-x{position:absolute;top:6px;right:6px;padding:2px 7px;font-size:11px}
+
+@media (prefers-reduced-motion:reduce){
+  .th-bar i,.th-day,.th-cmp-c{transition:none}
+}
+
 </style>
 </head>
 <body data-theme="ridge">
@@ -1011,6 +1092,9 @@ body[data-sdir="back"] .panel.active{animation-name:panel-in-back}
   </div>
   <div class="ws-body-anim"><div id="wsBody"></div></div>
 </div>
+
+<!-- ============ 出行总览（Trip Hub，有行程+天气时出现） ============ -->
+<div class="wssys" id="tripHub" aria-label="出行总览" style="display:none"></div>
 
 <!-- ============ 天气系统（顶层组框，折叠范围=装备系统组框下面的所有内容） ============ -->
 <div class="wssys ws-collapsed" id="wxSysTop" aria-label="天气系统">
@@ -1107,6 +1191,13 @@ body[data-sdir="back"] .panel.active{animation-name:panel-in-back}
     <button class="chip" type="button" data-alt="1" onclick="setHighAlt()">高海拔</button>
   </div>
 
+  <!-- 多目的地对比入口 + 视图 -->
+  <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <button class="btn" style="padding:4px 12px;font-size:12px" onclick="cmpOpen()" title="同时对比 2-3 个目的地的天气与出行建议">⚖️ 对比目的地</button>
+    <span style="font-size:11px;color:var(--text-muted)">比几个山 / 几条路线哪个天气更合适</span>
+  </div>
+  <div id="cmpView" class="th-cmp-wrap" style="display:none;margin-top:8px"></div>
+
   <!-- 共享地图：loc 模式=选点针 · imp 模式=只读路线展示 -->
   <div class="mappick">
     <div class="map-pick" id="placeMap">
@@ -1179,6 +1270,7 @@ body[data-sdir="back"] .panel.active{animation-name:panel-in-back}
     <button class="sub-tab" data-v="ov" onclick="setView3('ov')">📊 每日明细</button>
     <button class="sub-tab" data-v="corr" onclick="setView3('corr')" id="corrTab" style="display:none">🗺 路线走廊</button>
     <button class="sub-tab" data-v="wmap" onclick="setView3('wmap')">🗺 地图预报</button>
+    <button class="sub-tab" data-v="pick" onclick="setView3('pick')">🗓 择日</button>
     <button class="sub-tab cfg-ind" onclick="toggle('#indCfg','open')">⚙ 配置指标</button>
   </div>
 
@@ -1204,6 +1296,8 @@ body[data-sdir="back"] .panel.active{animation-name:panel-in-back}
     </div>
     <div style="font-size:11px;color:var(--text-muted);margin-top:6px">Windy 官方地图组件（免 key）· 中心：当前选点 / 路线区域</div>
   </div>
+
+  <div id="viewPick" style="display:none"></div>
 
   <div class="nav"><button class="btn" onclick="go(1)">← 上一步</button><button class="btn primary" onclick="go(3)">下一步：分享卡 →</button></div>
 </div>
@@ -1590,6 +1684,11 @@ function syncLightMode() {
   var light = mode === 'light' ? true : mode === 'dark' ? false
     : !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)
   document.body.classList.toggle('light', light)
+  // 正式接管后移除 head 内联脚本的 th-light 首帧标记（若二者一致则视觉无跳变）
+  var h = document.documentElement
+  if (h) h.classList.remove('th-light')
+  // 镜像到 localStorage，供下次冷启动的 head 内联脚本首绘前读取，避免启动画面先黑后浅
+  try { localStorage.setItem('sg-light-mode', mode) } catch (e) {}
   var sel = $('cfgLightMode'); if (sel) sel.value = mode
 }
 function setLightMode(mode) {
@@ -4659,6 +4758,7 @@ async function runWeather() {
     animRouteMetric('totalClimb', routeMetrics ? routeMetrics.climbM : (trip.climbM != null ? trip.climbM : null), ' m', null, '—')
     animRouteMetric('totalHours', routeMetrics ? routeMetrics.hours : (trip.hours != null ? trip.hours : null), ' h', 1, '—')
     renderWxStatus(cacheFresh)
+    if (typeof renderTripHub === 'function') renderTripHub()   // 出行总览卡随天气刷新（tripHub.js）
   } catch (e) {
     // C2 离线兜底：拉取失败但存在有效缓存（任何新鲜度）→ 用缓存出装备，三态标注；否则报错
     if (cached && cached.ver === WEATHER_CACHE_VER && cached.weather) {
@@ -4668,6 +4768,7 @@ async function runWeather() {
       renderAlertCard(); renderWxList(); renderDayIndGrid(); renderIndCfg()
       renderAuroraCard()
       renderWxStatus(cacheFresh && cacheFresh.state ? cacheFresh : { state: 'stale', label: '数据可能过时' })
+      if (typeof renderTripHub === 'function') renderTripHub()
     } else {
       $('mapErr').style.display = 'block'
       $('mapErr').className = 'risk orange'
@@ -5092,6 +5193,7 @@ function toggleGear(id) {
   gearChecked[id] = !gearChecked[id]
   renderGearConfirm()
   updateCardGear()
+  if (typeof renderTripHub === 'function') renderTripHub()   // 总览卡完成度随勾选刷新（tripHub.js）
 }
 /* 克重输入：留空删除记录；只刷新总重，不重渲染（保住输入焦点） */
 function setGearWeight(id, v) {
@@ -9341,6 +9443,7 @@ function remindSyncUi() {
   var sh = $('remindShare'); if (sh) sh.style.display = hasDep ? '' : 'none'
   var st = $('remindStatus'); if (st) st.textContent = remindStatusText()
   var lead = $('remindLead'); if (lead) lead.value = remindLeadH()
+  if (typeof renderTripHub === 'function') renderTripHub()   // 提醒开关/提前量 → 总览卡倒计时刷新
 }
 
 /* 无障碍：Esc 跳过启动画面 / 关闭弹层 / 命令面板（键盘可达）；⌘K 打开命令面板 */
@@ -9865,6 +9968,7 @@ function renderDestCard() {
         '<span class="dif-reason" title="' + esc(dif.reason) + '">' + esc(dif.reason) + '</span>'
     } else { db.style.display = 'none' }
   }
+  if (typeof renderTripHub === 'function') renderTripHub()   // 目的地/行程变化 → 总览卡刷新
 }
 
 /* ================= 第 2 步 chips ================= */
@@ -10047,6 +10151,7 @@ async function go(n) {
   })
   window.scrollTo({ top: 0, behavior: 'smooth' })
   renderDestCard()
+  if (typeof renderTripHub === 'function') renderTripHub()   // 出行总览卡随步骤刷新（tripHub.js）
   // 回到第 1 步：面板从 display:none 恢复，重算地图尺寸防”只左上角有图”的错位残留
   // 回到第 1 步：面板从 display:none 恢复，重算地图尺寸并重渲染当前模式（路线 fitBounds / 选点 pin），防"缩放错位/只左上角有图"
   if (n === 1 && placeMap) setTimeout(function () { if (placeMap) { placeMap.invalidateSize(); syncMapForMode() } }, 80)
@@ -10085,6 +10190,12 @@ function setView3(v) {
   $('viewOv').style.display = v === 'ov' ? 'block' : 'none'
   var vc = $('viewCorr')
   if (vc) vc.style.display = v === 'corr' ? 'block' : 'none'
+  // 「🗓 择日」页签：进入渲染（tripHub.js）
+  var vp = $('viewPick')
+  if (vp) {
+    vp.style.display = v === 'pick' ? 'block' : 'none'
+    if (v === 'pick' && typeof renderDayPicker === 'function') renderDayPicker()
+  }
   // 「🗺 地图预报」页签：进入渲染，离开卸载（免 key embed，中心=选点/路线）
   var vm = $('viewWmap')
   if (vm) {
@@ -10358,6 +10469,298 @@ function initViewportZoom() {
   window.addEventListener('orientationchange', applyViewportZoom)
 }
 
+
+</script>
+<script>
+/* ============ js/tripHub.js · 出行总览 / 天气择日 / 多目的地对比（opsx homepage-trip-hub） ============
+   消费既有全局与函数（不新增依赖）：
+     weather / trip / selLoc / route / alerts / goNoGo() / tripName() /
+     cardGearList() / schemeItemW / gearIsChecked / wsOnChange /
+     confirmLocation / searchWeather / invalidateWeather /
+     remindDepartureMs / remindSchedule / remindIcs / remindToggle / fmtShort / today / toast
+   纯前端，浏览器直接打开运行。 */
+
+var thTimer = null
+var thOrigStart = null   // 择日首次点选前的 trip.startDate 快照
+var thPickDate = null    // 当前拟出发日（YYYY-MM-DD）
+var cmpCands = []        // [{key,name,lat,lng,ele,weather}]
+var cmpBusy = false
+
+function _th(id) { return document.getElementById(id) }
+function thEsc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') }
+function thNum(v, u) { return (v == null || isNaN(v)) ? '—' : Math.round(v) + u }
+
+/* ---------- ① 主页出行总览卡 ---------- */
+function thToday() {
+  return (weather && weather.days && weather.days.length) ? weather.days[0] : null
+}
+function thGearStats() {
+  try {
+    var list = (typeof cardGearList === 'function') ? cardGearList() : []
+    var total = list.length
+    var checked = list.filter(function (g) { return (typeof gearIsChecked === 'function') ? gearIsChecked(g.item.id) : false }).length
+    var grams = list.reduce(function (s, g) { return s + ((typeof schemeItemW === 'function') ? schemeItemW(g) : 0) }, 0)
+    return { total: total, checked: checked, grams: grams, pct: total ? Math.round(checked / total * 100) : 0 }
+  } catch (e) { return { total: 0, checked: 0, grams: 0, pct: 0 } }
+}
+function thGoNoGo() {
+  if (!weather || !weather.days || !weather.days.length) return null
+  if (typeof goNoGo !== 'function') return null
+  try { return goNoGo() } catch (e) { return null }
+}
+function thCountdownTxt() {
+  var ms = (typeof remindDepartureMs === 'function') ? remindDepartureMs() : null
+  if (ms == null) return '未设置时刻'
+  var diff = ms - Date.now()
+  if (diff <= 0) return '该出发了'
+  var d = Math.floor(diff / 86400000)
+  var h = Math.floor(diff % 86400000 / 3600000)
+  var m = Math.floor(diff % 3600000 / 60000)
+  return (d > 0 ? d + '天 ' : '') + h + '小时 ' + m + '分'
+}
+function thStopCountdown() { clearInterval(thTimer); thTimer = null }
+function thStartCountdown() {
+  thStopCountdown()
+  var ms = (typeof remindDepartureMs === 'function') ? remindDepartureMs() : null
+  var box = _th('tripHub')
+  if (ms == null || !box || box.style.display === 'none') return
+  thTimer = setInterval(function () {
+    var v = _th('thCdV')
+    if (!v) { thStopCountdown(); return }
+    v.textContent = thCountdownTxt()
+    if ((typeof remindDepartureMs === 'function' ? remindDepartureMs() : null) != null && remindDepartureMs() - Date.now() <= 0) thStopCountdown()
+  }, 60000)
+}
+function renderTripHub() {
+  var box = _th('tripHub')
+  if (!box) return
+  var d0 = thToday()
+  var hasLoc = !!(selLoc || (route && route.length > 1))
+  if (!hasLoc || !d0) {
+    box.style.display = 'none'
+    box.innerHTML = ''
+    thStopCountdown()
+    return
+  }
+  box.style.display = 'block'
+
+  var loc = (typeof tripName === 'function') ? tripName() : (selLoc ? selLoc.name : '行程')
+  var meta = []
+  if (trip.startDate) meta.push(trip.startDate.slice(0, 10))
+  if (trip.days) meta.push(trip.days + ' 天')
+  var modes = { light: '轻装单日', heavy: '重装', trail: '越野跑', city: '城市游' }
+  if (modes[trip.mode]) meta.push(modes[trip.mode])
+  if (trip.climbM != null) meta.push('爬升 ' + trip.climbM + 'm')
+  if (trip.hours != null) meta.push(trip.hours + 'h')
+
+  // 出发建议（复用 decision.js goNoGo）
+  var gng = thGoNoGo()
+  var gngHtml
+  if (gng) {
+    var gngCls = gng.verdict === 'stop' ? 'red' : gng.verdict === 'caution' ? 'orange' : 'green'
+    var gngItems = (gng.items || []).map(function (it) {
+      var c = it.state === 'red' ? 'red' : it.state === 'orange' ? 'orange' : 'green'
+      return '<span class="risk ' + c + '">' + thEsc(it.label) + '·' + thEsc(it.note) + '</span>'
+    }).join('')
+    gngHtml = '<div class="th-go"><span class="risk ' + gngCls + ' th-go-badge">' + thEsc(gng.label) + '</span><span class="th-go-items">' + gngItems + '</span></div>'
+  } else {
+    gngHtml = '<div class="th-go th-go-empty">出发建议 · 请先搜索天气</div>'
+  }
+
+  // 今日天气速览
+  var wxHtml =
+    '<span class="th-wx-i">🌡 ' + thNum(d0.tempMin, '°') + '~' + thNum(d0.tempMax, '°') + '</span>' +
+    '<span class="th-wx-i">💧 降水 ' + thNum(d0.precipProb, '%') + '</span>' +
+    '<span class="th-wx-i">💨 风 ' + thNum(d0.windLevel, ' 级') + '</span>' +
+    (d0.snowline != null ? '<span class="th-wx-i">🏔 雪线 ' + (Math.round(d0.snowline / 100) / 10) + 'km</span>' : '')
+
+  // 装备完成度
+  var gs = thGearStats()
+  var gearHtml = '<div class="th-gear"><div class="th-gear-l"><span>装备完成度</span><span class="th-gear-n">' + gs.checked + '/' + gs.total + ' 件 · ' + (gs.grams / 1000).toFixed(2) + 'kg</span></div>' +
+    '<div class="th-bar"><i style="width:' + gs.pct + '%"></i></div></div>'
+
+  // 出发倒计时
+  var cdHtml = '<div class="th-cd"><span class="th-cd-l">距出发</span><span class="th-cd-v" id="thCdV">' + thEsc(thCountdownTxt()) + '</span></div>'
+
+  var quickHtml = '<div class="th-quick">' +
+    '<button class="btn" onclick="searchWeather()" title="搜索/刷新天气">🔍 搜天气</button>' +
+    '<button class="btn" onclick="thGoGear()" title="展开装备清单">⚖️ 装备</button>' +
+    '<button class="btn" onclick="thGoPick()" title="第 2 步择日">🗓 择日</button>' +
+    '<button class="btn" onclick="thGoCompare()" title="多目的地对比">⚖️ 对比</button>' +
+    '<button class="btn" onclick="remindIcs()" title="导出日历文件">📅 日历</button>' +
+    '<button class="btn" onclick="remindToggle()" title="出发提醒开关">🔔 提醒</button>' +
+    '</div>'
+
+  box.innerHTML = '<div class="ws-titlebar"><span class="ws-ttl">出行总览 <i class="ws-ttl-en">TRIP HUB</i></span></div>' +
+    '<div class="th-row"><div class="th-loc"><b>' + thEsc(loc) + '</b><span class="th-meta">' + thEsc(meta.join(' · ')) + '</span></div>' + gngHtml + '</div>' +
+    '<div class="th-row th-wx">' + wxHtml + '</div>' +
+    '<div class="th-row th-row-2">' + gearHtml + cdHtml + '</div>' +
+    quickHtml
+
+  thStartCountdown()
+}
+function thGoGear() {
+  go(1)
+  var w = _th('wssys')
+  if (w) {
+    w.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    if (w.classList.contains('ws-collapsed') && typeof wsToggleSys === 'function') wsToggleSys()
+  }
+}
+function thGoPick() {
+  go(2)
+  if (typeof setView3 === 'function') setView3('pick')
+}
+function thGoCompare() { if (typeof cmpOpen === 'function') cmpOpen() }
+
+/* ---------- ② 天气择日 ---------- */
+function dayScore(d) {
+  if (!d) return null
+  var s = 100
+  if (d.precipProb != null) s -= Math.min(30, (d.precipProb / 100) * 66)
+  if (d.windLevel != null) s -= Math.max(0, (d.windLevel - 3)) * 5
+  if (d.thunder) s -= 30
+  if (d.tempMax != null) s -= Math.max(0, Math.abs(d.tempMax - 18) - 8) * 1.5
+  if (d.tempMin != null) s -= Math.max(0, Math.abs(d.tempMin - 8) - 10) * 0.8
+  if (d.snowline != null && d.snowline > 0) s -= Math.max(0, 2500 - d.snowline) / 2500 * 8
+  return Math.max(0, Math.min(100, Math.round(s)))
+}
+function dayScoreReason(d) {
+  if (!d) return ''
+  var r = []
+  if (d.precipProb != null) r.push('降水 ' + d.precipProb + '%')
+  if (d.windLevel != null) r.push('风 ' + d.windLevel + ' 级')
+  if (d.thunder) r.push('雷暴')
+  if (d.tempMin != null && d.tempMax != null) r.push(d.tempMin + '~' + d.tempMax + '°')
+  return r.join(' · ') || '天气平稳'
+}
+function renderDayPicker() {
+  var box = _th('viewPick')
+  if (!box) return
+  if (!weather || !weather.days || !weather.days.length) {
+    box.innerHTML = '<div class="wx-detail" style="text-align:center;color:var(--text-muted);font-size:13px;padding:18px">请先在第 2 步点「🔍 搜索天气」，再来看行程窗口里哪天最适合出发。</div>'
+    return
+  }
+  var days = weather.days
+  var scored = days.map(function (d, i) { return { i: i, sc: dayScore(d) } }).sort(function (a, b) { return b.sc - a.sc })
+  var top = scored.slice(0, 2).map(function (x) { return x.i })
+  box.innerHTML = '<div class="th-pick-h">给行程窗口逐日打分（降水/风/雷电/温度/雪线），分数越高越适合出发</div><div class="th-pick">' +
+    scored.map(function (x) {
+      var d = days[x.i], i = x.i, sc = x.sc
+      var rec = top.indexOf(i) >= 0 ? '<span class="th-rec">推荐</span>' : ''
+      var on = thPickDate && d.date === thPickDate
+      var cls = sc >= 80 ? 'a' : sc >= 60 ? 'b' : 'c'
+      return '<button class="th-day ' + cls + (on ? ' on' : '') + '" type="button" onclick="thPickDay(' + i + ')">' +
+        '<span class="th-day-d">' + thEsc(fmtShort(d.date)) + rec + '</span>' +
+        '<span class="th-day-s">' + sc + '</span>' +
+        '<span class="th-day-r">' + thEsc(dayScoreReason(d)) + '</span>' +
+        '</button>'
+    }).join('') + '</div>' +
+    '<div style="font-size:11px;color:var(--text-muted);margin-top:6px">点某天设为拟出发日（更新出发日期并提示重查天气）；再点取消恢复原日期。</div>'
+}
+function thPickDay(i) {
+  var d0 = weather && weather.days && weather.days[i]
+  if (!d0) return
+  var date = d0.date
+  if (thPickDate === date) {
+    thPickDate = null
+    if (thOrigStart != null) trip.startDate = thOrigStart
+    toast('已取消拟出发日，恢复原出发日期')
+  } else {
+    if (thPickDate == null) thOrigStart = trip.startDate
+    thPickDate = date
+    trip.startDate = date
+    toast('已设 ' + date + ' 为拟出发日，天气已失效，请重新搜索')
+  }
+  if (typeof invalidateWeather === 'function') invalidateWeather()
+  if (typeof remindSchedule === 'function') remindSchedule()
+  if (typeof renderTripHub === 'function') renderTripHub()
+  renderDayPicker()
+}
+
+/* ---------- ③ 多目的地对比 ---------- */
+function cmpOpen() {
+  var v = _th('cmpView')
+  if (!v) return
+  if (typeof cur !== 'undefined' && cur !== 1 && typeof go === 'function') go(1)
+  v.style.display = v.style.display === 'none' ? 'block' : 'none'
+  renderCompare()
+}
+function cmpAddCurrent() {
+  if (!selLoc) { toast('请先选择当前目的地'); return }
+  if (cmpCands.length >= 3) { toast('最多对比 3 个目的地'); return }
+  var k = cmpKeyOf(selLoc)
+  if (cmpCands.some(function (c) { return c.key === k })) { toast('该目的地已在对比中'); return }
+  var cand = { key: k, name: selLoc.name || '目的地', lat: selLoc.lat, lng: selLoc.lng, ele: selLoc.ele || 0, weather: null }
+  cmpCands.push(cand)
+  renderCompare()
+  var idx = cmpCands.length - 1
+  cmpFetch(cmpCands[idx]).then(function () { renderCompare() })
+}
+function cmpKeyOf(loc) { return (loc.lat.toFixed(4)) + ',' + (loc.lng.toFixed(4)) }
+function cmpFetch(cand) {
+  return new Promise(function (resolve) {
+    if (cmpBusy || !cand || typeof searchWeather !== 'function') { resolve(); return }
+    var savedLoc = selLoc, savedRoute = route
+    cmpBusy = true
+    selLoc = { name: cand.name, admin1: '', country: 'CN', lat: cand.lat, lng: cand.lng, ele: cand.ele, src: 'manual' }
+    route = null
+    try { searchWeather() } catch (e) { cand.weather = null }
+    var t0 = Date.now()
+    function poll() {
+      if (!window.weatherLoading || Date.now() - t0 > 45000) {
+        cand.weather = (window.weather && window.weather.days && window.weather.days.length) ? window.weather : null
+        selLoc = savedLoc; route = savedRoute
+        cmpBusy = false
+        try { if (typeof searchWeather === 'function') searchWeather() } catch (e) {}
+        resolve()
+        return
+      }
+      setTimeout(poll, 400)
+    }
+    setTimeout(poll, 500)
+  })
+}
+function renderCompare() {
+  var v = _th('cmpView')
+  if (!v) return
+  if (!cmpCands.length) {
+    v.innerHTML = '<div class="th-cmp-h">⚖️ 对比目的地</div><div class="th-cmp-empty">至少添加两个目的地（点「＋ 加当前目的地」）</div>'
+    return
+  }
+  var head = '<div class="th-cmp-h">⚖️ 对比目的地 <button class="btn" style="padding:3px 10px;font-size:11px" onclick="cmpAddCurrent()">＋ 加当前目的地</button> <span style="font-size:11px;color:var(--text-muted)">' + cmpCands.length + '/3 · 点某列切换为该地行程</span></div>'
+  var cols = cmpCands.map(function (c, i) {
+    var body
+    var w = c.weather
+    if (!w || !w.days || !w.days.length) {
+      body = '<div class="th-cmp-empty">' + (cmpBusy ? '查询中…' : '未查到天气') + '</div>'
+    } else {
+      var d0 = w.days[0]
+      body = '<div class="th-cmp-t">' + thNum(d0.tempMin, '°') + '~' + thNum(d0.tempMax, '°') + '</div>' +
+        '<div class="th-cmp-m">💧 降水 ' + thNum(d0.precipProb, '%') + '</div>' +
+        '<div class="th-cmp-m">💨 风 ' + thNum(d0.windLevel, ' 级') + '</div>' +
+        (d0.snowline != null ? '<div class="th-cmp-m">🏔 雪线 ' + (Math.round(d0.snowline / 100) / 10) + 'km</div>' : '') +
+        (d0.uvi != null ? '<div class="th-cmp-m">☀ UV ' + Math.round(d0.uvi) + '</div>' : '') +
+        (d0.thunder ? '<div class="th-cmp-m th-cmp-warn">⚡ 雷暴</div>' : '')
+    }
+    return '<div class="th-cmp-c" onclick="thUseCand(' + i + ')" role="button" tabindex="0" aria-label="切换为' + thEsc(c.name) + '的行程">' +
+      '<div class="th-cmp-name">' + thEsc(c.name) + '</div>' + body +
+      '<button class="btn th-cmp-x" type="button" onclick="event.stopPropagation();cmpRemove(' + i + ')" title="移除">✕</button>' +
+      '</div>'
+  }).join('')
+  v.innerHTML = head + '<div class="th-cmp">' + cols + '</div>'
+}
+function cmpRemove(i) { cmpCands.splice(i, 1); renderCompare() }
+function thUseCand(i) {
+  var c = cmpCands[i]
+  if (!c) return
+  if (typeof confirmLocation === 'function') confirmLocation({ name: c.name, admin1: '', country: 'CN', lat: c.lat, lng: c.lng, ele: c.ele, src: 'manual' }, { noHistory: true })
+  if (typeof searchWeather === 'function') searchWeather()
+  renderCompare()
+}
+
+/* 初始化：装备系统数据变更 → 刷新总览卡完成度；出发提醒状态变更 → 刷新倒计时 */
+if (typeof wsOnChange === 'function') wsOnChange(function () { if (typeof renderTripHub === 'function') renderTripHub() })
 
 </script>
 </body>
