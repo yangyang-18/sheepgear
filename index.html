@@ -5560,16 +5560,21 @@ function updateTitlePlaceholder() {
   if (!ph || !t) return
   ph.style.display = (t.textContent || '').trim() ? 'none' : 'block'
 }
-/* 定制提示（点这里定制分享卡）跟随浮动按钮：置于按钮左侧，贴左边缘时翻到右侧，箭头反向 */
+/* 定制提示（点这里定制分享卡）跟随浮动按钮：置于按钮左侧，贴左边缘时翻到右侧，箭头反向
+ * 整页 <html> zoom 缩放下 getBoundingClientRect()/innerWidth 为视觉坐标，而 fixed 定位用缩放坐标
+ * → 除以 zoom 对齐（与 wsBrandSuggest 同根因） */
 function positionCardCfgHint() {
   var btn = $('cardCfgBtn'), hint = $('cardCfgHint')
   if (!btn || !hint) return
+  var z = parseFloat(document.documentElement.style.zoom) || 1
   var br = btn.getBoundingClientRect()
   if (!br.width || !br.height) return   // 面板未显示（display:none）时跳过
   var gap = 16, hw = hint.offsetWidth, hh = hint.offsetHeight
-  var top = Math.max(8, Math.min(window.innerHeight - hh - 8, br.top + br.height / 2 - hh / 2))
-  var flip = br.left - gap - hw < 8
-  var left = flip ? Math.min(br.right + gap, window.innerWidth - hw - 8) : br.left - gap - hw
+  var vh = window.innerHeight / z, vw = window.innerWidth / z
+  var bl = br.left / z, brr = br.right / z, bt = br.top / z, bh = br.height / z
+  var top = Math.max(8, Math.min(vh - hh - 8, bt + bh / 2 - hh / 2))
+  var flip = bl - gap - hw < 8
+  var left = flip ? Math.min(brr + gap, vw - hw - 8) : bl - gap - hw
   hint.style.right = 'auto'; hint.style.bottom = 'auto'
   hint.style.left = left + 'px'; hint.style.top = top + 'px'
   var arrow = hint.querySelector('.hint-arrow')
@@ -5581,8 +5586,10 @@ function showCardCfgHint() { var h = $('cardCfgHint'); if (!h) return; h.style.d
 function initCardCfg() {
   var btn = $('cardCfgBtn'), pop = $('cardCfgPop'), hint = $('cardCfgHint')
   if (!btn || !pop) return
-  var clampX = function (x) { return Math.max(0, Math.min(window.innerWidth - 56, x)) }
-  var clampY = function (y) { return Math.max(0, Math.min(window.innerHeight - 40, y)) }
+  var z = parseFloat(document.documentElement.style.zoom) || 1
+  // 输入为布局坐标（style.left/top 用的单位），钳位到当前视口内；视觉坐标由调用处先除以 zoom
+  var clampX = function (layoutX) { return Math.max(0, Math.min(window.innerWidth / z - 56, layoutX)) }
+  var clampY = function (layoutY) { return Math.max(0, Math.min(window.innerHeight / z - 40, layoutY)) }
   var hideHint = function () { if (hint) hint.style.display = 'none' }
   if (hint) hint.addEventListener('click', function (e) { e.stopPropagation(); hideHint() })
   try {
@@ -5597,7 +5604,7 @@ function initCardCfg() {
   document.addEventListener('mousemove', function (e) {
     if (!dragging) return
     if (Math.abs(e.clientX - startX) > 3 || Math.abs(e.clientY - startY) > 3) moved = true
-    var x = clampX(e.clientX - offX), y = clampY(e.clientY - offY)
+    var x = clampX((e.clientX - offX) / z), y = clampY((e.clientY - offY) / z)
     btn.style.left = x + 'px'; btn.style.top = y + 'px'; btn.style.right = 'auto'; btn.style.bottom = 'auto'
     positionCardCfgHint()
     try { localStorage.setItem('sgCardCfgPos', JSON.stringify({ x: x, y: y })) } catch (e2) {}
