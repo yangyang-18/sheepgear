@@ -6,7 +6,7 @@
  * ============================================================ */
 'use strict'
 
-var CACHE_NAME = 'sheepgear-v1'
+var CACHE_NAME = 'sheepgear-v2'
 /* 静态资源：多文件版与单文件版均覆盖（相对当前目录） */
 var PRECACHE = [
   './',
@@ -57,10 +57,11 @@ self.addEventListener('fetch', function (event) {
   }
 
   // 同源静态资源 + 页面导航：网络优先、缓存回退
+  // cache:'no-cache'：绕过浏览器/CDN 的 max-age=600 缓存，确保更新后立即看到新版
   var isStatic = url.origin === self.location.origin && /\.(html?|css|js|png|jpe?g|svg|gif|ico|woff2?)$/.test(url.pathname)
   if (req.mode === 'navigate' || isStatic) {
     event.respondWith(
-      fetch(req).then(function (res) {
+      fetch(req, { cache: 'no-cache' }).then(function (res) {
         if (res && res.ok) { var cl2 = res.clone(); caches.open(CACHE_NAME).then(function (c) { c.put(req, cl2) }) }
         return res
       }).catch(function () {
