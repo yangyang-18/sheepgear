@@ -19,18 +19,25 @@
 <style>
 /* ===== SHEEP🐏GEAR · 冻结样式（finalized.html 逐字提取 + 已批准例外/补充） ===== */
 
-/* ===== 主题系统：每套完整 token（暗/浅）===== */
+/* ===== 主题系统：每套完整 token（暗/浅）=====
+   · 视觉方向：山野自然风（2026-08-28 重做）——深松林/苔原/冰川/岩谷/极夜
+   · 每套含 --on-accent：强调色填充按钮上的文字色（暗色系用深字、浅色系用浅字），保证 4.5:1+ */
 :root{--f-d:'Satoshi','Noto Sans SC',sans-serif;--f-b:'Instrument Sans','Noto Sans SC',sans-serif;--f-m:'JetBrains Mono',monospace}
-body{--bg:#1A1817;--surface:#242120;--surface-2:#2C2826;--text:#EDE9E4;--text-muted:#A49E97;--border:#3A3531;--accent:#E08E3C;--accent-strong:#B96B22;--accent-soft:#3A2B1C;--success:#6BA368;--warning:#D97742;--error:#C2452E;--info:#4A7C94}
-body.light{--bg:#F7F5F2;--surface:#FFFFFF;--surface-2:#F1EEE9;--text:#1F1C1A;--text-muted:#6E6760;--border:#E2DDD5;--accent:#B96B22;--accent-strong:#8F5217;--accent-soft:#F5E3CE}
-body[data-theme="glacier"]{--bg:#14242E;--surface:#1B2E3A;--surface-2:#213646;--text:#E4EEF3;--text-muted:#8FA9B6;--border:#2F4553;--accent:#5A9EBD;--accent-strong:#3B7B99;--accent-soft:#16303C}
-body.light[data-theme="glacier"]{--bg:#EFF5F8;--surface:#FFFFFF;--surface-2:#E6EEF2;--text:#16303C;--text-muted:#5C7886;--border:#C8D8E0;--accent:#3B7B99;--accent-strong:#2A5E76;--accent-soft:#DCEAF1}
-body[data-theme="tundra"]{--bg:#182019;--surface:#202B22;--surface-2:#273529;--text:#E7EEE3;--text-muted:#94A48E;--border:#36442F;--accent:#7A9E63;--accent-strong:#5C7F49;--accent-soft:#22301E}
-body.light[data-theme="tundra"]{--bg:#F2F4EE;--surface:#FFFFFF;--surface-2:#E9EDE4;--text:#1B2617;--text-muted:#5F6F58;--border:#CBD5C2;--accent:#5C7F49;--accent-strong:#47653A;--accent-soft:#E2EAD8}
-body[data-theme="sandstone"]{--bg:#211812;--surface:#2C2119;--surface-2:#372A20;--text:#F0E7DD;--text-muted:#A8957F;--border:#49392C;--accent:#C46A4A;--accent-strong:#A04E31;--accent-soft:#3A2619}
-body.light[data-theme="sandstone"]{--bg:#F6F0E7;--surface:#FFFFFF;--surface-2:#EFE6D9;--text:#2B1F16;--text-muted:#7D6B56;--border:#DCD0BE;--accent:#A04E31;--accent-strong:#7C3A24;--accent-soft:#F1E1D3}
-body[data-theme="night"]{--bg:#0D0D0D;--surface:#161616;--surface-2:#1F1F1F;--text:#EDEDED;--text-muted:#8F8F8F;--border:#2E2E2E;--accent:#59D9C2;--accent-strong:#2FB8A0;--accent-soft:#12322C}
-body.light[data-theme="night"]{--bg:#101010;--surface:#191919;--surface-2:#222222;--text:#EDEDED;--text-muted:#8F8F8F;--border:#333;--accent:#59D9C2;--accent-strong:#2FB8A0;--accent-soft:#12322C}
+/* 默认主题「山地琥珀」（ridge）：深松林 + 日辉琥珀 + 骨白/鼠尾草中性色 */
+body{--bg:#131B15;--surface:#1C2720;--surface-2:#24342A;--text:#E9EEE6;--text-muted:#9AA99C;--border:#33463A;--accent:#E0A456;--accent-strong:#BB7E2E;--accent-soft:#3B3021;--success:#7FAF6D;--warning:#D97B45;--error:#E0694E;--info:#5A93B8;--on-accent:#241A0E}
+body.light{--bg:#F3F1EA;--surface:#FFFFFF;--surface-2:#ECEAE0;--text:#26251E;--text-muted:#6C6A5C;--border:#DDD9C8;--accent:#8F621A;--accent-strong:#7A5318;--accent-soft:#F2E8D2;--success:#45723A;--warning:#A04826;--error:#B33A28;--info:#41718F;--on-accent:#FBF6EA}
+/* 冰川蓝（glacier）：冰湖青 */
+body[data-theme="glacier"]{--bg:#12242E;--surface:#1A303C;--surface-2:#213743;--text:#E3EEF3;--text-muted:#8FA9B6;--border:#2E4654;--accent:#6BB4D6;--accent-strong:#4693B8;--accent-soft:#15303E;--on-accent:#0B1B24}
+body.light[data-theme="glacier"]{--bg:#EDF4F7;--surface:#FFFFFF;--surface-2:#E4EDF1;--text:#17303D;--text-muted:#5C7A88;--border:#C7D9E0;--accent:#2F6F8F;--accent-strong:#245A76;--accent-soft:#DAE9F0;--on-accent:#F2FAFD}
+/* 苔原绿（tundra）：地衣苔藓 */
+body[data-theme="tundra"]{--bg:#162018;--surface:#202D23;--surface-2:#28382B;--text:#E7EFE2;--text-muted:#93A38C;--border:#394A37;--accent:#8CB269;--accent-strong:#6E9450;--accent-soft:#23321F;--on-accent:#141D10}
+body.light[data-theme="tundra"]{--bg:#F1F4EB;--surface:#FFFFFF;--surface-2:#E8EDE1;--text:#222D1B;--text-muted:#5F6F56;--border:#CCD5C0;--accent:#4E7A3B;--accent-strong:#3C5F2D;--accent-soft:#E3EBD6;--on-accent:#F4FAEC}
+/* 沙岩赤（sandstone）：峡谷岩壁 */
+body[data-theme="sandstone"]{--bg:#201712;--surface:#2C211B;--surface-2:#372A20;--text:#F0E7DC;--text-muted:#A8957F;--border:#49392E;--accent:#CE6F4A;--accent-strong:#AA5231;--accent-soft:#3A261A;--on-accent:#1E120A}
+body.light[data-theme="sandstone"]{--bg:#F6F0E6;--surface:#FFFFFF;--surface-2:#EFE7DA;--text:#2B2119;--text-muted:#7D6B58;--border:#DDD1C0;--accent:#9C4B2C;--accent-strong:#783719;--accent-soft:#F2E3D5;--on-accent:#FDF3E8}
+/* 极夜（night）：暗夜绿调，极光青（保持恒暗） */
+body[data-theme="night"]{--bg:#0D110D;--surface:#161C17;--surface-2:#1F2721;--text:#EDEDED;--text-muted:#8F9790;--border:#2C332E;--accent:#63D6A8;--accent-strong:#3FB884;--accent-soft:#103024;--on-accent:#0B1F16}
+body.light[data-theme="night"]{--bg:#0D110D;--surface:#161C17;--surface-2:#1F2721;--text:#EDEDED;--text-muted:#8F9790;--border:#2C332E;--accent:#63D6A8;--accent-strong:#3FB884;--accent-soft:#103024;--success:#7FAF6D;--warning:#D97B45;--error:#E0694E;--info:#5A93B8;--on-accent:#0B1F16}
 
 *{box-sizing:border-box;margin:0;padding:0}
 html{overflow-x:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%}   /* 统一等比缩放兜底：避免滚动条宽度引起的 1~2px 横向溢出；text-size-adjust 防止手机端自动放大字体撑破固定布局 */
@@ -213,7 +220,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .search{display:flex;gap:8px}
 .search input{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px 14px;color:var(--text);font-size:15px;font-family:var(--f-b)}
 .search input::placeholder{color:var(--text-muted)}
-.search button{background:var(--accent);color:#1F1C1A;border:none;border-radius:10px;padding:0 22px;font-weight:700;font-size:14px;cursor:pointer}
+.search button{background:var(--accent);color:var(--on-accent);border:none;border-radius:10px;padding:0 22px;font-weight:700;font-size:14px;cursor:pointer}
 .region{margin-top:24px}
 .region-h{font-size:11px;color:var(--text-muted);letter-spacing:.1em;font-family:var(--f-m);margin-bottom:12px;display:flex;align-items:center;gap:10px}
 .region-h::after{content:'';flex:1;height:1px;background:var(--border)}
@@ -242,13 +249,13 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 
 /* 地图路线 · ①步共享地图（loc 选点 / imp 只读路线） */
-.mk{width:22px;height:22px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);color:#1F1C1A;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:var(--f-m);box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.mk{width:22px;height:22px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);color:var(--on-accent);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;font-family:var(--f-m);box-shadow:0 1px 4px rgba(0,0,0,.4)}
 /* 按天分点标注：标注牌在路线点右侧 + 粗左箭头指向路线点（点不被遮挡） */
-.mk-day{position:relative;background:var(--accent);border:2px solid var(--bg);border-radius:9px;padding:4px 8px;color:#1F1C1A;font-family:var(--f-m);text-align:center;line-height:1.35;min-width:60px;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.mk-day{position:relative;background:var(--accent);border:2px solid var(--bg);border-radius:9px;padding:4px 8px;color:var(--on-accent);font-family:var(--f-m);text-align:center;line-height:1.35;min-width:60px;box-shadow:0 2px 6px rgba(0,0,0,.4)}
 .mk-day::before{content:'';position:absolute;top:50%;right:100%;transform:translateY(-50%);border:10px solid transparent;border-right:14px solid var(--accent);margin-right:-8px;filter:drop-shadow(-1px 0 2px rgba(0,0,0,.25))}
 .mk-day b{display:block;font-size:12px;font-weight:700}
-.mk-day i{display:block;font-style:normal;font-size:9px;color:rgba(31,28,26,.72)}
-#placeMap{background:radial-gradient(ellipse at 30% 20%,rgba(224,142,60,.10),transparent 60%),linear-gradient(170deg,var(--surface-2),var(--surface))}
+.mk-day i{display:block;font-style:normal;font-size:9px;color:color-mix(in srgb, var(--on-accent) 72%, transparent)}
+#placeMap{background:radial-gradient(ellipse at 30% 20%,color-mix(in srgb,var(--accent) 10%,transparent),transparent 60%),linear-gradient(170deg,var(--surface-2),var(--surface))}
 #placeMap .leaflet-control-attribution{font-size:9px}
 /* 导入区指标条（静态，非地图浮层） */
 .route-profile{display:flex;gap:28px;margin-top:14px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px}
@@ -268,7 +275,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .hc-lab{font-size:11px;color:var(--text-muted);margin-bottom:4px}
 .hc-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
 .hc-scroll canvas{display:block;min-width:720px}
-.departure-entry{position:sticky;top:8px;z-index:20;display:inline-block;margin:10px 0;padding:7px 16px;background:var(--accent);color:#fff;border-radius:999px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.departure-entry{position:sticky;top:8px;z-index:20;display:inline-block;margin:10px 0;padding:7px 16px;background:var(--accent);color:var(--on-accent);border-radius:999px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 .departure-card{padding:18px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
 
 
@@ -326,7 +333,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .card-wx .wi b{font-family:var(--f-m);font-size:19px;font-weight:700;color:#fff;line-height:1.15}
 .card-wx .wi i{font-style:normal;font-size:10px;color:rgba(255,255,255,.62);letter-spacing:.06em}
 .risk{display:inline-block;font-family:var(--f-m);font-size:10px;border-radius:4px;padding:2px 7px;color:#fff}
-.risk.red{background:var(--error)}.risk.orange{background:var(--warning)}.risk.green{background:var(--success)}.risk.blue{background:var(--info)}
+.risk.red{background:color-mix(in srgb,var(--error) 55%,black)}.risk.orange{background:color-mix(in srgb,var(--warning) 55%,black)}.risk.green{background:color-mix(in srgb,var(--success) 55%,black)}.risk.blue{background:color-mix(in srgb,var(--info) 55%,black)}
 
 .done-grid{display:flex;justify-content:center;margin-top:18px}
 .gear-hint{margin-bottom:12px;padding:10px 14px;border:1px solid var(--warning);border-radius:12px;background:var(--accent-soft);font-size:13px;color:var(--text);display:flex;align-items:center;flex-wrap:wrap;gap:4px}
@@ -375,7 +382,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .card-riskseg .rs-tag{color:#fff;border-radius:999px;padding:2px 8px;font-size:11px;font-family:var(--f-m)}
 
 /* ①步地图地形叠层开关按下态 + 路线风险段地图徽章 */
-.map-actions .btn.on{background:var(--accent);color:#1F1C1A;border-color:var(--accent);font-weight:700}
+.map-actions .btn.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:700}
 .risk-badge{background:var(--surface);border:2px solid;border-radius:999px;padding:1px 7px;font-size:11px;font-weight:700;font-family:var(--f-m);box-shadow:0 1px 4px rgba(0,0,0,.4);white-space:nowrap}
 /* 地图选项集合面板：底图分段 + 叠加开关 */
 .map-opt{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:10px 12px;margin-top:8px;max-width:440px}
@@ -384,9 +391,9 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .map-opt .mo-lab{font-size:10px;letter-spacing:.08em;color:var(--text-muted);margin-bottom:6px}
 .map-opt .mo-seg{display:flex;gap:6px;flex-wrap:wrap}
 .map-opt .mo-seg .btn{padding:5px 14px;font-size:12px}
-.map-opt .mo-seg .btn.on{background:var(--accent);color:#1F1C1A;border-color:var(--accent);font-weight:700}
+.map-opt .mo-seg .btn.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:700}
 .map-opt .mo-vpn{font-style:normal;font-size:9px;color:var(--text-muted);margin-left:4px}
-#mapOptBtn.on{background:var(--accent);color:#1F1C1A;border-color:var(--accent);font-weight:700}
+#mapOptBtn.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:700}
 /* 点位海拔标注：白色 ⛰ 图标 + 黑色海拔数字（无胶囊背景，黑字带浅色描边保证可见） */
 .elev-badge{font-family:var(--f-m);white-space:nowrap;text-align:center;line-height:1.5}
 .elev-ico{display:inline-block;margin-right:3px;font-size:14px;filter:brightness(0) invert(1)}
@@ -395,7 +402,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 /* 导航 */
 .nav{display:flex;justify-content:space-between;margin-top:28px;padding-top:18px;border-top:1px solid var(--border)}
 .btn{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:10px;padding:11px 22px;font-size:14px;cursor:pointer;font-family:var(--f-b)}
-.btn.primary{background:var(--accent);color:#1F1C1A;border-color:var(--accent);font-weight:700}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:700}
 .btn:disabled{opacity:.35;cursor:default}
 .foot{margin-top:40px;color:var(--text-muted);font-size:11px;line-height:1.8}
 .foot b{color:var(--text);font-family:var(--f-m);font-weight:500}
@@ -408,12 +415,12 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .lib-row .desc{font-size:11px;color:var(--text-muted)}
 .lib-h{font-size:11px;color:var(--text-muted);font-family:var(--f-m);letter-spacing:.05em;margin:10px 0 4px}
 .lib-add input,.lib-add select{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 9px;color:var(--text);font-size:12px;font-family:var(--f-b)}
-/* ===== 户外装备重量管理系统（置顶模块）===== */
+/* ===== 户外装备系统（置顶模块）===== */
 .wssys input[type="text"],.wssys input[type="number"],.wssys input:not([type]),.wssys select,.ws-titlebar select,.ws-titlebar input[type="number"]{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 9px;color:var(--text);font-size:13px;font-family:var(--f-b);box-sizing:border-box}
 .wssys input::placeholder,.ws-titlebar input::placeholder{color:var(--text-muted)}
 .wssys input:focus,.wssys select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
 .wssys .ws-slot{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:999px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:var(--f-b)}
-.wssys .ws-slot.on{background:var(--accent);color:#1F1C1A;border-color:var(--accent);font-weight:700}
+.wssys .ws-slot.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:700}
 .wssys .ws-slot.add{border-style:dashed;color:var(--text-muted)}
 .wssys .ws-cat-h{font-size:13px}
 .wssys .ws-cat-name{font-size:12px}
@@ -470,7 +477,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 }
 .wssys .ws-collapse:hover{color:var(--accent);border-color:var(--accent)}
 /* 折叠提醒：默认折叠时按钮放大高亮 + 轻浮动，提示可展开 */
-.wssys .ws-collapse.ws-collapse-alert{background:var(--accent);color:#1F1C1A;border-color:var(--accent);font-weight:700;font-size:14px;padding:8px 18px;border-radius:999px;box-shadow:0 0 0 4px var(--accent-soft),0 2px 10px rgba(0,0,0,.35);animation:ws-alert-bob 1.8s ease-in-out infinite}
+.wssys .ws-collapse.ws-collapse-alert{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:700;font-size:14px;padding:8px 18px;border-radius:999px;box-shadow:0 0 0 4px var(--accent-soft),0 2px 10px rgba(0,0,0,.35);animation:ws-alert-bob 1.8s ease-in-out infinite}
 @keyframes ws-alert-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
 /* ===== 轻提示 ===== */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:13px;z-index:1200;box-shadow:0 4px 16px rgba(0,0,0,.3)}
@@ -512,7 +519,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 
 /* ===== 分享卡浮动可拖动定制按钮 + 配置浮层 + 引导箭头提示 ===== */
 #cardCfgBtn{position:fixed;right:20px;bottom:20px;z-index:90;width:44px;height:44px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--accent);font-size:18px;cursor:grab;box-shadow:0 4px 16px rgba(0,0,0,.35);user-select:none}
-#cardCfgBtn.on{background:var(--accent);color:#1F1C1A}
+#cardCfgBtn.on{background:var(--accent);color:var(--on-accent)}
 #cardCfgBtn:active{cursor:grabbing}
 .card-cfg-hint{position:fixed;right:80px;bottom:32px;z-index:89;display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--accent);color:var(--text);font-size:12px;padding:8px 12px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.3);cursor:pointer;animation:hint-bob 2s ease-in-out infinite}
 .card-cfg-hint .hint-arrow{color:var(--accent);font-weight:700;font-size:14px}
@@ -626,6 +633,155 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
   .boot-sheep{transform:none}
 }
 
+/* ==========================================================================
+   SHEEP🐏GEAR · 山径 TRAIL LOG —— 整套重设计层（2026-08-28）
+   只改排版 / 字体质感 / 装饰，不动任何 JS 依赖的 DOM 契约。
+   全部基于既有主题 token（var(--accent) 等），随 5 主题 × 暗/浅自适应。
+   ========================================================================== */
+
+/* —— 基础：选区 / 焦点环 / 滚动条 —— */
+::selection{background:var(--accent);color:var(--on-accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+*::-webkit-scrollbar{width:8px;height:8px}
+*::-webkit-scrollbar-thumb{background:var(--border);border-radius:999px}
+*::-webkit-scrollbar-track{background:transparent}
+
+/* —— 页头：地形脊线签名 + 品牌日志标签 —— */
+header{position:relative;padding:14px 0 20px;border-bottom:none}
+header::after{content:'';position:absolute;left:0;right:0;bottom:0;height:14px;pointer-events:none;color:var(--accent);opacity:.35;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 16' preserveAspectRatio='none'%3E%3Cpath d='M0 9l70-4 90 5 130-8 150 7 120-9 140 8 110-5 150 8 130-8 160 7 60-4 100 6 30-3' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-size:100% 100%;background-repeat:no-repeat}
+.brand{font-size:19px;font-weight:900;letter-spacing:.01em;display:flex;align-items:center;gap:3px}
+.brand::after{content:'FIELD LOG';font-family:var(--f-m);font-size:9px;font-weight:600;letter-spacing:.3em;color:var(--text-muted);margin-left:10px;opacity:.8;padding-top:3px;white-space:nowrap}
+.hdr{display:flex;align-items:center;gap:10px}
+.hdr .sel,.hdr .tgl{padding:7px 15px;font-size:12px;transition:border-color .15s ease,color .15s ease}
+.hdr .sel:hover,.hdr .tgl:hover{border-color:var(--accent);color:var(--accent)}
+
+/* —— 步骤：三枚路标（数字圆点 + 连接线，当前光环）—— */
+.steps{margin-top:38px}
+.step{padding-top:40px;font-size:11.5px;letter-spacing:.02em}
+.step::before{content:attr(data-step);top:6px;width:26px;height:26px;font-family:var(--f-m);font-size:11px;font-weight:700;color:var(--text-muted);display:flex;align-items:center;justify-content:center;transition:background .2s ease,border-color .2s ease,color .2s ease,box-shadow .2s ease}
+.step::after{top:18px;left:calc(50% + 15px);width:calc(100% - 30px);height:2px;background:linear-gradient(90deg,var(--border),color-mix(in srgb,var(--accent) 28%,var(--border)))}
+.step.on{color:var(--accent)}
+.step.on::before{background:var(--accent);border-color:var(--accent);color:var(--on-accent);box-shadow:0 0 0 6px var(--accent-soft)}
+.step.done::before{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+
+/* —— 面板标题：mono 序号脚标 + 大号展示标题 —— */
+.panel{margin-top:32px}
+#p1 .step-h::before{content:'01 · 地点与行程'}
+#p2 .step-h::before{content:'02 · 天气'}
+#p3 .step-h::before{content:'03 · 分享卡'}
+.step-h{font-size:30px;letter-spacing:-.015em;line-height:1.22}
+.step-h::before{display:block;font-family:var(--f-m);font-size:10.5px;font-weight:700;letter-spacing:.14em;color:var(--accent);margin-bottom:10px}
+.step-s{font-size:14px;max-width:660px}
+
+/* —— 搜索：整合命令栏 —— */
+.search{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:5px;gap:6px;box-shadow:0 1px 0 rgba(255,255,255,.03) inset}
+.search input{border:none;background:transparent;padding:12px 14px}
+.search button{border-radius:10px}
+
+/* —— 卡片语言：统一圆角 —— */
+.wx-detail{border-radius:16px;padding:18px}
+.mt{border-radius:14px}
+.route-profile{border-radius:14px}
+.map-opt{border-radius:14px}
+.card-custom{border-radius:14px}
+.departure-card{border-radius:16px}
+.gear-list{border-radius:16px}
+#ovCard{border-radius:18px}
+.mappick{border:1px solid var(--border);border-radius:14px;border-style:solid}
+.trip{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px}
+.trip input,.trip select{background:var(--surface-2);border-color:var(--border)}
+
+/* —— 段标签：mono kicker 统一 —— */
+.region-h{font-size:10.5px;letter-spacing:.16em}
+.ov-lab,.cfg-sec h4,.gh{letter-spacing:.1em}
+.ov-lab{margin-bottom:10px;padding-top:14px}
+
+/* —— 装备日志（wssys 置顶模块）：卡片框 + 日志标题 —— */
+.wssys{border:1px solid var(--border);border-radius:16px;background:var(--surface);padding:14px 16px 16px;margin-top:18px;box-shadow:0 1px 0 rgba(255,255,255,.03) inset}
+.wssys .ws-titlebar{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.wssys .ws-ttl{display:flex;align-items:baseline;gap:9px;flex:1;font-family:var(--f-d);font-weight:900;font-size:15px;color:var(--accent);letter-spacing:.02em;min-width:0}
+.wssys .ws-ttl-en{font-family:var(--f-m);font-size:9px;font-weight:600;letter-spacing:.22em;color:var(--text-muted);text-transform:uppercase;white-space:nowrap}
+.wssys .ws-collapse{padding:5px 14px;font-size:12px;flex-shrink:0}
+
+/* —— 控件质感：hover / 焦点 —— */
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary:hover{border-color:var(--accent);color:var(--on-accent);filter:brightness(1.07)}
+.chip:hover,.day-tab:hover{border-color:var(--accent);color:var(--accent)}
+.dest:hover{border-color:var(--accent)}
+.dual-tab,.sub-tab,.cfg-tab{transition:background .15s ease,color .15s ease,box-shadow .15s ease}
+
+/* —— 配置弹层：底部 sheet + 拖拽条 —— */
+.cfg-box{position:relative;border-radius:22px 22px 0 0;padding-top:30px}
+.cfg-box::before{content:'';position:absolute;top:11px;left:50%;transform:translateX(-50%);width:44px;height:4px;border-radius:999px;background:var(--border)}
+.cfg-h{font-size:20px;letter-spacing:-.01em}
+
+/* —— 天气表格：表头统一底带 —— */
+.ov-table th,.dt-grid>.dg-hd,.dt-grid>.dg-lb{background:var(--surface-2)}
+.ov-table th{font-weight:600;letter-spacing:.04em}
+.ov-table td,.dt-grid>.dg-cell{letter-spacing:.01em}
+
+/* —— 风险胶囊 / 徽标 —— */
+.risk{letter-spacing:.04em;font-weight:700}
+.mt-diff .risk{font-size:12px;padding:3px 10px}
+
+/* —— 页脚 —— */
+.foot{border-top:1px solid var(--border);padding-top:16px;margin-top:44px;letter-spacing:.02em}
+
+/* —— 启动画面：标题微调 —— */
+.boot-title{font-size:28px;letter-spacing:.06em}
+
+/* ==========================================================================
+   山径 TRAIL LOG · 动效层（2026-08-28 /ui-animation）
+   只动 transform / opacity / 颜色过渡，全部带 prefers-reduced-motion 降级。
+   ========================================================================== */
+
+/* ① 步骤切换：方向性滑动入场（go() 写 body[data-sdir]；基类 fade 由 active 方向动画接管） */
+.panel{animation:none}
+.panel.active{animation:panel-in .24s cubic-bezier(.25,1,.5,1)}
+body[data-sdir="back"] .panel.active{animation-name:panel-in-back}
+@keyframes panel-in{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+@keyframes panel-in-back{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
+
+/* ⑤ 面板标题入场错落：标题块晚于面板 50ms 轻升 */
+.panel.active .step-h{animation:step-h-in .24s cubic-bezier(.22,1,.36,1) .05s both}
+@keyframes step-h-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ② hover 反馈补齐（高频控件 150ms 快速，不拖） */
+.btn{transition:transform 140ms ease-out,border-color .15s ease,color .15s ease}
+.chip,.day-tab,.dest,.ws-slot,.srd-item{transition:border-color .15s ease,color .15s ease,background-color .15s ease}
+
+/* ③ 天气逐日明细：切天淡入（setDay2 以 reflow 重置过渡） */
+#wxDetail2{transition:opacity .18s ease}
+
+/* ④ 装备区折叠/展开：grid-rows 0fr↔1fr 平滑（renderWeightSys 切 .ws-collapsed） */
+.ws-body-anim{display:grid;grid-template-rows:1fr;transition:grid-template-rows .22s ease-out}
+.ws-body-anim>*{overflow:clip;min-height:0}
+.wssys.ws-collapsed .ws-body-anim{grid-template-rows:0fr}
+
+/* 降级：减少动效 */
+@media (prefers-reduced-motion:reduce){
+  .panel.active,body[data-sdir="back"] .panel.active{animation-name:fade;animation-duration:.18s}
+  .panel.active .step-h{animation:none}
+  #wxDetail2{transition:none}
+  .ws-body-anim{transition:none}
+  .btn,.chip,.day-tab,.dest,.ws-slot,.srd-item{transition:none}
+}
+
+/* ==========================================================================
+   无障碍修复（/web-accessibility 2026-08-28）：
+   原 span/div 点击件改为 <button>，补充按钮化所需样式；其余为对比度/ARIA 收尾。
+   ========================================================================== */
+.dual-tab{border:none;background:transparent;font-family:var(--f-b);-webkit-appearance:none;appearance:none}
+.dual-tab.on{background:var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.collapse{border:none;background:none;font-family:var(--f-b);padding:0}
+.chip{font-family:var(--f-b);-webkit-appearance:none;appearance:none}
+.departure-entry{border:none}
+.step-h[role="heading"]{outline-offset:4px}
+
+/* 动效层注：装备系统 / 天气系统共用 .wssys 卡框 + .ws-body-anim 折叠（见上方） */
+
 </style>
 </head>
 <body data-theme="ridge">
@@ -666,7 +822,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 
 <div class="wrap">
 <header>
-  <div class="brand">SHEEP<span id="brandEmoji">🐏</span>GEAR</div>
+  <div class="brand" role="heading" aria-level="1">SHEEP<span id="brandEmoji">🐏</span>GEAR</div>
   <div class="hdr">
     <select class="sel" id="themeSel" aria-label="主题">
       <option value="ridge">山地琥珀</option><option value="glacier">冰川蓝</option>
@@ -677,37 +833,45 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
   </div>
 </header>
 
-<!-- ============ 户外装备重量管理系统（置顶常驻模块） ============ -->
-<div class="wssys" id="wssys" aria-label="户外装备重量管理系统">
-  <div class="ws-titlebar" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-    <span style="font-family:var(--f-d);font-weight:900;font-size:14px;color:var(--accent);letter-spacing:.03em;flex:1">🐏 户外装备重量管理系统</span>
-    <button class="btn ws-collapse" id="wsCollapseBtn" onclick="wsToggleSys()" style="padding:4px 12px;font-size:12px" title="折叠/展开整个系统">折叠 ▴</button>
+<!-- ============ 户外装备系统（置顶常驻模块） ============ -->
+<div class="wssys" id="wssys" aria-label="户外装备系统">
+  <div class="ws-titlebar">
+    <span class="ws-ttl">装备系统 <i class="ws-ttl-en">GEAR SYSTEM</i></span>
+    <button class="btn ws-collapse" id="wsCollapseBtn" onclick="wsToggleSys()" title="折叠/展开整个系统">折叠 ▴</button>
   </div>
-  <div id="wsBody"></div>
+  <div class="ws-body-anim"><div id="wsBody"></div></div>
 </div>
+
+<!-- ============ 天气系统（顶层组框，折叠范围=装备系统组框下面的所有内容） ============ -->
+<div class="wssys ws-collapsed" id="wxSysTop" aria-label="天气系统">
+  <div class="ws-titlebar">
+    <span class="ws-ttl">天气系统 <i class="ws-ttl-en">WEATHER SYSTEM</i></span>
+    <button class="btn ws-collapse ws-collapse-alert" id="wxSysTopBtn" onclick="wxSysTopToggle()" title="折叠/展开整个系统">展开 ▾</button>
+  </div>
+  <div class="ws-body-anim"><div id="wxSysTopBody">
 
 <div class="steps" id="steps">
-  <button class="step on" data-step="1" onclick="go(1)">1 地点与行程</button>
-  <button class="step" data-step="2" onclick="go(2)">2 天气</button>
-  <button class="step" data-step="3" onclick="go(3)">3 分享卡</button>
+  <button class="step on" data-step="1" onclick="go(1)">地点与行程</button>
+  <button class="step" data-step="2" onclick="go(2)">天气</button>
+  <button class="step" data-step="3" onclick="go(3)">分享卡</button>
 </div>
 
-<div id="departureEntry" class="departure-entry" style="display:none" onclick="departureEntryClick()">🚪 出门检查</div>
+<button id="departureEntry" class="departure-entry" type="button" style="display:none" onclick="departureEntryClick()">🚪 出门检查</button>
 
 <!-- ============ 第 1 步：选位置 ============ -->
 <div class="panel active" id="p1">
-  <div class="step-h">去哪里？</div>
+  <div class="step-h" role="heading" aria-level="2">去哪里？</div>
   <div class="step-s">没有路线也能用——直接查位置，或导入一条 GPX/KML 路线。两条路汇到同一条天气→装备管道。</div>
 
   <div class="dual">
-    <div class="dual-tab on" data-d="loc" onclick="dual('loc')">直接查位置</div>
-    <div class="dual-tab" data-d="imp" onclick="dual('imp')">导入轨迹</div>
+    <button class="dual-tab on" type="button" data-d="loc" onclick="dual('loc')">直接查位置</button>
+    <button class="dual-tab" type="button" data-d="imp" onclick="dual('imp')">导入轨迹</button>
   </div>
-  <div style="margin-top:12px"><span class="collapse" style="margin-top:0" onclick="openHistory()">🕘 历史记录</span></div>
+  <div style="margin-top:12px"><button class="collapse" type="button" style="margin-top:0" onclick="openHistory()">🕘 历史记录</button></div>
 
   <div id="impBlock" style="display:none">
     <div class="drop" id="dropZone">＋ 拖入 GPX/KML/KMZ 文件<br><span style="font-size:12px">或点击选择文件 · 从两步路/Google Earth 导出</span></div>
-    <input type="file" id="gpxFile" accept=".gpx,.kml,.kmz,.bin" style="display:none">
+    <input type="file" id="gpxFile" accept=".gpx,.kml,.kmz,.bin" aria-label="导入 GPX/KML/KMZ 路线文件" style="display:none">
     <div style="margin-top:12px;font-size:12px;color:var(--text-muted)">支持格式：GPX / KML / KMZ。会自动计算距离、爬升、海拔、预计耗时。路线只读展示，数据以导入为准。</div>
     <div id="impErr" style="font-size:12px;color:var(--warning);margin-top:8px"></div>
     <div id="routeStart" style="display:none;margin-top:12px;font-size:13px;color:var(--success)">起点：<b id="routeStartName" style="color:var(--text)"></b><button class="btn" style="padding:3px 10px;font-size:11px;margin-left:10px" id="clearRouteBtn" onclick="clearImportedRoute()">✕ 清空路线</button></div>
@@ -733,7 +897,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
       <div id="srdBox" class="srd" style="display:none"></div>
     </div>
 
-    <span class="collapse" onclick="toggle('.coord','open')">＋ 手动输入坐标</span>
+    <button class="collapse" type="button" onclick="toggle('.coord','open')">＋ 手动输入坐标</button>
     <div id="locRead" style="margin-top:10px;font-size:13px;color:var(--success);display:none"></div>
 
     <div class="coord">
@@ -752,7 +916,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
   <!-- 定行程：行程字段 + 模式（紧凑并列，置于地图上方） -->
   <div class="region-h" style="margin-top:14px">定行程</div>
   <div class="trip">
-    <div><label>出发日期</label><input type="date" id="tripDate"></div>
+    <div><label for="tripDate">出发日期</label><input type="date" id="tripDate" aria-label="出发日期"></div>
     <div><label>持续天数</label><input type="number" id="tripDays" min="1" max="16" value="1" aria-label="持续天数"></div>
     <div><label title="留空自动取路线累计爬升">预计爬升</label><input id="tripClimb" placeholder="如 1,280 m" aria-label="预计爬升"></div>
     <div><label title="留空自动按路线计算">预计耗时</label><input id="tripHours" placeholder="如 6.5 h" aria-label="预计耗时"></div>
@@ -760,11 +924,11 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
   </div>
 
   <div class="chips" id="modeChips">
-    <span class="chip on" data-mode="light" onclick="setMode('light')">轻装单日</span>
-    <span class="chip" data-mode="heavy" onclick="setMode('heavy')">重装</span>
-    <span class="chip" data-mode="trail" onclick="setMode('trail')">越野跑</span>
-    <span class="chip" data-mode="city" onclick="setMode('city')">城市游</span>
-    <span class="chip" data-alt="1" onclick="setHighAlt()">高海拔</span>
+    <button class="chip on" type="button" data-mode="light" onclick="setMode('light')">轻装单日</button>
+    <button class="chip" type="button" data-mode="heavy" onclick="setMode('heavy')">重装</button>
+    <button class="chip" type="button" data-mode="trail" onclick="setMode('trail')">越野跑</button>
+    <button class="chip" type="button" data-mode="city" onclick="setMode('city')">城市游</button>
+    <button class="chip" type="button" data-alt="1" onclick="setHighAlt()">高海拔</button>
   </div>
 
   <!-- 共享地图：loc 模式=选点针 · imp 模式=只读路线展示 -->
@@ -825,10 +989,10 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 
 <!-- ============ 第 2 步：天气 ============ -->
 <div class="panel" id="p2">
-  <div class="step-h" id="p2Title">天气</div>
+  <div class="step-h" role="heading" aria-level="2" id="p2Title">天气</div>
   <div class="step-s">按天采样，逐日查看天气与风险。</div>
 
-  <div id="wxStatus" style="font-size:11px;color:var(--text-muted);margin-top:16px;font-family:var(--f-m)"></div>
+  <div id="wxStatus" style="font-size:11px;color:var(--text-muted);font-family:var(--f-m)"></div>
   <div id="wxProgress" class="wx-progress" style="display:none"><div id="wxProgressBar" class="wx-progress-bar"></div></div>
 
   <div class="sub-tabs">
@@ -867,7 +1031,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 
 <!-- ============ 第 3 步：分享卡 ============ -->
 <div class="panel" id="p3">
-  <div class="step-h">分享卡</div>
+  <div class="step-h" role="heading" aria-level="2">分享卡</div>
   <div class="step-s">装备已按重量管理系统当前方案。可定制天气指标与展示元素。分享卡动画背景可在此预览。</div>
 
   <div class="nav"><button class="btn" onclick="go(2)">← 上一步</button><span></span></div>
@@ -946,7 +1110,7 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
       <div class="cc-sec">
         <div class="cc-lab">卡片背景（可上传照片，覆盖场景动画）</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input type="file" accept="image/*" id="bgFile" style="font-size:12px" onchange="uploadBg(this)">
+          <input type="file" accept="image/*" id="bgFile" aria-label="上传分享卡背景图" style="font-size:12px" onchange="uploadBg(this)">
           <button class="btn" style="padding:5px 12px;font-size:12px" onclick="clearBg()">✕ 用场景动画</button>
         </div>
       </div>
@@ -962,10 +1126,12 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
 <div class="foot">
   <div><b>免责声明</b>：天气与装备建议基于数值预报推算，非官方/医疗建议；山区天气多变，请以实时官报为准。</div>
 </div>
+  </div></div>
+</div>
 </div>
 
 <!-- ============ 配置弹层 ============ -->
-<div class="cfg" id="cfg" onclick="if(event.target===this)closeCfg(this)">
+<div class="cfg" id="cfg" role="dialog" aria-modal="true" aria-label="设置" onclick="if(event.target===this)closeCfg(this)">
   <div class="cfg-box">
     <div class="cfg-h">配置 <button class="cfg-x" onclick="closeCfg(document.getElementById('cfg'))">✕</button></div>
     <div class="cfg-tabs">
@@ -978,14 +1144,14 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
       <div class="cfg-row"><div>防潮垫优先于睡袋<div class="desc">地面传导是失温第一来源（红线，不可关）</div></div><span class="switch on"></span></div>
       <div class="cfg-row"><div>按夜间最低温配置<div class="desc">非白天温度（红线，不可关）</div></div><span class="switch on"></span></div>
       <div class="cfg-row"><div>禁纯棉<div class="desc">红线，不可关</div></div><span class="switch on"></span></div>
-      <div class="cfg-row"><div>过夜留 5°C 冗余<div class="desc">可调</div></div><select id="cfgMargin" onchange="saveCfgField('overnightMarginC',+this.value)"><option value="3">3°C</option><option value="5" selected>5°C</option><option value="7">7°C</option></select></div>
-      <div class="cfg-row"><div>降水概率触发防雨<div class="desc">阈值</div></div><select id="cfgPrecip" onchange="saveCfgField('precipTriggerPct',+this.value)"><option value="30">30%</option><option value="40" selected>40%</option><option value="50">50%</option></select></div>
+      <div class="cfg-row"><div>过夜留 5°C 冗余<div class="desc">可调</div></div><select id="cfgMargin" aria-label="过夜冗余温度" onchange="saveCfgField('overnightMarginC',+this.value)"><option value="3">3°C</option><option value="5" selected>5°C</option><option value="7">7°C</option></select></div>
+      <div class="cfg-row"><div>降水概率触发防雨<div class="desc">阈值</div></div><select id="cfgPrecip" aria-label="降水概率触发阈值" onchange="saveCfgField('precipTriggerPct',+this.value)"><option value="30">30%</option><option value="40" selected>40%</option><option value="50">50%</option></select></div>
       <div class="cfg-row" style="flex-wrap:wrap"><div style="flex:1 0 100%">背包限重阈值<div class="desc">超重预警基准（kg），按行程模式分设</div></div>
         <label style="display:flex;align-items:center;gap:4px;font-size:12px">轻装 <select id="cfgWtLight" onchange="saveCfgWt('light',this.value)"><option value="6">6</option><option value="8" selected>8</option><option value="10">10</option></select></label>
         <label style="display:flex;align-items:center;gap:4px;font-size:12px">重装 <select id="cfgWtHeavy" onchange="saveCfgWt('heavy',this.value)"><option value="12">12</option><option value="15" selected>15</option><option value="18">18</option></select></label>
         <label style="display:flex;align-items:center;gap:4px;font-size:12px">城市游 <select id="cfgWtCity" onchange="saveCfgWt('city',this.value)"><option value="4">4</option><option value="6" selected>6</option><option value="8">8</option></select></label>
       </div>
-      <div class="cfg-row"><div>河流流量涉水阈值<div class="desc">河流指标超该值(m³/s)标警告 + 涉水提示</div></div><select id="cfgRiverTh" onchange="saveCfgField('riverFlowThreshold',+this.value)"><option value="50">50</option><option value="100" selected>100</option><option value="200">200</option></select></div>
+      <div class="cfg-row"><div>河流流量涉水阈值<div class="desc">河流指标超该值(m³/s)标警告 + 涉水提示</div></div><select id="cfgRiverTh" aria-label="河流流量涉水阈值" onchange="saveCfgField('riverFlowThreshold',+this.value)"><option value="50">50</option><option value="100" selected>100</option><option value="200">200</option></select></div>
     </div>
 
     <div class="cfg-sec" data-cfg="gear">
@@ -1028,39 +1194,39 @@ header{position:sticky;top:0;z-index:60;background:var(--bg)}
         <span style="font-size:11px;color:var(--text-muted)">Open-Meteo/NWS/DWD 免 key · 高德/Meteoblue/Windy 需 key · 和风需 JWT</span>
       </div>
       <div id="srcEditQw" style="display:none;border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
-        <div class="cfg-row"><div>和风 API Host<div class="desc">独立 API Host，如 {账号}.{项目}.qweatherapi.com</div></div><input id="qwHost" placeholder="输入 Host" onchange="saveQwField('host',this.value)"></div>
+        <div class="cfg-row"><div>和风 API Host<div class="desc">独立 API Host，如 {账号}.{项目}.qweatherapi.com</div></div><input id="qwHost" aria-label="和风 API Host" placeholder="输入 Host" onchange="saveQwField('host',this.value)"></div>
         <div class="cfg-row"><div>和风私钥（PEM）<div class="desc">导入为不可导出 CryptoKey，不存明文</div></div><label style="display:flex;gap:6px;align-items:center"><input type="file" accept=".pem,text/plain" id="qwPem" style="width:160px;font-size:12px"><span class="risk orange" id="qwKeyStatus">未导入</span></label></div>
-        <div class="cfg-row"><div>和风 kid<div class="desc">凭证 ID（JWT header kid），控制台·项目管理</div></div><input id="qwKid" placeholder="kid" onchange="saveQwField('kid',this.value)"></div>
-        <div class="cfg-row"><div>和风 项目ID<div class="desc">项目 ID（JWT payload sub），控制台·项目管理；与 kid 是两个值，需分别填写</div></div><input id="qwProjectId" placeholder="projectId" onchange="saveQwField('projectId',this.value)"></div>
+        <div class="cfg-row"><div>和风 kid<div class="desc">凭证 ID（JWT header kid），控制台·项目管理</div></div><input id="qwKid" aria-label="和风 kid" placeholder="kid" onchange="saveQwField('kid',this.value)"></div>
+        <div class="cfg-row"><div>和风 项目ID<div class="desc">项目 ID（JWT payload sub），控制台·项目管理；与 kid 是两个值，需分别填写</div></div><input id="qwProjectId" aria-label="和风 项目 ID" placeholder="projectId" onchange="saveQwField('projectId',this.value)"></div>
         <div class="cfg-row" style="justify-content:flex-start;gap:8px"><button class="btn" style="padding:4px 12px;font-size:12px" id="keyTest_qweather" onclick="testWeatherKey('qweather')">接通测试</button><span class="risk orange" id="keyState_qweather">未测试</span></div>
       </div>
       <div id="srcEditAmap" style="display:none;border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
-        <div class="cfg-row"><div>高德 Web 服务 Key<div class="desc">主要用于地名搜索（suggest）；天气为辅助兜底。未填则两者不启用</div></div><input id="amapKey" placeholder="输入 Key" onchange="saveAmapKey(this.value)"></div>
+        <div class="cfg-row"><div>高德 Web 服务 Key<div class="desc">主要用于地名搜索（suggest）；天气为辅助兜底。未填则两者不启用</div></div><input id="amapKey" aria-label="高德 Web 服务 Key" placeholder="输入 Key" onchange="saveAmapKey(this.value)"></div>
         <div class="cfg-row" style="justify-content:flex-start;gap:8px"><button class="btn" style="padding:4px 12px;font-size:12px" id="keyTest_amap" onclick="testWeatherKey('amap')">接通测试</button><span class="risk orange" id="keyState_amap">未测试</span></div>
       </div>
       <div id="srcEditMb" style="display:none;border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
-        <div class="cfg-row"><div>Meteoblue API Key<div class="desc">my.meteoblue.com 注册获取；basic 套餐约 7 天，含逐时/逐日/降雪/UV</div></div><input id="mbKey" placeholder="输入 Key" onchange="saveMeteoblueKey(this.value)"></div>
+        <div class="cfg-row"><div>Meteoblue API Key<div class="desc">my.meteoblue.com 注册获取；basic 套餐约 7 天，含逐时/逐日/降雪/UV</div></div><input id="mbKey" aria-label="Meteoblue API Key" placeholder="输入 Key" onchange="saveMeteoblueKey(this.value)"></div>
         <div class="cfg-row" style="justify-content:flex-start;gap:8px"><button class="btn" style="padding:4px 12px;font-size:12px" id="keyTest_meteoblue" onclick="testWeatherKey('meteoblue')">接通测试</button><span class="risk orange" id="keyState_meteoblue">未测试</span></div>
       </div>
       <div id="srcEditWindy" style="border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
-        <div class="cfg-row"><div>Windy Point Forecast Key<div class="desc">api.windy.com 申请；GFS 逐时预报（风/阵风/温度/降水/AQI），CORS 可直连；无 ECMWF/降水概率（由其他源补齐）</div></div><input id="windyKey" placeholder="输入 Key" onchange="saveWindyKey(this.value)"></div>
+        <div class="cfg-row"><div>Windy Point Forecast Key<div class="desc">api.windy.com 申请；GFS 逐时预报（风/阵风/温度/降水/AQI），CORS 可直连；无 ECMWF/降水概率（由其他源补齐）</div></div><input id="windyKey" aria-label="Windy Point Forecast Key" placeholder="输入 Key" onchange="saveWindyKey(this.value)"></div>
         <div class="cfg-row" style="justify-content:flex-start;gap:8px"><button class="btn" style="padding:4px 12px;font-size:12px" id="keyTest_windy" onclick="testWeatherKey('windy')">接通测试</button><span class="risk orange" id="keyState_windy">未测试</span></div>
         <div class="cfg-row" style="justify-content:flex-start;gap:8px" id="windyNotEnabled"><span class="risk orange">Windy 未加入优先级，填 Key 不生效</span><button class="btn" style="padding:4px 12px;font-size:12px" onclick="addSourceQuick('windy')">＋ 加入优先级</button></div>
       </div>
       <div id="srcEditTdt" style="border-top:1px dashed var(--border);margin-top:8px;padding-top:8px">
-        <div class="cfg-row"><div>天地图 Key<div class="desc">lbs.tianditu.gov.cn 注册获取浏览器端 tk（免费）；用于底图切换（矢量/影像）、地名搜索兜底与「🗻 地形」晕渲叠层</div></div><input id="tdtKey" placeholder="输入 Key" onchange="saveTdtField(this.value)"></div>
+        <div class="cfg-row"><div>天地图 Key<div class="desc">lbs.tianditu.gov.cn 注册获取浏览器端 tk（免费）；用于底图切换（矢量/影像）、地名搜索兜底与「🗻 地形」晕渲叠层</div></div><input id="tdtKey" aria-label="天地图 Key" placeholder="输入 Key" onchange="saveTdtField(this.value)"></div>
         <div class="cfg-row" style="justify-content:flex-start;gap:8px"><button class="btn" style="padding:4px 12px;font-size:12px" id="keyTest_tdt" onclick="testTdtKey()">接通测试</button><span class="risk orange" id="keyState_tdt">未测试</span></div>
       </div>
 
       <h4 style="margin-top:14px">预警源</h4>
-      <div class="cfg-row"><div>预警源</div><select id="cfgAlert" onchange="saveCfgField('alertSource',this.value)"><option value="off">关闭（默认）</option><option value="qweather">和风预警</option><option value="nmc">中央气象台（免 key）</option></select></div>
+      <div class="cfg-row"><div>预警源</div><select id="cfgAlert" aria-label="预警源" onchange="saveCfgField('alertSource',this.value)"><option value="off">关闭（默认）</option><option value="qweather">和风预警</option><option value="nmc">中央气象台（免 key）</option></select></div>
       <div class="cfg-row"><div>API Key 存储<div class="desc">IndexedDB 本地存储，后端可换 · ConfigStorageAdapter</div></div><span class="risk blue">安全</span></div>
     </div>
   </div>
 </div>
 
 <!-- ============ 历史弹层 ============ -->
-<div class="cfg" id="hist" onclick="if(event.target===this)closeCfg(this)">
+<div class="cfg" id="hist" role="dialog" aria-modal="true" aria-label="历史记录" onclick="if(event.target===this)closeCfg(this)">
   <div class="cfg-box">
     <div class="cfg-h">🕘 历史记录
       <span style="flex:1"></span>
@@ -2606,14 +2772,14 @@ function mapshotSvg(ptsG, centerG, width, height, gradient) {
       var y = pad + (maxLat - p.lat) / (maxLat - minLat || 1) * dh
       return x.toFixed(1) + ',' + y.toFixed(1)
     }
-    s += '<polyline points="' + ptsG.map(px).join(' ') + '" fill="none" stroke="rgba(224,142,60,.95)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>'
+    s += '<polyline points="' + ptsG.map(px).join(' ') + '" fill="none" stroke="rgba(224,160,86,.95)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>'
     var a = px(ptsG[0]).split(','), b = px(ptsG[ptsG.length - 1]).split(',')
-    s += '<circle cx="' + a[0] + '" cy="' + a[1] + '" r="5" fill="#6BA368" stroke="#fff" stroke-width="2"/>'
-    s += '<circle cx="' + b[0] + '" cy="' + b[1] + '" r="5" fill="#C2452E" stroke="#fff" stroke-width="2"/>'
+    s += '<circle cx="' + a[0] + '" cy="' + a[1] + '" r="5" fill="#7FAF6D" stroke="#fff" stroke-width="2"/>'
+    s += '<circle cx="' + b[0] + '" cy="' + b[1] + '" r="5" fill="#D6604A" stroke="#fff" stroke-width="2"/>'
   } else {
     var cx = width / 2, cy = height / 2
     s += '<circle cx="' + cx + '" cy="' + cy + '" r="26" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="2"/>'
-    s += '<circle cx="' + cx + '" cy="' + cy + '" r="6" fill="#E08E3C" stroke="#fff" stroke-width="2"/>'
+    s += '<circle cx="' + cx + '" cy="' + cy + '" r="6" fill="#E0A456" stroke="#fff" stroke-width="2"/>'
   }
   return s + '</svg>'
 }
@@ -2678,7 +2844,7 @@ function makeMapSnapshot(opts) {
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke()
     }
     if (ptsG && ptsG.length >= 2) {
-      ctx.strokeStyle = 'rgba(224,142,60,.95)'
+      ctx.strokeStyle = 'rgba(224,160,86,.95)'
       ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.lineCap = 'round'
       ctx.beginPath()
       ptsG.forEach(function (p, idx) {
@@ -2686,13 +2852,13 @@ function makeMapSnapshot(opts) {
         if (idx === 0) ctx.moveTo(px.x - ox, px.y - oy); else ctx.lineTo(px.x - ox, px.y - oy)
       })
       ctx.stroke()
-      drawMark('#6BA368', mapshotLonLatToPixel(ptsG[0].lng, ptsG[0].lat, zoom))
-      drawMark('#C2452E', mapshotLonLatToPixel(ptsG[ptsG.length - 1].lng, ptsG[ptsG.length - 1].lat, zoom))
+      drawMark('#7FAF6D', mapshotLonLatToPixel(ptsG[0].lng, ptsG[0].lat, zoom))
+      drawMark('#D6604A', mapshotLonLatToPixel(ptsG[ptsG.length - 1].lng, ptsG[ptsG.length - 1].lat, zoom))
     } else {
       var cp = mapshotLonLatToPixel(centerG.lng, centerG.lat, zoom)
       ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 2
       ctx.beginPath(); ctx.arc(cp.x - ox, cp.y - oy, 22, 0, 6.2832); ctx.stroke()
-      drawMark('#E08E3C', cp)
+      drawMark('#E0A456', cp)
     }
     return { dataUrl: canvas.toDataURL('image/png'), width: width, height: height, kind: 'tiles' }
   }).catch(function () {
@@ -4035,6 +4201,13 @@ function setDay2(n) {
   curDay2 = n
   document.querySelectorAll('#wxDetail2 .day-tab').forEach(function (t) { t.classList.toggle('on', +t.dataset.d === n) })
   renderDayIndGrid()
+  // /ui-animation：切天时新内容淡入（reflow 重置过渡）
+  var box = $('wxDetail2')
+  if (box) {
+    box.style.transition = 'none'; box.style.opacity = '0'
+    void box.offsetWidth
+    box.style.transition = ''; box.style.opacity = '1'
+  }
 }
 function renderDayIndGrid() {
   var box = $('wxDetail2')
@@ -4767,7 +4940,7 @@ function weightAnalysisHtml() {
   var bars = wa.byCat.map(function (c) {
     var pct = wa.total ? Math.round(c.grams / wa.total * 100) : 0
     return '<div class="wa-row"><span class="wa-cat" style="flex:0 0 84px">' + esc(c.cat) + '</span>' +
-      '<div class="wa-bar" style="flex:1;height:8px;border-radius:4px;background:var(--border,#333);overflow:hidden"><div class="wa-fill" style="height:100%;width:' + pct + '%;background:var(--accent,#E08E3C)"></div></div>' +
+      '<div class="wa-bar" style="flex:1;height:8px;border-radius:4px;background:var(--border,#333);overflow:hidden"><div class="wa-fill" style="height:100%;width:' + pct + '%;background:var(--accent,#E0A456)"></div></div>' +
       '<span class="wa-pct" style="flex:0 0 74px;text-align:right;font-size:11px;color:var(--text-muted)">' + pct + '% · ' + (c.grams / 1000).toFixed(2) + 'kg</span></div>'
   }).join('')
   h += '<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">重量分析 · 按系统占比</div><div style="display:flex;flex-direction:column;gap:4px">' + bars + '</div>'
@@ -5664,7 +5837,7 @@ function reverseOpenScript() {
 }
 
 /* 导出独立 HTML（内嵌 CARD_DATA + SEED + SNAP + ST，静态渲染，与预览一致） */
-var CARD_CSS = '*{box-sizing:border-box}body{margin:0;background:#161616;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;font-family:\'Instrument Sans\',\'Noto Sans SC\',sans-serif;padding:24px 12px}.card{width:680px;max-width:94vw;border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;position:relative;color:#fff}.card-map{position:absolute;inset:0;z-index:0;overflow:hidden}.card-map .atmos{position:absolute;inset:0;pointer-events:none;overflow:hidden}.card-map .atmos i{position:absolute;border-radius:50%}@keyframes mistDrift{0%{transform:translateX(-10px);opacity:0}20%{opacity:.18}80%{opacity:.12}100%{transform:translateX(100vw);opacity:0}}@keyframes cloudDrift{0%{transform:translateX(-25vw);opacity:0}15%{opacity:.6}85%{opacity:.45}100%{transform:translateX(125vw);opacity:0}}@keyframes waveSlide{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}@keyframes bubbleRise{0%{transform:translateY(0) scale(1);opacity:0}20%{opacity:.5}80%{opacity:.5}100%{transform:translateY(-420px) scale(.2);opacity:0}}@keyframes sandDrift{0%{transform:translateX(-20px) translateY(0);opacity:0}10%{opacity:.7}90%{opacity:.4}100%{transform:translateX(120vw) translateY(10px);opacity:0}}@keyframes twinkle{0%,100%{opacity:.3}50%{opacity:1}}@keyframes rainFall{0%{transform:translateY(-50px);opacity:0}15%{opacity:1}100%{transform:translateY(260px);opacity:0}}.atmos.mountain{background:linear-gradient(180deg,transparent 70%,rgba(22,163,74,.04) 85%,rgba(22,163,74,.08) 100%)}.atmos.mountain .pine-line{position:absolute;bottom:0;left:0;width:200%;height:50px;opacity:.14;background-repeat:repeat-x;background-size:300px 50px;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 300 50\'%3E%3Cpath d=\'M0 50V30l15-10 10 15 12-20 15 18 14-25 16 20 10-15 18 22 12-30 14 18 16-20 12 25 15-15 10 10 18-25 16 15 14-10 16 20 10-18 12 12 18-22 15 18 14-15 12 10 10-12 8 8V50z\' fill=\'%23166534\' opacity=\'0.6\'/%3E%3C/svg%3E");animation:waveSlide 20s linear infinite}.atmos.mountain i{background:radial-gradient(circle,rgba(205,220,232,.4),transparent 70%);width:50px;height:16px;border-radius:50%;animation:mistDrift 18s ease-out infinite}.atmos.dawn{background:linear-gradient(180deg,transparent 30%,rgba(200,215,230,.05) 55%,rgba(200,215,230,.10) 75%,rgba(200,215,230,.14) 100%)}.atmos.dawn i{background:radial-gradient(circle,rgba(230,240,250,.25),transparent 70%);width:60px;height:18px;border-radius:50%;animation:mistDrift 20s ease-out infinite}.atmos.dawn .cloud{position:absolute;border-radius:999px;filter:blur(10px);opacity:.5;animation:cloudDrift 45s linear infinite}.atmos.ocean{background:linear-gradient(180deg,transparent 60%,rgba(8,145,178,.07) 75%,rgba(8,145,178,.12) 90%,rgba(8,145,178,.16) 100%)}.atmos.ocean .wave{position:absolute;bottom:0;left:0;width:200%;height:60px;opacity:.3;background-repeat:repeat-x;background-size:200px 60px;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 200 60\'%3E%3Cpath d=\'M0 30c25-15 40 15 65 0s40-15 65 0 40-15 65 0 40 15 65 0V60H0z\' fill=\'%230891b2\'/%3E%3C/svg%3E");animation:waveSlide 8s linear infinite}.atmos.ocean .wave:nth-child(2){bottom:18px;animation-duration:11s;opacity:.2;background-size:160px 50px}.atmos.ocean i{background:radial-gradient(circle,rgba(14,165,233,.55),transparent 70%);animation:bubbleRise 5s ease-out infinite}.atmos.desert i{background:radial-gradient(circle,rgba(238,200,150,.85),transparent 70%);border-radius:50%;animation:sandDrift 8s linear infinite}.atmos.midnight i{width:2px;height:2px;background:#6d28d9;border-radius:50%;animation:twinkle 3s ease-in-out infinite}.card-map .atmos .rain{width:2px;height:22px;background:linear-gradient(180deg,rgba(180,210,235,.7),rgba(180,210,235,.15));animation:rainFall 1.2s linear infinite}.card-map .atmos .sw{position:absolute;inset:0;overflow:hidden}.card .atmos.mountain i{background:radial-gradient(circle,rgba(214,228,240,.92),transparent 70%);animation-duration:7s}.card .atmos.mountain .pine-line{height:35%;background-size:auto 100%}.card .atmos.dawn i{background:radial-gradient(circle,rgba(232,242,250,.92),transparent 70%);width:120px;height:32px;animation-duration:6s}.card .atmos.dawn .cloud{animation-duration:12s;opacity:.7}.card .atmos.ocean .wave{opacity:.7;height:30%;bottom:0;background-size:auto 100%}.card .atmos.ocean .wave:nth-child(2){bottom:10%;opacity:.5;background-size:auto 100%}.card .atmos.ocean i{animation-duration:2.5s;border-color:rgba(190,225,245,.85)}.card .atmos.desert i{background:radial-gradient(circle,rgba(240,205,158,.95),transparent 70%);animation-duration:3s}.card .atmos.desert .dune{position:absolute;left:0;bottom:0;width:200%;height:20%;opacity:.45;background-repeat:repeat-x;background-size:auto 100%;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 200 60\'%3E%3Cpath d=\'M0 40c30-25 50 5 80-8s45 18 70 4 30 12 50 0V60H0z\' fill=\'%23d97706\' opacity=\'0.55\'/%3E%3C/svg%3E");animation:waveSlide 26s linear infinite}.card .atmos.midnight i{width:4px;height:4px;background:#fff;box-shadow:0 0 6px rgba(255,255,255,.8)}.card .atmos .rain{opacity:1}.card-body{position:relative;z-index:1;padding:22px;background:linear-gradient(180deg,rgba(12,12,18,.30) 0%,rgba(12,12,18,.62) 55%,rgba(12,12,18,.90) 100%)}.card-brand{font-family:\'JetBrains Mono\',monospace;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.9)}.card-title{font-family:\'Satoshi\',\'Noto Sans SC\',sans-serif;font-weight:900;font-size:22px;line-height:1.3;margin-top:8px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.45)}.card-meta{font-family:\'JetBrains Mono\',monospace;font-size:11px;color:rgba(255,255,255,.8);margin-top:6px}.card-difficulty{font-family:\'JetBrains Mono\',monospace;font-size:11px;color:#E0B378;margin-top:6px;letter-spacing:.04em}.card-qr{position:absolute;top:14px;right:14px;z-index:3}.card-qr img{width:64px;height:64px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.45);background:#fff;padding:4px}.card-qr-none{font-size:10px;color:rgba(255,255,255,.6);background:rgba(0,0,0,.4);padding:4px 8px;border-radius:6px}.card-div{border-top:2px solid rgba(255,255,255,.9);margin:14px 0}.card-wx{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 14px;margin-top:6px}.card-wx .wi{display:flex;flex-direction:column;justify-content:space-between;gap:2px;padding:9px 12px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(255,255,255,.08)}.card-wx .wi b{font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:700;color:#fff;line-height:1.15}.card-wx .wi i{font-style:normal;font-size:10px;color:rgba(255,255,255,.62);letter-spacing:.06em}.card-gear{margin-top:12px}.card-gear .cgh{font-size:10px;letter-spacing:.06em;color:rgba(255,255,255,.55);margin:10px 0 3px;font-family:\'JetBrains Mono\',monospace}.card-gear .cg-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 14px}.card-gear .gi{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px dotted rgba(255,255,255,.3);color:#fff}.card-gear .gi span:first-child{text-shadow:0 1px 2px rgba(0,0,0,.5)}.card-foot{margin-top:12px;font-size:10px;color:rgba(255,255,255,.68)}.card-risks{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.card-risks .rk{font-size:11px;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);color:#fff}.card-forecast{border:1px solid rgba(255,255,255,.16);border-radius:10px;margin-top:12px;overflow:hidden}.cf-row{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid rgba(255,255,255,.1);font-size:12px;color:#fff}.cf-row:last-child{border-bottom:none}.cf-date{font-family:\'JetBrains Mono\',monospace;font-size:10px;color:rgba(255,255,255,.62);width:74px;flex-shrink:0}.cf-cond{flex:1;white-space:nowrap}.cf-val{font-family:\'JetBrains Mono\',monospace;font-size:12px;text-align:right;margin-left:10px}.card-head{display:flex;align-items:stretch;gap:14px}.card-head-l{flex:1;min-width:0}.card-route{position:relative;width:360px;flex-shrink:0;min-height:44px;border:1px solid rgba(255,255,255,.35);border-radius:10px;background:rgba(255,255,255,.05);overflow:hidden}.card-route svg.route-track{position:absolute;inset:0;width:100%;height:100%}.card-gear .ckrow{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;user-select:none}.card-gear .ckrow .tk{color:#E08E3C;font-weight:700;font-size:14px;opacity:0;transform:scale(.5);transition:opacity .15s ease,transform .15s ease}.card-gear .ckrow.on .tk{opacity:1;transform:scale(1)}.card-gear .ckrow.on span:first-child{color:#ffd9a0}.clr{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:11px;color:rgba(255,255,255,.6);font-family:\'JetBrains Mono\',monospace}.clr button{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:999px;padding:4px 12px;font-size:11px;cursor:pointer}'
+var CARD_CSS = '*{box-sizing:border-box}body{margin:0;background:#161616;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;font-family:\'Instrument Sans\',\'Noto Sans SC\',sans-serif;padding:24px 12px}.card{width:680px;max-width:94vw;border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;position:relative;color:#fff}.card-map{position:absolute;inset:0;z-index:0;overflow:hidden}.card-map .atmos{position:absolute;inset:0;pointer-events:none;overflow:hidden}.card-map .atmos i{position:absolute;border-radius:50%}@keyframes mistDrift{0%{transform:translateX(-10px);opacity:0}20%{opacity:.18}80%{opacity:.12}100%{transform:translateX(100vw);opacity:0}}@keyframes cloudDrift{0%{transform:translateX(-25vw);opacity:0}15%{opacity:.6}85%{opacity:.45}100%{transform:translateX(125vw);opacity:0}}@keyframes waveSlide{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}@keyframes bubbleRise{0%{transform:translateY(0) scale(1);opacity:0}20%{opacity:.5}80%{opacity:.5}100%{transform:translateY(-420px) scale(.2);opacity:0}}@keyframes sandDrift{0%{transform:translateX(-20px) translateY(0);opacity:0}10%{opacity:.7}90%{opacity:.4}100%{transform:translateX(120vw) translateY(10px);opacity:0}}@keyframes twinkle{0%,100%{opacity:.3}50%{opacity:1}}@keyframes rainFall{0%{transform:translateY(-50px);opacity:0}15%{opacity:1}100%{transform:translateY(260px);opacity:0}}.atmos.mountain{background:linear-gradient(180deg,transparent 70%,rgba(22,163,74,.04) 85%,rgba(22,163,74,.08) 100%)}.atmos.mountain .pine-line{position:absolute;bottom:0;left:0;width:200%;height:50px;opacity:.14;background-repeat:repeat-x;background-size:300px 50px;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 300 50\'%3E%3Cpath d=\'M0 50V30l15-10 10 15 12-20 15 18 14-25 16 20 10-15 18 22 12-30 14 18 16-20 12 25 15-15 10 10 18-25 16 15 14-10 16 20 10-18 12 12 18-22 15 18 14-15 12 10 10-12 8 8V50z\' fill=\'%23166534\' opacity=\'0.6\'/%3E%3C/svg%3E");animation:waveSlide 20s linear infinite}.atmos.mountain i{background:radial-gradient(circle,rgba(205,220,232,.4),transparent 70%);width:50px;height:16px;border-radius:50%;animation:mistDrift 18s ease-out infinite}.atmos.dawn{background:linear-gradient(180deg,transparent 30%,rgba(200,215,230,.05) 55%,rgba(200,215,230,.10) 75%,rgba(200,215,230,.14) 100%)}.atmos.dawn i{background:radial-gradient(circle,rgba(230,240,250,.25),transparent 70%);width:60px;height:18px;border-radius:50%;animation:mistDrift 20s ease-out infinite}.atmos.dawn .cloud{position:absolute;border-radius:999px;filter:blur(10px);opacity:.5;animation:cloudDrift 45s linear infinite}.atmos.ocean{background:linear-gradient(180deg,transparent 60%,rgba(8,145,178,.07) 75%,rgba(8,145,178,.12) 90%,rgba(8,145,178,.16) 100%)}.atmos.ocean .wave{position:absolute;bottom:0;left:0;width:200%;height:60px;opacity:.3;background-repeat:repeat-x;background-size:200px 60px;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 200 60\'%3E%3Cpath d=\'M0 30c25-15 40 15 65 0s40-15 65 0 40-15 65 0 40 15 65 0V60H0z\' fill=\'%230891b2\'/%3E%3C/svg%3E");animation:waveSlide 8s linear infinite}.atmos.ocean .wave:nth-child(2){bottom:18px;animation-duration:11s;opacity:.2;background-size:160px 50px}.atmos.ocean i{background:radial-gradient(circle,rgba(14,165,233,.55),transparent 70%);animation:bubbleRise 5s ease-out infinite}.atmos.desert i{background:radial-gradient(circle,rgba(238,200,150,.85),transparent 70%);border-radius:50%;animation:sandDrift 8s linear infinite}.atmos.midnight i{width:2px;height:2px;background:#6d28d9;border-radius:50%;animation:twinkle 3s ease-in-out infinite}.card-map .atmos .rain{width:2px;height:22px;background:linear-gradient(180deg,rgba(180,210,235,.7),rgba(180,210,235,.15));animation:rainFall 1.2s linear infinite}.card-map .atmos .sw{position:absolute;inset:0;overflow:hidden}.card .atmos.mountain i{background:radial-gradient(circle,rgba(214,228,240,.92),transparent 70%);animation-duration:7s}.card .atmos.mountain .pine-line{height:35%;background-size:auto 100%}.card .atmos.dawn i{background:radial-gradient(circle,rgba(232,242,250,.92),transparent 70%);width:120px;height:32px;animation-duration:6s}.card .atmos.dawn .cloud{animation-duration:12s;opacity:.7}.card .atmos.ocean .wave{opacity:.7;height:30%;bottom:0;background-size:auto 100%}.card .atmos.ocean .wave:nth-child(2){bottom:10%;opacity:.5;background-size:auto 100%}.card .atmos.ocean i{animation-duration:2.5s;border-color:rgba(190,225,245,.85)}.card .atmos.desert i{background:radial-gradient(circle,rgba(240,205,158,.95),transparent 70%);animation-duration:3s}.card .atmos.desert .dune{position:absolute;left:0;bottom:0;width:200%;height:20%;opacity:.45;background-repeat:repeat-x;background-size:auto 100%;background-image:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 200 60\'%3E%3Cpath d=\'M0 40c30-25 50 5 80-8s45 18 70 4 30 12 50 0V60H0z\' fill=\'%23d97706\' opacity=\'0.55\'/%3E%3C/svg%3E");animation:waveSlide 26s linear infinite}.card .atmos.midnight i{width:4px;height:4px;background:#fff;box-shadow:0 0 6px rgba(255,255,255,.8)}.card .atmos .rain{opacity:1}.card-body{position:relative;z-index:1;padding:22px;background:linear-gradient(180deg,rgba(12,12,18,.30) 0%,rgba(12,12,18,.62) 55%,rgba(12,12,18,.90) 100%)}.card-brand{font-family:\'JetBrains Mono\',monospace;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.9)}.card-title{font-family:\'Satoshi\',\'Noto Sans SC\',sans-serif;font-weight:900;font-size:22px;line-height:1.3;margin-top:8px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.45)}.card-meta{font-family:\'JetBrains Mono\',monospace;font-size:11px;color:rgba(255,255,255,.8);margin-top:6px}.card-difficulty{font-family:\'JetBrains Mono\',monospace;font-size:11px;color:#E0B378;margin-top:6px;letter-spacing:.04em}.card-qr{position:absolute;top:14px;right:14px;z-index:3}.card-qr img{width:64px;height:64px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.45);background:#fff;padding:4px}.card-qr-none{font-size:10px;color:rgba(255,255,255,.6);background:rgba(0,0,0,.4);padding:4px 8px;border-radius:6px}.card-div{border-top:2px solid rgba(255,255,255,.9);margin:14px 0}.card-wx{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 14px;margin-top:6px}.card-wx .wi{display:flex;flex-direction:column;justify-content:space-between;gap:2px;padding:9px 12px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(255,255,255,.08)}.card-wx .wi b{font-family:\'JetBrains Mono\',monospace;font-size:19px;font-weight:700;color:#fff;line-height:1.15}.card-wx .wi i{font-style:normal;font-size:10px;color:rgba(255,255,255,.62);letter-spacing:.06em}.card-gear{margin-top:12px}.card-gear .cgh{font-size:10px;letter-spacing:.06em;color:rgba(255,255,255,.55);margin:10px 0 3px;font-family:\'JetBrains Mono\',monospace}.card-gear .cg-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 14px}.card-gear .gi{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px dotted rgba(255,255,255,.3);color:#fff}.card-gear .gi span:first-child{text-shadow:0 1px 2px rgba(0,0,0,.5)}.card-foot{margin-top:12px;font-size:10px;color:rgba(255,255,255,.68)}.card-risks{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.card-risks .rk{font-size:11px;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);color:#fff}.card-forecast{border:1px solid rgba(255,255,255,.16);border-radius:10px;margin-top:12px;overflow:hidden}.cf-row{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid rgba(255,255,255,.1);font-size:12px;color:#fff}.cf-row:last-child{border-bottom:none}.cf-date{font-family:\'JetBrains Mono\',monospace;font-size:10px;color:rgba(255,255,255,.62);width:74px;flex-shrink:0}.cf-cond{flex:1;white-space:nowrap}.cf-val{font-family:\'JetBrains Mono\',monospace;font-size:12px;text-align:right;margin-left:10px}.card-head{display:flex;align-items:stretch;gap:14px}.card-head-l{flex:1;min-width:0}.card-route{position:relative;width:360px;flex-shrink:0;min-height:44px;border:1px solid rgba(255,255,255,.35);border-radius:10px;background:rgba(255,255,255,.05);overflow:hidden}.card-route svg.route-track{position:absolute;inset:0;width:100%;height:100%}.card-gear .ckrow{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;user-select:none}.card-gear .ckrow .tk{color:#E0A456;font-weight:700;font-size:14px;opacity:0;transform:scale(.5);transition:opacity .15s ease,transform .15s ease}.card-gear .ckrow.on .tk{opacity:1;transform:scale(1)}.card-gear .ckrow.on span:first-child{color:#F0C78C}.clr{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:11px;color:rgba(255,255,255,.6);font-family:\'JetBrains Mono\',monospace}.clr button{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:999px;padding:4px 12px;font-size:11px;cursor:pointer}'
 
 function buildCardData() {
   var loc = tripName()
@@ -7397,7 +7570,7 @@ function openTerrain3D() {
   // 路线折线（顶脊）
   var linePts = top.map(function (t) { return v(t.x, t.y, 0) })
   var lineGeo = new TH.BufferGeometry().setFromPoints(linePts)
-  var lineMat = new TH.LineBasicMaterial({ color: 0xE08E3C, linewidth: 2 })
+  var lineMat = new TH.LineBasicMaterial({ color: 0xE0A456, linewidth: 2 })
   var line = new TH.Line(lineGeo, lineMat)
 
   var group = new TH.Group()
@@ -7757,7 +7930,7 @@ window.__CATALOG__ = [{"c":"背包携行","s":"收纳-分装袋","m":"Zpacks Cub
 
 </script>
 <script>
-/* ============ weightsys.js · 户外装备重量管理系统（置顶常驻） ============
+/* ============ weightsys.js · 户外装备系统（置顶常驻） ============
  * 独立于旧 gear.js 规则引擎的方案库：
  *   - 动态方案槽（默认1个，＋新增至多10个）IndexedDB 持久化
  *   - 环形饼图（SVG）按分类占比 + 分类明细表（含 Total），输入 g / 展示 kg
@@ -7778,7 +7951,7 @@ var wsPendingAdd = null // 待添加状态：{cat:目标分类}（null=未在添
 var wsCollapsed = false // 整个模块折叠状态（仅收起内容，标题栏常驻）
 
 /* ---- 重量换算常量 ---- */
-var WS_FMT_COLORS = ['#E08E3C', '#5A9EBD', '#7A9E63', '#C46A4A', '#9B7EC1', '#D97742', '#5B8DB8', '#A8945F', '#C26E8A', '#6BA368', '#8A6DBB', '#C2452E', '#4A7C94', '#B8860B', '#708090']
+var WS_FMT_COLORS = ['#E0A456', '#6BB4D6', '#8CB269', '#CE6F4A', '#9B7EC1', '#D97B45', '#5B8DB8', '#A8945F', '#C26E8A', '#7FAF6D', '#8A6DBB', '#D6604A', '#5A93B8', '#B8860B', '#708090']
 
 /* ---- IndexedDB 封装：方案槽存入既有 config store（key='weightSchemes'），
  *      避免新 store 需升级 DB_VERSION（既有库版本已 3，onupgradeneeded 不触发） ---- */
@@ -7980,21 +8153,24 @@ function wsToggleSys() {
 function renderWeightSys() {
   var body = $('wsBody')
   if (!body) return
-  body.style.display = wsCollapsed ? 'none' : ''
   var btn = $('wsCollapseBtn')
   if (btn) {
     btn.textContent = wsCollapsed ? '展开 ▾' : '折叠 ▴'
     btn.classList.toggle('ws-collapse-alert', wsCollapsed)
   }
-  if (wsCollapsed) return
-  body.innerHTML =
-    wsSlotsHtml() +
-    wsHeaderHtml() +
-    '<div class="ws-body">' +
-      wsVizHtml() +
-      wsListHtml() +
-    '</div>'
-  showWeightToast(wsTotal())
+  // /ui-animation：先渲染内容再切折叠类，grid-rows 0fr↔1fr 平滑开合
+  if (!wsCollapsed) {
+    body.innerHTML =
+      wsSlotsHtml() +
+      wsHeaderHtml() +
+      '<div class="ws-body">' +
+        wsVizHtml() +
+        wsListHtml() +
+      '</div>'
+    showWeightToast(wsTotal())
+  }
+  var box = $('wssys')
+  if (box) box.classList.toggle('ws-collapsed', wsCollapsed)
 }
 
 /* ---- 槽位行 ---- */
@@ -8508,6 +8684,36 @@ function closeCfg(el) {
   function finish() { if (done) return; done = true; el.classList.remove('open', 'closing') }
   el.addEventListener('animationend', finish)
   setTimeout(finish, 400)
+}
+/* 无障碍：Esc 跳过启动画面 / 关闭任一打开的弹层（键盘可达） */
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Escape') return
+  var boot = document.getElementById('boot')
+  if (boot && !boot.classList.contains('leaving')) { boot.classList.add('leaving'); return }
+  document.querySelectorAll('.cfg.open').forEach(function (m) { closeCfg(m) })
+})
+/* 天气系统折叠/展开（顶层组框，折叠范围=装备系统组框下面所有内容；按钮同装备系统同款，默认折叠同装备系统） */
+var wxSysCollapsed = true
+function initWxSys() {
+  // 默认折叠：无保存偏好 → 折叠，靠高亮放大按钮提醒；已保存偏好则尊重
+  wxSysCollapsed = !(appConfig && appConfig.wxSysCollapsed === false)
+  applyWxSysCollapsed()
+}
+function wxSysTopToggle() {
+  wxSysCollapsed = !wxSysCollapsed
+  if (appConfig) { appConfig.wxSysCollapsed = wxSysCollapsed; if (typeof saveConfig === 'function') saveConfig() }
+  applyWxSysCollapsed()
+}
+function applyWxSysCollapsed() {
+  var box = $('wxSysTop')
+  if (box) box.classList.toggle('ws-collapsed', wxSysCollapsed)
+  var btn = $('wxSysTopBtn')
+  if (btn) {
+    btn.textContent = wxSysCollapsed ? '展开 ▾' : '折叠 ▴'
+    btn.classList.toggle('ws-collapse-alert', wxSysCollapsed)
+  }
+  // 展开后地图容器被折叠/展开过，需重建尺寸（同 toggleMainMap）
+  if (!wxSysCollapsed && placeMap) setTimeout(function () { if (placeMap) placeMap.invalidateSize() }, 80)
 }
 function cfgTab(t) {
   document.querySelectorAll('.cfg-tab').forEach(function (b) { b.classList.toggle('on', b.dataset.cfg === t) })
@@ -9159,6 +9365,7 @@ function renderElevProfileCanvas() {
 /* ================= 5 步向导（A1：步骤线可点；前进校验最小数据） ================= */
 async function go(n) {
   if (n > cur && !(selLoc || route)) { toast('请先选择地点或导入路线'); return }
+  document.body.dataset.sdir = n >= cur ? 'fwd' : 'back'   // /ui-animation：面板按方向滑动入场
   cur = n
   document.querySelectorAll('.panel').forEach(function (p) { p.classList.remove('active') })
   $('p' + n).classList.add('active')
@@ -9437,6 +9644,8 @@ async function init() {
 
   // 重量管理系统：加载方案槽并渲染置顶模块（独立于旧装备清单）
   if (typeof initWeightSys === 'function') initWeightSys()
+  // 天气系统顶层组框：应用默认折叠/保存偏好
+  if (typeof initWxSys === 'function') initWxSys()
 
   console.log('SHEEP🐏GEAR 已加载')
 }
