@@ -15,6 +15,7 @@ var PRECACHE = [
   './SHEEPGEAR-单文件.html',
   './css/app.css',
   './js/catalog.js',
+  './js/html2canvas.min.js',
   './manifest.webmanifest',
   './icons/icon-180.png',
   './icons/icon-192.png',
