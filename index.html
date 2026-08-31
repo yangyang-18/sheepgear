@@ -1157,6 +1157,39 @@ body{padding-bottom:calc(80px + env(safe-area-inset-bottom))}
   .th-row-2>*{min-width:100%}
 }
 
+/* ==========================================================================
+   装备行卡通图标（gear-ico，2026-08-31 /ui-ux-pro-max）
+   内联 SVG symbol（weightsys.js wsInjectIconDefs），装饰性元素 aria-hidden。
+   动效只用 transform/opacity；em 尺寸随行字号缩放（含 --tx 移动端补偿）；
+   prefers-reduced-motion 下全部静止。
+   ========================================================================== */
+.gear-ico{width:1.15em;height:1.15em;flex-shrink:0;vertical-align:-.15em;margin-right:7px;color:var(--text-muted)}
+.gear-ico[data-ico="backpack"]{animation:ico-bounce 1.6s ease-in-out infinite}
+.gear-ico[data-ico="tent"]{animation:ico-swing 2.4s ease-in-out infinite;transform-origin:50% 20%}
+.gear-ico[data-ico="pan"]{animation:ico-bob 2s ease-in-out infinite}
+.gear-ico[data-ico="drop"]{animation:ico-pulse 2s ease-in-out infinite}
+.gear-ico[data-ico="coat"]{animation:ico-sway 2.6s ease-in-out infinite}
+.gear-ico[data-ico="compass"]{animation:ico-spin 2.8s ease-in-out infinite}
+.gear-ico[data-ico="shield"]{animation:ico-pulse 2.6s ease-in-out infinite}
+.gear-ico[data-ico="light"]{animation:ico-blink 1.8s ease-in-out infinite}
+.gear-ico[data-ico="wrench"]{animation:ico-wiggle 1.4s ease-in-out infinite}
+.gear-ico[data-ico="bowl"]{animation:ico-bob 2.2s ease-in-out infinite}
+.gear-ico[data-ico="umbrella"]{animation:ico-sway 3s ease-in-out infinite}
+.gear-ico[data-ico="pick"]{animation:ico-swing 2.2s ease-in-out infinite;transform-origin:50% 90%}
+.gear-ico[data-ico="beacon"]{animation:ico-pulse 1.8s ease-in-out infinite}
+.gear-ico[data-ico="boot"]{animation:ico-bounce 1.8s ease-in-out infinite}
+.gear-ico[data-ico="wave"]{animation:ico-sway 2.4s ease-in-out infinite}
+.gear-ico[data-ico="sparkle"]{animation:ico-blink 1.6s ease-in-out infinite}
+@keyframes ico-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@keyframes ico-swing{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}}
+@keyframes ico-bob{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-1.5px) rotate(2deg)}}
+@keyframes ico-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+@keyframes ico-sway{0%,100%{transform:translateX(-1.5px)}50%{transform:translateX(1.5px)}}
+@keyframes ico-spin{0%,100%{transform:rotate(-14deg)}50%{transform:rotate(14deg)}}
+@keyframes ico-wiggle{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}}
+@keyframes ico-blink{0%,100%{opacity:1}50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){.gear-ico{animation:none!important}}
+
 </style>
 </head>
 <body data-theme="ridge">
@@ -8876,6 +8909,7 @@ function schemeEmpty() { return !wsItems.length }
 
 /* ---- 主要入口：初始化（loadConfig 后由 app.js 调用） ---- */
 function initWeightSys() {
+  wsInjectIconDefs()   // 注入装备行卡通图标 symbol 定义（一次性，装饰性）
   // 默认折叠：无保存偏好 → 折叠，靠高亮放大按钮提醒；已保存偏好则尊重
   wsCollapsed = !(appConfig && appConfig.wsCollapsed === false)
   loadSlots().then(function () {
@@ -9339,12 +9373,63 @@ function wsGearHeader() {
     '<span class="ws-hdr-x"></span>' +
   '</div>'
 }
+/* ---- 装备行卡通图标（内联 SVG，装饰性元素：aria-hidden + reduced-motion 关闭，动效见 css/app.css .gear-ico） ---- */
+var WS_ICON_SYMS = {
+  backpack: '<symbol id="ico-backpack" viewBox="0 0 24 24"><path d="M9 7a3 3 0 0 1 6 0c1.6.5 3 1.9 3 3.5V18a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-7.5C6 8.9 7.4 7.5 9 7Z"/><path d="M9 7h.2c1.3 1.2 4.3 1.2 5.6 0H15"/><path d="M6 10h2.6M15.4 10H18"/><path d="M12 12v4"/></symbol>',
+  tent: '<symbol id="ico-tent" viewBox="0 0 24 24"><path d="M4 19 12 4l8 15"/><path d="m6.5 19 5.5-8 5.5 8"/><path d="M2.5 19h19"/></symbol>',
+  pan: '<symbol id="ico-pan" viewBox="0 0 24 24"><circle cx="9.5" cy="13.5" r="5"/><path d="M14 13.5h6"/><path d="m15.5 8-3-2M18 9l1-2"/></symbol>',
+  drop: '<symbol id="ico-drop" viewBox="0 0 24 24"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11Z"/><path d="M9.5 15.5a2.5 2.5 0 0 0 2.5 2.5"/></symbol>',
+  coat: '<symbol id="ico-coat" viewBox="0 0 24 24"><path d="M9 4 6 7l-2 6 3 3v4h10v-4l3-3-2-6-3-3"/><path d="M9 4l3 3 3-3"/><path d="M9 4c1 1.5 5 1.5 6 0"/><path d="M9 11v9M15 11v9"/></symbol>',
+  compass: '<symbol id="ico-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></symbol>',
+  shield: '<symbol id="ico-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>',
+  light: '<symbol id="ico-light" viewBox="0 0 24 24"><path d="M9 5h10a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/><path d="M7 8H5a2 2 0 0 0-2 2v1a2 2 0 0 0 2 2h2"/><path d="M12 14v3M9.5 19h5"/></symbol>',
+  wrench: '<symbol id="ico-wrench" viewBox="0 0 24 24"><path d="M14 7a5 5 0 0 0-6.6 6.4L4 17l3 3 3.6-3.4A5 5 0 0 0 17 10l-2.6 1.4L13 9z"/></symbol>',
+  bowl: '<symbol id="ico-bowl" viewBox="0 0 24 24"><path d="M4 13a8 8 0 0 0 16 0Z"/><path d="M3 13h18"/><path d="M7 6c-.9 1.4-.9 2.6 0 4M11.5 5c-.9 1.5-.9 3 0 5M16 5c-.7 1.3-.7 2.5 0 4"/></symbol>',
+  card: '<symbol id="ico-card" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/><path d="M7 15h5"/></symbol>',
+  umbrella: '<symbol id="ico-umbrella" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 1 9 9H3a9 9 0 0 1 9-9Z"/><path d="M12 12v5a2 2 0 0 1-4 0"/></symbol>',
+  pill: '<symbol id="ico-pill" viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="5" transform="rotate(45 12 12)"/><path d="m9.5 9.5 5 5"/></symbol>',
+  bubbles: '<symbol id="ico-bubbles" viewBox="0 0 24 24"><circle cx="9" cy="10" r="4"/><circle cx="16.5" cy="6" r="2"/><circle cx="17" cy="14" r="1.5"/><path d="M7 20c1-1.5 2-1.5 3 0s2 1.5 3 0"/></symbol>',
+  pick: '<symbol id="ico-pick" viewBox="0 0 24 24"><path d="M6 21 15 12"/><path d="m14.5 4.5 5 5L17 12l1 1-4.5 4.5-3-3L14.5 11l-1-1z"/></symbol>',
+  beacon: '<symbol id="ico-beacon" viewBox="0 0 24 24"><path d="m12 3 8 16H4z"/><path d="M12 10v4"/><circle cx="12" cy="17" r=".6"/></symbol>',
+  boot: '<symbol id="ico-boot" viewBox="0 0 24 24"><path d="M4 20h13a3 3 0 0 0 3-3v-3h-4v-3h-3V8h-3V5H8l-2 6"/><path d="M5 20c-1.1 0-1.1-3 0-3"/></symbol>',
+  cactus: '<symbol id="ico-cactus" viewBox="0 0 24 24"><path d="M9 21v-8a3 3 0 0 1 6 0v8"/><path d="M12 4v2M9 7a3 3 0 0 0-3 3v3a3 3 0 0 0 6 0"/><path d="M12 6a3 3 0 0 1 3 3v2a3 3 0 0 1-6 0"/></symbol>',
+  wave: '<symbol id="ico-wave" viewBox="0 0 24 24"><path d="M3 9c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 4 2"/><path d="M3 14c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 4 2"/></symbol>',
+  bike: '<symbol id="ico-bike" viewBox="0 0 24 24"><circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="m6 16 4-7h4"/><path d="m10 9 3 7h5"/></symbol>',
+  sparkle: '<symbol id="ico-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></symbol>'
+}
+var WS_ICON_CAT = {
+  '背包携行': 'backpack', '背负': 'backpack',
+  '露营睡眠': 'tent', '睡眠': 'tent',
+  '炊事饮食': 'pan', '炊具': 'pan',
+  '饮水净水': 'drop', '净水': 'drop',
+  '穿戴防护': 'coat', '着装': 'coat',
+  '导航通信': 'compass', '导航通讯': 'compass',
+  '急救应急': 'shield', '卫生应急': 'shield', '安全底线': 'shield', '安全保命': 'shield',
+  '照明电源': 'light', '安全修理': 'wrench', '工具刀具': 'wrench',
+  '食物饮食': 'bowl', '饮水食物': 'bowl', '营地装备': 'bowl',
+  '证照财务': 'card', '雨具': 'umbrella', '医药': 'pill', '卫生': 'bubbles',
+  '技术攀登': 'pick', '攀岩': 'pick', '冰雪技术': 'pick', '滑雪/登山滑雪': 'pick',
+  '雪崩安全': 'beacon', '越野跑': 'boot', '徒步登山': 'boot',
+  '沙漠穿越': 'cactus', '溯溪/水上': 'wave', '骑行': 'bike'
+}
+function wsIconForCat(cat) { return WS_ICON_CAT[cat] || 'sparkle' }
+var __wsIconsInjected = false
+function wsInjectIconDefs() {
+  if (__wsIconsInjected || !document.body) return
+  __wsIconsInjected = true
+  var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  svg.setAttribute('style', 'display:none')
+  svg.setAttribute('aria-hidden', 'true')
+  svg.innerHTML = Object.keys(WS_ICON_SYMS).map(function (k) { return WS_ICON_SYMS[k] }).join('')
+  document.body.appendChild(svg)
+}
 function wsItemRow(it) {
   var w = wsItemW(it)
   var id = it.id || ''
+  var ico = wsIconForCat(it.cat)
   return '<div class="ws-item">' +
     '<span class="ws-item-cat">' + esc(it.cat) + '</span>' +
-    '<span class="ws-item-name">' + esc(it.name) + (it.manual ? ' <em class="ws-item-manual">(手填)</em>' : '') + '</span>' +
+    '<span class="ws-item-name"><svg class="gear-ico" data-ico="' + ico + '" aria-hidden="true"><use href="#ico-' + ico + '"/></svg>' + esc(it.name) + (it.manual ? ' <em class="ws-item-manual">(手填)</em>' : '') + '</span>' +
     '<input type="number" value="' + (it.w || '') + '" placeholder="g" onchange="wsSetW(\'' + id + '\',this.value)">' +
     '<input type="number" value="' + (it.p || '') + '" placeholder="¥" onchange="wsSetP(\'' + id + '\',this.value)">' +
     '<input type="number" value="' + (it.qty || 1) + '" min="1" onchange="wsSetQty(\'' + id + '\',this.value)">' +
