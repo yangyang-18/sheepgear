@@ -8951,8 +8951,8 @@ function wsVizHtml() {
     '</div>'
   })
   if (!byCat.length) h += '<div class="ws-empty" style="color:var(--text-muted);text-align:center;padding:12px 8px">' +
-    '<div style="font-size:12px">选好目的地、查完天气，这里会自动长出该带的装备</div>' +
-    '<div style="font-size:11px;opacity:.75;margin-top:3px">也可以点下方按钮看一个现成演示</div>' +
+    '<div style="font-size:12px">点「载入演示行程」，会自动带好该带的装备</div>' +
+    '<div style="font-size:11px;opacity:.75;margin-top:3px">真实行程请手动添加（每个分类底部「＋ Add new item」）</div>' +
     '<div style="margin-top:10px"><button class="btn" style="padding:7px 16px;font-size:12px" onclick="demoTrip()">🧪 载入演示行程</button></div></div>'
   // 合计百分比 = Σ 各分类四舍五入 %（通常为 100%，舍入误差时显示实际和）
   var pctSum = byCat.reduce(function (s, b) { return s + (total ? Math.round(b.grams / total * 100) : 0) }, 0)
@@ -9345,16 +9345,59 @@ function showWeightToast(total) {
   if (t) t.textContent = wsKg(wsTotal())
 }
 
-/* ---- 演示行程（空状态叙事入口）：载入一个现成的重装行程并查天气 ----
+/* ---- 演示行程（空状态叙事入口）：载入一个现成的重装行程并查天气，自动带好该带的装备 ----
    每步独立 try：任一步失败不阻断后续（如 setMode 内部依赖某元素缺失） */
 function demoTrip() {
   try { if (typeof confirmLocation === 'function') confirmLocation(
     { name: '四姑娘山大峰', admin1: '四川省阿坝州', lat: 31.105, lng: 102.905, ele: 5025, src: 'manual' },
     { noHistory: true }) } catch (e) {}
+  try { trip.days = 2; trip.overNight = true } catch (e) {}
   try { if (typeof setMode === 'function') setMode('heavy') } catch (e) {}
   try { if (typeof go === 'function') go(1) } catch (e) {}
   try { if (typeof searchWeather === 'function') searchWeather() } catch (e) {}
+  try { wsDemoFillGear() } catch (e) {}
   try { if (typeof toast === 'function') toast('已载入演示行程：四姑娘山大峰 · 重装') } catch (e) {}
+}
+/* ---- 演示装备填充（仅演示行程触发）：用规则引擎 selectGear() 生成「该带的装备」填入当前方案 ----
+   已有手动方案不覆盖；天气未就绪时轮询等（最多 12s），超时用基础装备兜底 */
+function wsDemoFillGear() {
+  if (wsItems.length) return
+  if (typeof selectGear !== 'function') return
+  var t0 = Date.now()
+  function build(force) {
+    var res = null
+    try { res = selectGear() } catch (e) {}
+    if (!res || !res.selected || !res.selected.length) return false
+    var hasWx = !!(window.weather && window.weather.days && window.weather.days.length)
+    if (!force && !hasWx) return false   // 天气未就绪：先不填，等更完整的清单
+    wsApplyDemoGear(res.selected)
+    return true
+  }
+  if (build(false)) return
+  var timer = setInterval(function () {
+    if (build(false) || Date.now() - t0 > 12000) {
+      clearInterval(timer)
+      if (!wsItems.length) build(true)   // 天气始终未到 → 基础装备兜底
+    }
+  }, 800)
+}
+function wsApplyDemoGear(selected) {
+  var seen = {}, items = []
+  selected.forEach(function (g) {
+    var src = g.item || {}
+    var id = src.id || src.m || src.name
+    if (!id || seen[id]) return
+    seen[id] = 1
+    items.push({ id: '__wsd_' + id, cat: src.cat || '未分类', name: src.name || src.m, w: Math.round(parseFloat(src.w) || 0), p: Math.round(parseFloat(src.p) || 0), qty: 1, manual: false })
+  })
+  if (!items.length) return
+  wsItems = items
+  wsCats = items.map(function (it) { return it.cat }).filter(function (v, i, a) { return a.indexOf(v) === i })
+  wsOpenState = {}
+  items.forEach(function (it) { wsOpenState[it.cat] = true })
+  commitSlot()
+  renderWeightSys()
+  wsEmitChange()
 }
 
 </script>
