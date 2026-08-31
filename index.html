@@ -40,7 +40,7 @@
 /* ===== 主题系统：每套完整 token（暗/浅）=====
    · 视觉方向：山野自然风（2026-08-28 重做）——深松林/苔原/冰川/岩谷/极夜
    · 每套含 --on-accent：强调色填充按钮上的文字色（暗色系用深字、浅色系用浅字），保证 4.5:1+ */
-:root{--f-d:'Satoshi','Noto Sans SC',sans-serif;--f-b:'Instrument Sans','Noto Sans SC',sans-serif;--f-m:'JetBrains Mono',monospace}
+:root{--f-d:'Satoshi','Noto Sans SC',sans-serif;--f-b:'Instrument Sans','Noto Sans SC',sans-serif;--f-m:'JetBrains Mono',monospace;--tx:1}
 /* 默认主题「山地琥珀」（ridge）：深松林 + 日辉琥珀 + 骨白/鼠尾草中性色 */
 body{--bg:#131B15;--surface:#1C2720;--surface-2:#24342A;--text:#E9EEE6;--text-muted:#9AA99C;--border:#33463A;--accent:#E0A456;--accent-strong:#BB7E2E;--accent-soft:#3B3021;--success:#7FAF6D;--warning:#D97B45;--error:#E0694E;--info:#5A93B8;--on-accent:#241A0E}
 body.light{--bg:#F3F1EA;--surface:#FFFFFF;--surface-2:#ECEAE0;--text:#26251E;--text-muted:#6C6A5C;--border:#DDD9C8;--accent:#8F621A;--accent-strong:#7A5318;--accent-soft:#F2E8D2;--success:#45723A;--warning:#A04826;--error:#B33A28;--info:#41718F;--on-accent:#FBF6EA}
@@ -1118,6 +1118,44 @@ body{padding-bottom:calc(80px + env(safe-area-inset-bottom))}
 
 /* —— 分享卡天气指标空态占位（深色底） —— */
 .card-wx-empty{grid-column:1/-1;padding:12px;text-align:center;font-size:11px;color:rgba(255,255,255,.5);border:1px dashed rgba(255,255,255,.18);border-radius:10px}
+
+/* ==========================================================================
+   移动端文字反缩放补偿（mobile-text-compensation，2026-08-31 /ui-ux-pro-max）
+   背景：全页 <html> zoom=min(1,视口宽/820) 等比缩放，360px 手机上 12px 文字
+         实际只有 ~5.3px 不可读；本段用 --tx（视口反比系数）把文字按层级放大，
+         使文字以「移动端目标字号」真实渲染（--tx×zoom≈1），层级比例保留；
+         桌面 ≥820px 时 --tx:1，全部规则失效，与现状完全一致。
+   用法：任一元素移动端想以 X px 渲染 → font-size:calc(Xpx * var(--tx))。
+   注意：被补偿文字所在按钮/胶囊的 padding 需同乘 --tx，防止溢出。
+   ========================================================================== */
+@media (max-width:820px){
+  /* --tx 由 js/app.js applyViewportZoom 注入（--tx=max(1,min(2.6,820/视口宽))，纯 CSS 无法精确反缩放） */
+  /* —— 微注层（设计 10–11px → 移动端 ≥12px）—— */
+  .th-meta,.th-go-items,.gom-kicker,.gom-better-h,.gom-meta,
+  .th-day-r,.th-rec,.th-pick-h,.th-cmp-x,.wx-src,.map-hint,.card-wx-empty,
+  .risk{font-size:calc(12px*var(--tx))}
+  .risk{padding:calc(3px*var(--tx)) calc(9px*var(--tx))}
+  /* —— 小标签层（设计 12–13px → 移动端 ≥13px）—— */
+  .th-wx-i,.th-gear-l,.th-cd,.th-go-empty,
+  .th-day-d,.th-cmp-m,.th-cmp-empty,.th-cmp-h,.th-cmp-name,
+  .gom-better-btn,.th-quick .btn{font-size:calc(13px*var(--tx))}
+  .th-wx-i{padding:calc(5px*var(--tx)) calc(10px*var(--tx))}
+  .th-quick .btn{padding:calc(8px*var(--tx)) calc(14px*var(--tx))}
+  .th-day{padding:calc(11px*var(--tx)) calc(13px*var(--tx))}
+  /* —— 正文/值层（设计 14–16px → 移动端保持）—— */
+  .gom-hint{font-size:calc(15px*var(--tx))}
+  .th-loc b{font-size:calc(16px*var(--tx))}
+  /* —— 展示/标题层（20px+）—— */
+  .th-day-s{font-size:calc(24px*var(--tx))}
+  .th-cmp-t{font-size:calc(20px*var(--tx))}
+  .gom-word{font-size:calc(26px*var(--tx))}
+}
+/* —— 窄屏网格堆叠（唯一例外）：择日/对比卡片改单列，否则文字补偿后仍放不下 —— */
+@media (max-width:700px){
+  .th-pick{grid-template-columns:1fr}
+  .th-cmp{grid-template-columns:1fr}
+  .th-row-2>*{min-width:100%}
+}
 
 </style>
 </head>
@@ -10715,12 +10753,19 @@ function applyViewportZoom() {
   // 上限 1：桌面端（≥820px）不缩放、恢复 820px 居中；移动端（<820px）等比缩小铺满手机宽（desktop-scale-rollback）
   var z = Math.min(1, physW / 820)
   document.documentElement.style.zoom = z
+  // 移动端文字反缩放补偿系数（--tx）：视口越窄越大，恰抵消 zoom 缩小（--tx×zoom≈1），
+  // 使 app.css 中 font-size:calc(Xpx*var(--tx)) 的文字以目标字号真实渲染；桌面恒 1。
+  // 纯 CSS 无法精确反缩放（calc 除法右侧须为数字，100vw 是长度），故由本函数注入数值。
+  document.documentElement.style.setProperty('--tx', String(Math.max(1, Math.min(2.6, 820 / physW))))
 }
 function initViewportZoom() {
   applyViewportZoom()
   var t = null
   window.addEventListener('resize', function () { clearTimeout(t); t = setTimeout(applyViewportZoom, 120) })
   window.addEventListener('orientationchange', applyViewportZoom)
+  // load 兜底：移动模拟下 viewport meta 生效前脚本已运行，init 捕获的是过渡期宽度（980→457→390 无最终 resize）。
+  // 真实手机 meta 先于脚本解析不受影响；此处幂等重算，纠正任何晚定型视口。
+  window.addEventListener('load', applyViewportZoom)
 }
 
 
