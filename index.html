@@ -5315,17 +5315,22 @@ function sourceCategoryOf(it) {
 /* 城市游允许的装备系统（cat）白名单：仅 背负/导航通讯/卫生/医药/雨具/证照财务 六类；着装/食物/安全修理/卫生应急/饮水食物等城市游不带（城市游玩不复杂） */
 var CITY_CATS = { '背负': 1, '导航通讯': 1, '卫生': 1, '医药': 1, '雨具': 1, '证照财务': 1 }
 
-/* 同槽位替代组：组内装备是「同一件装备的变体/升级」，触发多个时只保留最高层级的一件（冷>升级>基础；同级保留目录靠后的更专用变体）。
-   仅收「二选一/升级替代」；可叠加配件（充气枕/帐内小灯/睡袋内胆/蛋巢垫可叠加等）不入组。 */
+/* 同槽位替代组：组内装备是「同一件装备的变体/升级」，触发多个时只保留一件。
+   选择规则：以轻量化为先（留最轻的）；等重留层级高（冷>升级>基础）；再等重留目录靠后的更专用变体。
+   - GEAR_ALT_SAFETY：安全例外组（按层级而非轻量，如高原必须高山气罐）
+   - GEAR_ALT_SUB：从属件（有主件在场时绝不单独入选，如营地鞋）
+   可叠加配件（充气枕/帐内小灯/睡袋内胆/蛋巢垫可叠加）不入组。 */
 var GEAR_ALT_GROUPS = [
   ['sleep_tent_3s', 'sleep_tent_4s', 'sleep_tent_5s'],                        // 帐篷：三季/四季/高山四级
-  ['sleep_pad', 'sleep_pad_egg', 'sleep_pad_silver', 'sleep_pad_double'],     // 睡垫：充气/蛋巢/银搓/双层组合
+  ['sleep_pad', 'sleep_pad_silver', 'sleep_pad_double'],                      // 睡垫：充气/银搓/双层组合（蛋巢=可叠加增R，不替代）
   ['sleep_bag', 'sleep_bag_duck'],                                            // 睡袋：常规/鸭毛（潮湿低海拔）
   ['cook_stove', 'cook_stove_split', 'cook_stove_cold', 'cook_stove_multi'],  // 炉头：普通/分体/柴炉备用/多燃料
   ['cook_canister', 'cook_canister_alpine'],                                  // 气罐：扁罐/高山蓝罐
-  ['wear_shoes', 'wear_boot_hb', 'wear_boot_winter', 'wear_campshoe'],        // 鞋：徒步+营地/高帮重装/冬季保暖/营地鞋
+  ['wear_shoes', 'wear_boot_hb', 'wear_boot_winter', 'wear_campshoe'],        // 鞋：徒步+营地/高帮重装/冬季保暖/营地鞋(从属)
   ['wear_gloves', 'wear_gloves_thick']                                        // 手套：触屏加厚/加厚防水
 ]
+var GEAR_ALT_SAFETY = { 'cook_canister': true }   // 气罐：高原必须高山罐，按层级非轻量
+var GEAR_ALT_SUB = { 'wear_campshoe': true }      // 营地鞋：从属件，有主鞋在场时不单独入选
 function gearTierRank(t) { return t === 'cold' ? 3 : t === 'upgrade' ? 2 : 1 }
 function gearAltGroup(id) {
   for (var i = 0; i < GEAR_ALT_GROUPS.length; i++) if (GEAR_ALT_GROUPS[i].indexOf(id) >= 0) return GEAR_ALT_GROUPS[i]
@@ -5375,7 +5380,8 @@ function selectGear(day) {
     else if (it.id === 'health_fa' || it.id === 'tool_whistle') sizeNote = '全尺寸'
     out.push({ item: it, reason: reason, tripSrc: tripSrc, sizeNote: sizeNote, hitDays: ev.hitDays || [], margins: ev.margins || [], source: src })
   })
-  // 同槽位替代去重：组内多件触发时原位只保留最高层级（冷>升级>基础；同级保留目录靠后的更专用变体）
+  // 同槽位替代去重：组内多件触发时原位只保留一件——轻量优先（留最轻），等重留层级高，再等重留更专用变体；
+  // 气罐走安全例外（按层级，高原必须高山罐）；从属件（营地鞋）有主件在场时不入选
   if (GEAR_ALT_GROUPS.length) {
     var kept = {}, result = []
     out.forEach(function (g) {
@@ -5383,11 +5389,22 @@ function selectGear(day) {
       if (!group) { result.push(g); return }
       var key = group[0], cur = kept[key]
       if (!cur) { kept[key] = { idx: result.length, entry: g }; result.push(g); return }
+      var curW = cur.entry.item.w || 0, newW = g.item.w || 0
       var curRank = gearTierRank(cur.entry.item.t), newRank = gearTierRank(g.item.t)
-      if (newRank > curRank || (newRank === curRank && group.indexOf(g.item.id) > group.indexOf(cur.entry.item.id))) {
-        result[kept[key].idx] = g
-        kept[key].entry = g
+      var curSub = !!GEAR_ALT_SUB[cur.entry.item.id], newSub = !!GEAR_ALT_SUB[g.item.id]
+      var replace
+      if (GEAR_ALT_SAFETY[key]) {                       // 安全例外：层级优先
+        replace = newRank > curRank || (newRank === curRank && (newW < curW || group.indexOf(g.item.id) > group.indexOf(cur.entry.item.id)))
+      } else if (curSub !== newSub) {                   // 从属件：主件在场时从属件不入选
+        replace = !newSub && curSub
+      } else if (newW !== curW) {                       // 轻量化优先
+        replace = newW < curW
+      } else if (newRank !== curRank) {
+        replace = newRank > curRank
+      } else {
+        replace = group.indexOf(g.item.id) > group.indexOf(cur.entry.item.id)
       }
+      if (replace) { result[kept[key].idx] = g; kept[key].entry = g }
     })
     out = result
   }
