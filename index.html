@@ -6388,6 +6388,40 @@ function exportCard() {
   }
 }
 
+/* ---- 存 PNG 辅助：html2canvas 1.4.1 解析不了 color-mix()（Chrome 计算值输出 color(srgb …)，
+   html2canvas 抛 "unsupported color function"）。导出前把目标元素内 color-mix 派生的计算色
+   用 canvas 解析成 rgb()/rgba() 内联覆盖，导出后还原。 ---- */
+function neutralizeColorMix(root) {
+  var patches = []
+  var props = ['backgroundColor', 'color', 'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor']
+  function resolve(v) {
+    // Chrome 对 color-mix 的计算值是 `color(srgb r g b[/a])`；canvas 也不会归一化，
+    // 手动把 srgb 分量（0-1）换算成 0-255 的 rgb()/rgba()。
+    var m = /color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+))?\)/.exec(v)
+    if (m) {
+      var r = Math.round(parseFloat(m[1]) * 255), g = Math.round(parseFloat(m[2]) * 255), b = Math.round(parseFloat(m[3]) * 255)
+      var a = m[4] != null ? parseFloat(m[4]) : 1
+      return a >= 1 ? 'rgb(' + r + ',' + g + ',' + b + ')' : 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')'
+    }
+    return null
+  }
+  var els = [root].concat(Array.prototype.slice.call(root.querySelectorAll('*')))
+  els.forEach(function (el) {
+    var cs = getComputedStyle(el)
+    props.forEach(function (p) {
+      var v = cs[p]
+      if (v && (v.indexOf('color(') >= 0 || v.indexOf('color-mix') >= 0)) {
+        var rgb = resolve(v)
+        if (rgb) { patches.push({ el: el, p: p, old: el.style[p] }); el.style[p] = rgb }
+      }
+    })
+  })
+  return patches
+}
+function restorePatches(patches) {
+  patches.forEach(function (x) { x.el.style[x.p] = x.old })
+}
+
 /* ---- 存 PNG（html2canvas CDN 动态加载，未加载降级提示；总览卡作用于长图容器）---- */
 function savePNG() {
   var isOv = card.type === 'overview'
@@ -6417,6 +6451,8 @@ function savePNG() {
       opts.windowWidth = cardEl.scrollWidth
       opts.windowHeight = cardEl.scrollHeight
     }
+    // html2canvas 1.4.1 解析不了 color-mix()（.risk 胶囊等）：临时转成 rgb() 内联，截完还原
+    var patches = neutralizeColorMix(cardEl)
     html2canvas(cardEl, opts).then(function (canvas) {
       var a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = fname; a.click()
       resume()
@@ -6424,6 +6460,7 @@ function savePNG() {
     function resume() {
       if (mask) mask.remove()
       if (needsZoomFix && oldZoom) de.style.zoom = oldZoom
+      if (patches && patches.length) restorePatches(patches)
       cardEl.querySelectorAll('.atmos i,.atmos .pine-line,.atmos .wave,.atmos .dune,.atmos .cloud,.atmos .m-peak,.atmos .m-beam,.atmos .m-sun,.atmos .m-cloud,.atmos .m-eagle,.atmos .m-eagle-w,.atmos .m-fall,.atmos .m-bird,.atmos .m-pine,.atmos .o-sun,.atmos .o-cloud,.atmos .o-boat,.atmos .n-moon,.atmos .n-shoot').forEach(function (el) { el.style.animationPlayState = '' })
       if (sw) sw.style.display = ''
       if (_sandWave) _sandWave.play()
