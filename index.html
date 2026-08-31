@@ -779,7 +779,7 @@ body[data-sdir="back"] .panel.active{animation-name:panel-in-back}
 
 /* ④ 装备区折叠/展开：grid-rows 0fr↔1fr 平滑（renderWeightSys 切 .ws-collapsed） */
 .ws-body-anim{display:grid;grid-template-rows:1fr;transition:grid-template-rows .22s ease-out}
-.ws-body-anim>*{overflow:clip;min-height:0}
+.ws-body-anim>*{overflow:clip;min-height:0;min-width:0}
 .wssys.ws-collapsed .ws-body-anim{grid-template-rows:0fr}
 
 /* 降级：减少动效 */
@@ -2957,6 +2957,16 @@ function syncPlaceMap(lat, lng) {
    地图类型化标点 + 列表（距路线最近距离升序）；失败降级提示，不阻断地图交互。 */
 var OVERPASS = 'https://overpass-api.de/api/interpreter'
 var routePOI = { cache: {}, layer: null, fetching: false, warned: false }
+/* 沿轨迹营地 POI 只读计数：从 routePOI.cache[routeHashKey()] 过滤 type==='campsite'；只读缓存、不触发拉取、无缓存返回 0 */
+function routeCampCount() {
+  if (typeof routeHashKey !== 'function' || typeof route === 'undefined' || !(route && route.length > 1)) return 0
+  var key = routeHashKey()
+  var list = routePOI.cache[key]
+  if (!list || !list.length) return 0
+  var n = 0
+  for (var i = 0; i < list.length; i++) { if (list[i] && list[i].type === 'campsite') n++ }
+  return n
+}
 function poiBBox(pts) {
   var minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity
   pts.forEach(function (p) {
@@ -3283,7 +3293,7 @@ function mapshotGradStops(cssGrad) {
   return out
 }
 /* 风格化 SVG 示意图：场景渐变底 + 路线 polyline + 起终点；单点则中心标记 */
-function mapshotSvg(ptsG, centerG, width, height, gradient) {
+function mapshotSvg(ptsG, centerG, width, height, gradient, overlay) {
   var stops = mapshotGradStops(gradient)
   var c1 = stops[0] || '#2c5a3a', c2 = stops[1] || '#16302a'
   var s = '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '">'
@@ -3302,6 +3312,7 @@ function mapshotSvg(ptsG, centerG, width, height, gradient) {
     var a = px(ptsG[0]).split(','), b = px(ptsG[ptsG.length - 1]).split(',')
     s += '<circle cx="' + a[0] + '" cy="' + a[1] + '" r="5" fill="#7FAF6D" stroke="#fff" stroke-width="2"/>'
     s += '<circle cx="' + b[0] + '" cy="' + b[1] + '" r="5" fill="#D6604A" stroke="#fff" stroke-width="2"/>'
+    s += mapshotSvgOverlay(overlay, px)
   } else {
     var cx = width / 2, cy = height / 2
     s += '<circle cx="' + cx + '" cy="' + cy + '" r="26" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="2"/>'
@@ -3309,9 +3320,26 @@ function mapshotSvg(ptsG, centerG, width, height, gradient) {
   }
   return s + '</svg>'
 }
+/* SVG 叠加标注：天分点（⛰ 海拔 + 第N天 + km）、海拔标记、营地 ⛺ */
+function mapshotSvgOverlay(overlay, px) {
+  if (!overlay) return ''
+  var h = ''
+  ;(overlay.dayPts || []).forEach(function (p) {
+    var xy = px(wgs84ToGcj02(p.lat, p.lon)).split(',')
+    var txt = '<tspan x="' + xy[0] + '" dy="-14">' + '第' + p.day + '天' + (p.ele != null && p.ele > 0 ? ' ⛰' + Math.round(p.ele) + 'm' : '') + (p.km != null ? ' ' + p.km + 'km' : '') + '</tspan>'
+    h += '<circle cx="' + xy[0] + '" cy="' + xy[1] + '" r="5" fill="#E0A456" stroke="#fff" stroke-width="2"/>'
+    h += '<text x="' + xy[0] + '" y="' + xy[1] + '" text-anchor="middle" fill="#fff" font-size="11" font-weight="700" stroke="rgba(0,0,0,.6)" stroke-width="3" paint-order="stroke">' + txt + '</text>'
+  })
+  ;(overlay.campPts || []).forEach(function (p) {
+    var xy = px(wgs84ToGcj02(p.lat, p.lon)).split(',')
+    h += '<circle cx="' + xy[0] + '" cy="' + xy[1] + '" r="6" fill="#3E7C4F" stroke="#fff" stroke-width="2"/>'
+    h += '<text x="' + xy[0] + '" y="' + xy[1] + '" text-anchor="middle" dominant-baseline="central" font-size="11">⛺</text>'
+  })
+  return h
+}
 /* SVG 兜底结果：尽量栅格化为 PNG dataURL（html2canvas 兼容）；失败时回退 SVG dataURL */
-function mapshotSvgResult(ptsG, centerG, width, height, gradient) {
-  var svgData = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(mapshotSvg(ptsG, centerG, width, height, gradient))
+function mapshotSvgResult(ptsG, centerG, width, height, gradient, overlay) {
+  var svgData = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(mapshotSvg(ptsG, centerG, width, height, gradient, overlay))
   return new Promise(function (res) {
     var img = new Image()
     img.onload = function () {
@@ -3324,13 +3352,15 @@ function mapshotSvgResult(ptsG, centerG, width, height, gradient) {
     img.src = svgData
   })
 }
-/* 生成快照。opts: { lat, lng, route:[{lat,lon}], width, height, zoom, gradient }
+/* 生成快照。opts: { lat, lng, route:[{lat,lon}], width, height, zoom, gradient,
+   overlay:{ dayPts:[{lat,lon,day,ele,km}], elevPts:[{lat,lon,ele}], campPts:[{lat,lon,label}] } }
    route 为 null/单点时按单点处理。返回 Promise<{dataUrl,width,height,kind:'tiles'|'svg'}> */
 function makeMapSnapshot(opts) {
   opts = opts || {}
   var width = Math.min(Math.round(opts.width || 720), MAPSHOT_MAX_W)
   var height = Math.min(Math.round(opts.height || 340), MAPSHOT_MAX_H)
   var route = opts.route && opts.route.length >= 2 ? opts.route : null
+  var overlay = opts.overlay || null
   // 瓦片为 GCJ-02：路线先转 GCJ 再投影，保证与底图对齐
   var ptsG = route ? route.map(function (p) { return wgs84ToGcj02(p.lat, p.lon != null ? p.lon : p.lng) }) : null
   var centerG, zoom
@@ -3353,7 +3383,7 @@ function makeMapSnapshot(opts) {
   }
   return Promise.all(jobs).then(function (imgs) {
     var loaded = imgs.filter(Boolean).length
-    if (!loaded) return mapshotSvgResult(ptsG, centerG, width, height, opts.gradient)   // 全失败(跨域/离线) → 示意兜底
+    if (!loaded) return mapshotSvgResult(ptsG, centerG, width, height, opts.gradient, overlay)   // 全失败(跨域/离线) → 示意兜底
     var canvas = document.createElement('canvas')
     canvas.width = width; canvas.height = height
     var ctx = canvas.getContext('2d')
@@ -3386,9 +3416,29 @@ function makeMapSnapshot(opts) {
       ctx.beginPath(); ctx.arc(cp.x - ox, cp.y - oy, 22, 0, 6.2832); ctx.stroke()
       drawMark('#E0A456', cp)
     }
+    /* 叠加标注：天分点（第N天 ⛰海拔 km）/ 营地 ⛺ / 海拔标记 */
+    if (overlay) {
+      function ovPixel(p) { var g = wgs84ToGcj02(p.lat, p.lon); var px = mapshotLonLatToPixel(g.lng, g.lat, zoom); return { x: px.x - ox, y: px.y - oy } }
+      ctx.font = '11px sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 3
+      ;(overlay.dayPts || []).forEach(function (p) {
+        var q = ovPixel(p)
+        var label = '第' + p.day + '天' + (p.ele != null && p.ele > 0 ? ' ⛰' + Math.round(p.ele) + 'm' : '') + (p.km != null ? ' ' + p.km + 'km' : '')
+        drawMark('#E0A456', { x: q.x + ox, y: q.y + oy })
+        ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.fillStyle = '#fff'
+        ctx.strokeText(label, q.x, q.y - 12); ctx.fillText(label, q.x, q.y - 12)
+      })
+      ;(overlay.campPts || []).forEach(function (p) {
+        var q = ovPixel(p)
+        ctx.fillStyle = '#3E7C4F'
+        ctx.beginPath(); ctx.arc(q.x, q.y, 6, 0, 6.2832); ctx.fill()
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke()
+        ctx.font = '11px sans-serif'; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'
+        ctx.fillText('⛺', q.x, q.y + 4)
+      })
+    }
     return { dataUrl: canvas.toDataURL('image/png'), width: width, height: height, kind: 'tiles' }
   }).catch(function () {
-    return mapshotSvgResult(ptsG, centerG, width, height, opts.gradient)
+    return mapshotSvgResult(ptsG, centerG, width, height, opts.gradient, overlay)
   })
 }
 
@@ -3401,7 +3451,7 @@ var OM_AIR = 'https://air-quality-api.open-meteo.com/v1/air-quality'
 var OM_MARINE = 'https://marine-api.open-meteo.com/v1/marine'
 var OM_FLOOD = 'https://flood-api.open-meteo.com/v1/flood'
 var QW_TTL = 30 * 60 * 1000
-var WEATHER_CACHE_VER = 13   // 天气缓存 schema 版本：v11=逐点集合+风/降水离散；v12=新增 雪线/土壤/雪深/气压 字段；v13=雪线/雪深加雪情境门槛+雪深改厘米（旧缓存含未过门槛/米单位数据→升版强制重查）
+var WEATHER_CACHE_VER = 14   // 天气缓存 schema 版本：v11=逐点集合+风/降水离散；v12=新增 雪线/土壤/雪深/气压 字段；v13=雪线/雪深加雪情境门槛+雪深改厘米（旧缓存含未过门槛/米单位数据→升版强制重查）；v14=气压改站点气压口径（Open-Meteo 换 surface_pressure / Meteoblue 取 pressure，旧缓存含海平面值→升版强制重查）
 var alertStatus = ''   // 预警拉取状态：''=ok/空 | 'fail'=接口不可用
 var LAPSE_RATE = 6.5 / 1000   // 气温垂直递减率（ISA 标准，°C/米）：海拔每升 1000m 降 6.5°C，用于网格→路线海拔校正
 /* 雪情境判据常量：决定「雪线/雪深」指标何时对目的地有意义（snowRelevant 见 aggregateDays 前）
@@ -3509,10 +3559,12 @@ function qweatherDaily(lat, lng, days) {
     var h = rs[1].status === 'fulfilled' ? rs[1].value : null
     if (!d && !h) return null
     var daily = ((d && d.daily) || []).map(function (x) {
-      return { date: String(x.fxDate || '').slice(0, 10), weatherCode: qwTextToWmo(x.textDay || x.textNight || ''), tempMax: qwF(x.tempMax), tempMin: qwF(x.tempMin), tempMean: null, appMax: qwF(x.feelsLikeDay), appMin: qwF(x.feelsLikeNight), precipSum: qwF(x.precip), precipProbMax: qwF(x.precipProb), snowfallSum: null, windSpeedMax: qwF(x.windSpeedDay), windDirDominant: qwF(x.wind360Day), uviMax: qwF(x.uvIndex), sunrise: x.sunrise || null, sunset: x.sunset || null, pressure: qwF(x.pressure), src: 'qweather' }
+      var _dvis = qwF(x.vis)
+      return { date: String(x.fxDate || '').slice(0, 10), weatherCode: qwTextToWmo(x.textDay || x.textNight || ''), tempMax: qwF(x.tempMax), tempMin: qwF(x.tempMin), tempMean: null, appMax: qwF(x.feelsLikeDay), appMin: qwF(x.feelsLikeNight), precipSum: qwF(x.precip), precipProbMax: qwF(x.precipProb), snowfallSum: null, windSpeedMax: qwF(x.windSpeedDay), windDirDominant: qwF(x.wind360Day), uviMax: qwF(x.uvIndex), sunrise: x.sunrise || null, sunset: x.sunset || null, pressure: qwF(x.pressure), visibility: _dvis != null ? _dvis * 1000 : null, src: 'qweather' }
     }).slice(0, days)
     var hourly = ((h && h.hourly) || []).map(function (x) {
-      return { time: String(x.fxTime || '').slice(0, 16), temp: qwF(x.temp), appTemp: null, humidity: qwF(x.humidity), precipProb: qwF(x.pop), precip: qwF(x.precip), weatherCode: qwTextToWmo(x.text), windSpeed: qwF(x.windSpeed), windGust: null, windDir: qwF(x.wind360), visibility: qwF(x.vis), snowfall: null, dewPoint: qwF(x.dew), cloudCover: qwF(x.cloud), uvi: null }
+      var _qv = qwF(x.vis)
+      return { time: String(x.fxTime || '').slice(0, 16), temp: qwF(x.temp), appTemp: null, humidity: qwF(x.humidity), precipProb: qwF(x.pop), precip: qwF(x.precip), weatherCode: qwTextToWmo(x.text), windSpeed: qwF(x.windSpeed), windGust: null, windDir: qwF(x.wind360), visibility: _qv != null ? _qv * 1000 : null, snowfall: null, dewPoint: qwF(x.dew), cloudCover: qwF(x.cloud), uvi: null }
     })
     return { daily: daily, hourly: hourly, src: 'qweather' }
   }).catch(function () { return null })
@@ -3533,7 +3585,7 @@ function omForecast(lat, lng, days) {
     latitude: lat, longitude: lng, timezone: 'auto', forecast_days: days,
     current: 'temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation',
     daily: 'weather_code,temperature_2m_max,temperature_2m_min,temperature_2m_mean,apparent_temperature_max,apparent_temperature_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_direction_10m_dominant,uv_index_max,sunrise,sunset,snowfall_sum',
-    hourly: 'temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,visibility,cloud_cover,uv_index,snowfall,dewpoint_2m,freezing_level_height,soil_moisture_0_to_7cm,snow_depth,pressure_msl'
+    hourly: 'temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,visibility,cloud_cover,uv_index,snowfall,dewpoint_2m,freezing_level_height,soil_moisture_0_to_7cm,snow_depth,surface_pressure'
   })
   return fetch(OM_FCAST + '?' + p.toString(), { signal: AbortSignal.timeout(15000) })
     .then(function (r) { if (!r.ok) throw new Error('om.http'); return r.json() })
@@ -3541,7 +3593,7 @@ function omForecast(lat, lng, days) {
 function toUnifiedOM(om, srcTag) {
   var d = om.daily, h = om.hourly
   var daily = (d.time || []).map(function (t, i) { return { date: t, weatherCode: d.weather_code[i], tempMax: d.temperature_2m_max[i], tempMin: d.temperature_2m_min[i], tempMean: d.temperature_2m_mean[i], appMax: d.apparent_temperature_max[i], appMin: d.apparent_temperature_min[i], precipSum: d.precipitation_sum[i], precipProbMax: d.precipitation_probability_max[i], snowfallSum: d.snowfall_sum[i], windSpeedMax: d.wind_speed_10m_max[i], windDirDominant: d.wind_direction_10m_dominant[i], uviMax: d.uv_index_max[i], sunrise: d.sunrise[i], sunset: d.sunset[i], src: srcTag } })
-  var hourly = (h.time || []).map(function (t, i) { return { time: t, temp: h.temperature_2m[i], appTemp: h.apparent_temperature[i], humidity: h.relative_humidity_2m[i], precipProb: h.precipitation_probability[i], precip: h.precipitation[i], weatherCode: h.weather_code[i], windSpeed: h.wind_speed_10m[i], windGust: h.wind_gusts_10m[i], windDir: h.wind_direction_10m[i], visibility: h.visibility[i], snowfall: h.snowfall[i], dewPoint: h.dewpoint_2m[i], cloudCover: h.cloud_cover[i], uvi: h.uv_index[i], snowlineH: h.freezing_level_height ? h.freezing_level_height[i] : null, soilH: h.soil_moisture_0_to_7cm ? h.soil_moisture_0_to_7cm[i] : null, snowDepthH: h.snow_depth ? h.snow_depth[i] : null, pressureH: h.pressure_msl ? h.pressure_msl[i] : null } })
+  var hourly = (h.time || []).map(function (t, i) { return { time: t, temp: h.temperature_2m[i], appTemp: h.apparent_temperature[i], humidity: h.relative_humidity_2m[i], precipProb: h.precipitation_probability[i], precip: h.precipitation[i], weatherCode: h.weather_code[i], windSpeed: h.wind_speed_10m[i], windGust: h.wind_gusts_10m[i], windDir: h.wind_direction_10m[i], visibility: h.visibility[i], snowfall: h.snowfall[i], dewPoint: h.dewpoint_2m[i], cloudCover: h.cloud_cover[i], uvi: h.uv_index[i], snowlineH: h.freezing_level_height ? h.freezing_level_height[i] : null, soilH: h.soil_moisture_0_to_7cm ? h.soil_moisture_0_to_7cm[i] : null, snowDepthH: h.snow_depth ? h.snow_depth[i] : null, pressureH: h.surface_pressure ? h.surface_pressure[i] : null } })
   /* 免 key 扩展字段逐日聚合（best-effort）：雪线=当日零度层最低、土壤=均值、雪深=最大值、气压=均值 */
   daily.forEach(function (dd) {
     var inDay = hourly.filter(function (hh) { return String(hh.time).slice(0, 10) === dd.date })
@@ -3961,7 +4013,7 @@ function toUnifiedMB(mb, days) {
       windDir: mbNum(h.winddirection, i), visibility: mbNum(h.visibility, i),
       snowfall: snowMm(mbNum(h.precipitation, i), mbNum(h.snowfraction, i)), dewPoint: mbNum(h.dewpoint, i),
       cloudCover: mbNum(h.cloudcover, i), uvi: mbNum(h.uvindex, i),
-      snowlineH: mbNum(h.zerolevel, i), pressureH: mbNum(h.sealevelpressure != null ? h.sealevelpressure : h.pressure, i)
+      snowlineH: mbNum(h.zerolevel, i), pressureH: mbNum(h.pressure, i)
     }
   }).filter(function (x) { return keep[String(x.time).slice(0, 10)] })
   /* 扩展字段（meteoblue best-effort，与 OM 同口径）：雪线=当日零度层最低、气压=当日均值；字段缺失→null，由级联兜底 */
@@ -4057,6 +4109,7 @@ function toUnifiedWindy(w, days) {
     var ws = hs.map(function (h) { return h.windSpeed }).filter(function (v) { return v != null })
     var wdirs = hs.map(function (h) { return h.windDir }).filter(function (v) { return v != null })
     var clouds = hs.map(function (h) { return h.clouds }).filter(function (v) { return v != null })
+    var pressures = hs.map(function (h) { return h.pressure }).filter(function (v) { return v != null })
     return {
       date: date, src: 'windy',
       weatherCode: windyWmo(pre.reduce(function (a, b) { return a + b }, 0), sn.reduce(function (a, b) { return a + b }, 0), clouds.length ? Math.max.apply(null, clouds) : 0),
@@ -4067,6 +4120,7 @@ function toUnifiedWindy(w, days) {
       snowfallSum: sn.length ? Math.round(sn.reduce(function (a, b) { return a + b }, 0) * 10) / 10 : null,
       windSpeedMax: ws.length ? Math.round(Math.max.apply(null, ws) * 10) / 10 : null,
       windDirDominant: wdirs.length ? Math.round(wdirs[wdirs.length - 1]) : null,
+      pressure: pressures.length ? Math.round(pressures.reduce(function (a, b) { return a + b }, 0) / pressures.length * 10) / 10 : null,
       precipProbMax: null, appMax: null, appMin: null, uviMax: null, sunrise: null, sunset: null
     }
   })
@@ -4284,7 +4338,7 @@ function aggregateDays(pointWeatherList, splitPts, offset, ensList) {
       windSpeedMax: d0.windSpeedMax, windLevel: wd.level, windDir: d0.windDirDominant,
       windGust: maxOf(inWin.map(function (h) { return h.windGust })) != null ? Math.round(maxOf(inWin.map(function (h) { return h.windGust }))) : d0.windSpeedMax,
       uvi: d0.uviMax, cloudCover: meanOf(inWin.map(function (h) { return h.cloudCover })) != null ? Math.round(meanOf(inWin.map(function (h) { return h.cloudCover }))) : null,
-      visibility: meanOf(inWin.map(function (h) { return h.visibility })) != null ? Math.round(meanOf(inWin.map(function (h) { return h.visibility }))) : null,
+      visibility: meanOf(inWin.map(function (h) { return h.visibility })) != null ? Math.round(meanOf(inWin.map(function (h) { return h.visibility }))) : (d0.visibility != null ? Math.round(d0.visibility) : null),
       dewPoint: meanOf(inWin.map(function (h) { return h.dewPoint })) != null ? round1(meanOf(inWin.map(function (h) { return h.dewPoint }))) : null,
       sunrise: srise, sunset: sset, snowfall: d0.snowfallSum,
       hourlyCodes: codes, thunder: codes.some(isThunderCode), hail: codes.some(isHailCode),
@@ -4397,7 +4451,7 @@ var WX_TEMPLATE = [
   { id: 'river', label: '河流流量', icon: '💦', unit: '' },
   { id: 'snowline', label: '雪线', icon: '❄️', unit: 'km' },
   { id: 'snow_depth', label: '雪深', icon: '⛄', unit: 'cm' },
-  { id: 'pressure', label: '气压', icon: '🌡', unit: 'hPa' },
+  { id: 'pressure', label: '气压 · 站点', icon: '🌡', unit: 'hPa' },
   { id: 'moon', label: '月相', icon: '🌙', unit: '' },
   { id: 'daylight', label: '白昼时长', icon: '🕐', unit: '' },
   { id: 'golden_hour', label: '黄金时段', icon: '📸', unit: '' },
@@ -4406,6 +4460,30 @@ var WX_TEMPLATE = [
 ]
 var ALT_ZONES = [['低', '低海拔'], ['中', '中海拔'], ['高', '高海拔'], ['超高', '超高海拔'], ['极高', '极高海拔（专业）']]
 function altZoneLevel(ele) { if (ele == null) ele = 0; if (ele < 1500) return 0; if (ele < 2500) return 1; if (ele < 3500) return 2; if (ele < 5500) return 3; return 4 }
+
+/* ---- 各源对统一 schema 字段的支持矩阵（供「源不提供」缺失提示；只读，展示层判定用） ----
+   true=提供独立数值字段；冰雹无任何源提供独立值（仅天气码 WMO 96/99 推断），promise:false 不承诺可补齐 */
+var SRC_FIELD_SUPPORT = {
+  'open-meteo': { cloud: true, visibility: true, dewpoint: true, snowfall: true, snowline: true, snowDepth: true, soil: true, pressure: true },
+  'meteoblue': { cloud: true, visibility: true, dewpoint: true, snowfall: true, snowline: true, snowDepth: false, soil: false, pressure: true },
+  'qweather': { cloud: true, visibility: true, dewpoint: true, snowfall: false, snowline: false, snowDepth: false, soil: false, pressure: true },
+  'windy': { cloud: true, visibility: false, dewpoint: true, snowfall: true, snowline: false, snowDepth: false, soil: false, pressure: true },
+  'amap': { cloud: false, visibility: false, dewpoint: false, snowfall: false, snowline: false, snowDepth: false, soil: false, pressure: false }
+}
+/* 概览指标 id → 统一 schema 字段键（缺失提示用） */
+var FIELD_SUPPORT_KEY = { cloud: 'cloud', visibility: 'visibility', dewpoint: 'dewpoint', snow: 'snowfall', snowline: 'snowline', snow_depth: 'snowDepth', pressure: 'pressure' }
+/* 当前有效源组合是否支持该字段：weather.srcs 中任一源支持即为支持；无 srcs 信息（如缓存）不判定，避免误报 */
+function fieldSupportedBySrcs(fk) {
+  var srcs = (weather && weather.srcs) || []
+  if (!srcs.length) return true
+  return srcs.some(function (s) { var m = SRC_FIELD_SUPPORT[s]; return !!(m && m[fk]) })
+}
+/* 指标缺值时的「源不提供」提示；字段有支持源或非受控字段 → 空串（空值即真缺失/被门槛降级，不提示） */
+function fieldSupportHint(id) {
+  var fk = FIELD_SUPPORT_KEY[id]
+  if (!fk) return ''
+  return fieldSupportedBySrcs(fk) ? '' : '（当前源不提供 · 可换源补齐）'
+}
 
 /* 概览指标 id → DSL 字段（供「指标触发了哪些装备」联动查询；值为 buildGearCtx 的 ctx 键） */
 var IND_TO_FIELD = { night_min: ['nightMin'], feels_night: ['nightMin'], temp_mean: ['tempMax', 'tempMin'], precip: ['precipProb', 'precipSum'], wind: ['windLevel', 'windSpeed'], snow: ['snow'], uvi: ['uvi'], elevation: ['elevation'], windchill: ['windchill'], humidity: ['humidity'], visibility: ['visibility'], thunder: ['thunder'], hi_low: ['hiLow'], alt_zone: ['elevation'], gust: ['windLevel'] }
@@ -4444,10 +4522,10 @@ function resolveItem(id, d) {
     case 'precip': { var pv = '—'; if (d.precipProb != null) pv = fmtNum(d.precipProb) + '%' + (d.precipSum > 0 ? '·' + fmtInt(d.precipSum) + 'mm' : ''); return { value: pv, tone: (d.precipProb || 0) >= 40 ? 'warn' : '' } }
     case 'wind': { var wv = d.windLevel != null ? fmtNum(d.windLevel) + '级' : '—'; if (d.windSpeedMax != null) wv += '·' + Math.round(d.windSpeedMax) + 'km/h'; return { value: wv, tone: (d.windLevel || 0) >= 6 ? 'warn' : '' } }
     case 'wind_dir': return { value: windDir16(d.windDir) + '风', tone: '' }
-    case 'cloud': { var cv = d.cloudCover; return { value: cv != null ? fmtNum(cv) + '%' : '—', tone: cv >= 80 ? 'warn' : (cv <= 50 ? 'good' : '') } }
-    case 'visibility': { var vi = d.visibility; return { value: vi != null ? (Math.round(vi / 100) / 10) + 'km' : '—', tone: vi != null && vi < 10000 ? 'warn' : (vi != null ? 'good' : '') } }
+    case 'cloud': { var cv = d.cloudCover; return { value: cv != null ? fmtNum(cv) + '%' : '—' + fieldSupportHint('cloud'), tone: cv >= 80 ? 'warn' : (cv <= 50 ? 'good' : '') } }
+    case 'visibility': { var vi = d.visibility; return { value: vi != null ? (Math.round(vi / 100) / 10) + 'km' : '—' + fieldSupportHint('visibility'), tone: vi != null && vi < 10000 ? 'warn' : (vi != null ? 'good' : '') } }
     case 'uvi': { var u = d.uvi; var uv = u != null ? Math.round(u) + (u >= 8 ? ' 很强' : u >= 6 ? ' 强' : u >= 3 ? ' 中等' : ' 弱') : '—'; return { value: uv, tone: (u || 0) >= 7 ? 'warn' : '' } }
-    case 'dewpoint': { var dp = d.dewPoint; return { value: dp != null ? Math.round(dp) + '°' : '—', tone: dp >= 18 ? 'warn' : (dp < 0 ? 'cold' : '') } }
+    case 'dewpoint': { var dp = d.dewPoint; return { value: dp != null ? Math.round(dp) + '°' : '—' + fieldSupportHint('dewpoint'), tone: dp >= 18 ? 'warn' : (dp < 0 ? 'cold' : '') } }
     case 'sun_rise_set': { var _r = d.sunrise, _s = d.sunset; if ((!_r || !_s) && d.lat != null && (d.lon != null || d.lng != null)) { var _sn = sunTimesLocal(d.lat, d.lon != null ? d.lon : d.lng, d.date); _r = _r || (_sn && _sn.sunrise); _s = _s || (_sn && _sn.sunset) } return { value: fmtTime(_r) + '/' + fmtTime(_s), tone: '' } }
     case 'stars': { if (d.cloudCover == null && d.precipProb == null) return { value: '—', tone: '' }; var _mp0 = moonPhase(d.date); var s = calcStar(d.cloudCover, d.precipProb, _mp0 ? _mp0.bright : null); return { value: s.stars, tone: s.tone } }
     case 'trend': { if (!weather || !weather.days[d.dayIndex + 1]) return no; var nx = weather.days[d.dayIndex + 1]; if (d.tempMax == null || nx.tempMax == null) return no; var diff = nx.tempMax - d.tempMax; if (diff > 1) return { value: '↑转好', tone: 'good' }; if (diff < -1) return { value: '↓转差', tone: 'warn' }; return { value: '→平稳', tone: '' } }
@@ -4470,9 +4548,9 @@ function resolveItem(id, d) {
       var _over = d.riverDischarge > _rt
       return { value: fmtNum(d.riverDischarge) + ' m³/s' + (_over ? ' · 注意涉水' : ''), tone: _over ? 'warn' : '' }
     }
-    case 'snowline': { var _sl = d.snowline; if (_sl == null) return no; return { value: fmtNum(_sl / 1000) + 'km', tone: d.ele != null && d.ele > _sl ? 'warn' : '' } }
-    case 'snow_depth': { var _sd = d.snowDepth; return _sd != null ? { value: fmtNum(_sd) + 'cm', tone: _sd >= 5 ? 'warn' : '' } : no }
-    case 'pressure': { var _pr = d.pressure; return _pr != null ? { value: fmtNum(_pr) + 'hPa', tone: '' } : no }
+    case 'snowline': { var _sl = d.snowline; if (_sl == null) return { value: '—' + fieldSupportHint('snowline'), tone: '' }; return { value: fmtNum(_sl / 1000) + 'km', tone: d.ele != null && d.ele > _sl ? 'warn' : '' } }
+    case 'snow_depth': { var _sd = d.snowDepth; return _sd != null ? { value: fmtNum(_sd) + 'cm', tone: _sd >= 5 ? 'warn' : '' } : { value: '—' + fieldSupportHint('snow_depth'), tone: '' } }
+    case 'pressure': { var _pr = d.pressure; return _pr != null ? { value: fmtNum(_pr) + 'hPa', tone: '' } : { value: '—' + fieldSupportHint('pressure'), tone: '' } }
     /* 派生指标（纯计算，不写入 weather.days）：月相 / 白昼 / 黄金时段 / WBGT / 结冰涉水 */
     case 'moon': { var _mp = moonPhase(d.date); return _mp ? { value: '🌙 ' + _mp.name + ' · ' + _mp.bright + '%', tone: _mp.bright <= 20 ? 'good' : '' } : no }
     case 'daylight': { var _dl = daylightHours(d); return _dl ? { value: _dl.text, tone: '' } : no }
@@ -4524,14 +4602,19 @@ function renderDayTable(days, enabled, opts) {
   // 多源一致度行（逐日）：✓高 / ⚠中 / ✗低，高不显示状态点
   rows += row('一致度', function (d) {
     var c = d.confidence || 'high'
+    if (c === 'high') return '<span class="dt-none">—</span>'   // 高一致不宣称（即便全局有源不可用，逐日不重复提示）
+    var singleSrc = (typeof weather !== 'undefined' && (weather.srcs || []).length === 1)
     var ec = ensCfg()
     var why = []
+    ;(d.lowConsistency || []).forEach(function (f) { why.push((CONF_FIELD_ZH[f] || f) + ' 分歧') })
+    if (typeof weather !== 'undefined' && weather.coverage != null && weather.coverage < 0.7) why.push('覆盖度不足 ' + Math.round(weather.coverage * 100) + '%')
+    if (typeof weather !== 'undefined' && weather.unavailableSources && weather.unavailableSources.length) why.push('源不可用 ' + weather.unavailableSources.map(srcLabel).join('/'))
+    if (typeof weather !== 'undefined' && weather.precipUncertain) why.push('降水中带 40~60%')
     if ((d.ensTempSpread || 0) > ec.tempC) why.push('温度集合离散 ' + Math.round(d.ensTempSpread) + '°C')
     if ((d.ensWindSpread || 0) > ec.windKmh) why.push('风集合离散 ' + Math.round(d.ensWindSpread) + 'km/h')
     if ((d.ensPrecipSpread || 0) > ec.precipMm) why.push('降水资源量离散 ' + Math.round(d.ensPrecipSpread) + 'mm')
-    if (why.length) return '<span class="v ' + (c === 'low' ? 'cold' : 'warn') + '">' + (c === 'high' ? '✓ 高' : c === 'medium' ? '⚠ 中' : '✗ 低') + '</span> <span class="dt-none" style="font-size:10px">' + esc(why.join('·')) + '</span>'
-    if (c === 'high') return '<span class="dt-none">—</span>'
-    return '<span class="v ' + (c === 'low' ? 'cold' : 'warn') + '">' + (c === 'medium' ? '⚠ 中' : '✗ 低') + '</span>'
+    if (why.length) return '<span class="v ' + (c === 'low' ? 'cold' : 'warn') + '">' + (singleSrc ? '仅1源 ' : '') + (c === 'high' ? '✓ 高' : c === 'medium' ? '⚠ 中' : '✗ 低') + '</span> <span class="dt-none" style="font-size:10px">' + esc(why.join(' · ')) + '</span>'
+    return '<span class="v ' + (c === 'low' ? 'cold' : 'warn') + '">' + (singleSrc ? '仅1源 ' : '') + (c === 'medium' ? '⚠ 中' : '✗ 低') + '</span>'
   })
   inds.forEach(function (it) {
     var label = esc(it.label)
@@ -4665,15 +4748,18 @@ function srcLabel(id) {
   var m = { qweather: '和风', 'open-meteo': 'Open-Meteo', amap: '高德', meteoblue: 'Meteoblue', windy: 'Windy', nmc: '中央气象台' }
   return (typeof SRC_META !== 'undefined' && SRC_META[id] && SRC_META[id].label) ? SRC_META[id].label : (m[id] || id)
 }
-/* 多源一致度展示：高→空（不显示即不宣称）；低/中→胶囊 + 原因（多源分歧 / 源不可用 / 集合离散） */
+/* 多源一致度展示：高→空（不显示即不宣称）；低/中→胶囊 + 原因（多源分歧 / 源不可用 / 集合离散）；
+   单源时标注「仅 1 源」并列出非多源信号（覆盖度 / 降水中带），避免误以为存在多源分歧 */
 function confidenceDisplay() {
   if (!weather || !weather.days || !weather.days.length) return ''
   var c = weather.confidence || 'high'
   if (c === 'high') return ''
+  var singleSrc = (weather.srcs || []).length === 1
   var lows = {}
   weather.days.forEach(function (d) { (d.lowConsistency || []).forEach(function (f) { lows[f] = (lows[f] || 0) + 1 }) })
   var parts = []
   Object.keys(lows).forEach(function (f) { parts.push(CONF_FIELD_ZH[f] || f) })
+  if (weather.coverage != null && weather.coverage < 0.7) parts.push('覆盖度不足 ' + Math.round(weather.coverage * 100) + '%')
   if (weather.unavailableSources && weather.unavailableSources.length) parts.push('源不可用 ' + weather.unavailableSources.map(srcLabel).join('/'))
   if (weather.precipUncertain) parts.push('集合对降水分歧大（概率 40~60%）')
   var ec = ensCfg()
@@ -4682,7 +4768,9 @@ function confidenceDisplay() {
   if (weather.ensPrecipMax != null && weather.ensPrecipMax > ec.precipMm) parts.push('降水资源量离散 ' + Math.round(weather.ensPrecipMax) + 'mm')
   var reason = parts.length ? '，原因：' + parts.join(' · ') : ''
   var cls = c === 'low' ? 'orange' : 'blue'
-  return '<div style="margin-top:8px"><span class="risk ' + cls + '" style="margin-right:6px">多源一致度' + (c === 'low' ? '低' : '中') + '</span><span style="color:var(--text-muted)">' + esc(reason) + '</span></div>' +
+  var label = '多源一致度' + (c === 'low' ? '低' : '中')
+  if (singleSrc) label = '仅 1 源 · 一致度' + (c === 'low' ? '低' : '中')
+  return '<div style="margin-top:8px"><span class="risk ' + cls + '" style="margin-right:6px">' + label + '</span><span style="color:var(--text-muted)">' + esc(reason) + '</span></div>' +
     '<div style="margin-top:4px;font-size:10px;color:var(--text-muted)">基于多源一致性与集合预报估算，非官方概率预报</div>'
 }
 function renderWxList() {
@@ -6018,10 +6106,15 @@ function renderOverviewCard() {
   var loc = tripName()
   var meta = []
   if (routeMetrics) meta.push(routeMetrics.distanceKm.toFixed(1) + ' km')
+  if (routeMetrics && routeMetrics.descentM != null) meta.push('下降 ' + routeMetrics.descentM + 'm')
   if (trip.climbM != null) meta.push('爬升 ' + trip.climbM + 'm')
+  if (routeMetrics && routeMetrics.maxEle != null) meta.push('最高 ' + Math.round(routeMetrics.maxEle) + 'm')
   if (trip.hours != null) meta.push(trip.hours + 'h')
   if (trip.startDate) meta.push(trip.startDate.slice(0, 10))
   if (trip.days) meta.push(trip.days + ' 天')
+  if ((trip.days > 1 || trip.overNight) && trip.days) meta.push('扎营 ' + (trip.days - 1) + ' 晚')
+  var _campN = (typeof routeCampCount === 'function') ? routeCampCount() : 0
+  if (_campN > 0) meta.push('⛺ 营地 ' + _campN + ' 个')
   var modes = { light: '轻装单日', heavy: '重装', trail: '越野跑', city: '城市游' }
   if (modes[trip.mode]) meta.push(modes[trip.mode])
   if (trip.highAlt) meta.push('高海拔')
@@ -6073,16 +6166,100 @@ function riskProfileText() {
   if (weather.confidence && weather.confidence !== 'high') s += (s ? ' · ' : '') + (weather.confidence === 'low' ? '预报低可信' : '预报中可信')
   return s
 }
+/* 总览卡实时地图实例（导出时临时换同源快照，抓完还原） */
+var _ovLiveMap = null
 function renderOverviewMap(wrap) {
   if (!wrap) return
   var routePts = route && route.length > 1 ? route : null
-  var lat = selLoc ? selLoc.lat : (routePts ? routePts[0].lat : 39.99)
-  var lng = selLoc ? selLoc.lng : (routePts ? (routePts[0].lon != null ? routePts[0].lon : routePts[0].lng) : 115.78)
-  var height = routePts ? 340 : 300
-  makeMapSnapshot({ lat: lat, lng: lng, route: routePts, width: 720, height: height, gradient: tm[card.scene].grad }).then(function (res) {
+  if (routePts) { renderOverviewLiveMap(wrap, routePts); return }   // 有轨迹 → 第 1 步同款实时地图
+  var lat = selLoc ? selLoc.lat : 39.99
+  var lng = selLoc ? selLoc.lng : 115.78
+  var height = 300
+  makeMapSnapshot({ lat: lat, lng: lng, route: null, width: 720, height: height, gradient: tm[card.scene].grad }).then(function (res) {
     if (!res || !res.dataUrl) { wrap.innerHTML = '<div class="ov-map-fail">地图生成失败</div>'; return }
     wrap.innerHTML = '<img class="ov-map-img" src="' + res.dataUrl + '" width="' + res.width + '" height="' + res.height + '" alt="行程地图">'
   }).catch(function () { wrap.innerHTML = '<div class="ov-map-fail">地图生成失败</div>' })
+}
+/* 有轨迹：独立只读 Leaflet 实时地图（AMap 瓦片 + 轨迹折线 + 第 N 天分点 + 海拔 + 营地 POI），与第 1 步同款 */
+function renderOverviewLiveMap(wrap, routePts) {
+  wrap.innerHTML = '<div class="ov-map-load">地图生成中…</div>'
+  wrap.style.height = '340px'
+  if (typeof L === 'undefined' || typeof wgs84ToGcj02 !== 'function') {
+    makeMapSnapshot({ lat: routePts[0].lat, lng: routePts[0].lon != null ? routePts[0].lon : routePts[0].lng, route: routePts, width: 720, height: 340, gradient: tm[card.scene].grad }).then(function (res) {
+      if (res && res.dataUrl) wrap.innerHTML = '<img class="ov-map-img" src="' + res.dataUrl + '" width="' + res.width + '" height="' + res.height + '" alt="行程地图">'
+      else wrap.innerHTML = '<div class="ov-map-fail">地图生成失败</div>'
+    }).catch(function () { wrap.innerHTML = '<div class="ov-map-fail">地图生成失败</div>' })
+    return
+  }
+  if (_ovLiveMap) { try { _ovLiveMap.remove() } catch (e) {} _ovLiveMap = null }
+  var map = L.map(wrap, { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false })
+  _ovLiveMap = map
+  L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', { subdomains: ['1', '2', '3', '4'], maxZoom: 18 }).addTo(map)
+  var ll = routePts.map(function (p) { var g = wgs84ToGcj02(p.lat, p.lon != null ? p.lon : p.lng); return [g.lat, g.lng] })
+  L.polyline(ll, { color: 'var(--accent)', weight: 4, opacity: .95 }).addTo(map)
+  var days = Math.max(1, Math.min(16, trip.days || 1))
+  if (days > 1 && typeof splitByDays === 'function') {
+    var dayBnd = splitByDays(routePts, days + 1, routeSegs)
+    for (var k = 1; k < dayBnd.length - 1; k++) {
+      ;(function (k) {
+        var sp = dayBnd[k]
+        var g = wgs84ToGcj02(sp.lat, sp.lon)
+        var ele = (sp.ele != null && sp.ele > 0) ? Math.round(sp.ele) : null
+        var km = (routeMetrics && routeMetrics.distanceKm != null && sp.t != null) ? Math.round(routeMetrics.distanceKm * sp.t) : null
+        var html = '<div class="mk-day"><b>第' + k + '天</b>' + (ele != null ? '<i>⛰ ' + ele.toLocaleString() + 'm</i>' : '') + (km != null ? '<i>' + km + ' km</i>' : '') + '</div>'
+        L.marker([g.lat, g.lng], { icon: L.divIcon({ html: html, className: '', iconSize: [72, 54], iconAnchor: [-20, 27] }) }).addTo(map)
+      })(k)
+    }
+  }
+  try {
+    if (typeof routeHashKey === 'function' && typeof routePOI !== 'undefined') {
+      var key = routeHashKey()
+      var list = routePOI.cache[key]
+      ;(list || []).forEach(function (p) { if (p.type === 'campsite') { var g = wgs84ToGcj02(p.lat, p.lon); L.marker([g.lat, g.lng], { icon: L.divIcon({ html: '<div style="font-size:16px;line-height:1">⛺</div>', className: '', iconSize: [18, 18] }) }).addTo(map) } })
+    }
+  } catch (e) {}
+  map.fitBounds(ll, { padding: [16, 16], maxZoom: 16 })
+  setTimeout(function () { if (map) map.invalidateSize() }, 80)
+}
+/* 导出前：把实时地图临时换成同源 dataURL 快照（含标注），供 html2canvas 无跨域污染抓取 */
+function ovMapExportSwap(cb) {
+  var wrap = document.querySelector('#ovCard .ov-card-map')
+  if (!_ovLiveMap || !wrap) { cb(); return }
+  var routePts = route && route.length > 1 ? route : null
+  if (!routePts) { cb(); return }
+  var height = wrap.offsetHeight || 340
+  var lat = routePts[0].lat
+  var lng = routePts[0].lon != null ? routePts[0].lon : routePts[0].lng
+  makeMapSnapshot({ lat: lat, lng: lng, route: routePts, width: 720, height: height, gradient: tm[card.scene].grad, overlay: ovMapOverlayData(routePts) })
+    .then(function (res) {
+      if (!res || !res.dataUrl) { cb(); return }
+      try { if (_ovLiveMap) { _ovLiveMap.remove(); _ovLiveMap = null } } catch (e) {}
+      wrap.innerHTML = '<img class="ov-map-img" src="' + res.dataUrl + '" width="' + res.width + '" height="' + res.height + '" alt="行程地图">'
+      cb()
+    })
+    .catch(function () { cb() })
+}
+/* 从当前路线/行程/POI 缓存构造快照标注数据 */
+function ovMapOverlayData(routePts) {
+  var out = { dayPts: [], elevPts: [], campPts: [] }
+  if (!routePts) return out
+  var days = Math.max(1, Math.min(16, trip.days || 1))
+  if (days > 1 && typeof splitByDays === 'function') {
+    var dayBnd = splitByDays(routePts, days + 1, routeSegs)
+    for (var k = 1; k < dayBnd.length - 1; k++) {
+      var sp = dayBnd[k]
+      var km = (routeMetrics && routeMetrics.distanceKm != null && sp.t != null) ? Math.round(routeMetrics.distanceKm * sp.t) : null
+      out.dayPts.push({ lat: sp.lat, lon: sp.lon, day: k, ele: sp.ele, km: km })
+    }
+  }
+  try {
+    if (typeof routeHashKey === 'function' && typeof routePOI !== 'undefined') {
+      var key = routeHashKey()
+      var list = routePOI.cache[key]
+      ;(list || []).forEach(function (p) { if (p.type === 'campsite') out.campPts.push({ lat: p.lat, lon: p.lon, label: p.label || '' }) })
+    }
+  } catch (e) {}
+  return out
 }
 function renderCardWeather() {
   var risks = $('cardRisks'), fcast = $('cardForecast')
@@ -6584,14 +6761,22 @@ function savePNG() {
     }
     // html2canvas 1.4.1 解析不了 color-mix()（.risk 胶囊等）：临时转成 rgb() 内联，截完还原
     var patches = neutralizeColorMix(cardEl)
-    html2canvas(cardEl, opts).then(function (canvas) {
-      var a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = fname; a.click()
-      resume()
-    }).catch(function () { resume(); toast('PNG 渲染失败，请重试') })
+    var doCapture = function () {
+      html2canvas(cardEl, opts).then(function (canvas) {
+        var a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = fname; a.click()
+        resume()
+      }).catch(function () { resume(); toast('PNG 渲染失败，请重试') })
+    }
+    // 总览卡实时地图：导出前换成同源 dataURL 快照（html2canvas 抓 Leaflet 瓦片有跨域/时序风险），抓完还原
+    if (isOv && typeof ovMapExportSwap === 'function') { ovMapExportSwap(doCapture) } else { doCapture() }
     function resume() {
       if (mask) mask.remove()
       if (needsZoomFix && oldZoom) de.style.zoom = oldZoom
       if (patches && patches.length) restorePatches(patches)
+      if (isOv && typeof renderOverviewMap === 'function') {
+        var ovWrap = cardEl.querySelector('.ov-card-map')
+        if (ovWrap && _ovLiveMap === null) { try { renderOverviewMap(ovWrap) } catch (e) {} }
+      }
       cardEl.querySelectorAll('.atmos i,.atmos .pine-line,.atmos .wave,.atmos .dune,.atmos .cloud,.atmos .m-peak,.atmos .m-beam,.atmos .m-sun,.atmos .m-cloud,.atmos .m-eagle,.atmos .m-eagle-w,.atmos .m-fall,.atmos .m-bird,.atmos .m-pine,.atmos .o-sun,.atmos .o-cloud,.atmos .o-boat,.atmos .n-moon,.atmos .n-shoot').forEach(function (el) { el.style.animationPlayState = '' })
       if (sw) sw.style.display = ''
       if (_sandWave) _sandWave.play()
@@ -7979,10 +8164,6 @@ function goNoGo() {
     if (maxAlert >= 4) items.push({ key: 'alert', state: 'red', label: '预警', note: '红色预警 · ' + (top && top.typeName ? top.typeName : '') })
     else items.push({ key: 'alert', state: 'orange', label: '预警', note: (maxAlert >= 3 ? '橙色' : '黄/蓝') + '预警' })
   }
-
-  // 预报可信度（低/中 → 警告级）
-  var conf = (weather && weather.confidence) || 'high'
-  items.push({ key: 'conf', state: conf === 'high' ? 'green' : 'orange', label: '预报可信度', note: conf === 'high' ? '高' : conf === 'low' ? '低' : '中' })
 
   // 返程天黑（red → 阻塞；amber → 警告）；有到达时刻时显式展示（ETA 显式化）
   var rd = (typeof returnDarkRef === 'function') ? returnDarkRef() : { state: 'green' }
@@ -9543,6 +9724,7 @@ function openDb() {
 function idbGet(store, key) { return openDb().then(function (db) { return new Promise(function (res, rej) { var t = db.transaction(store, 'readonly'), q = t.objectStore(store).get(key); q.onsuccess = function () { res(q.result) }; q.onerror = function () { rej(q.error) } }) }) }
 function idbSet(store, key, val) { return openDb().then(function (db) { return new Promise(function (res, rej) { var t = db.transaction(store, 'readwrite'), q = t.objectStore(store).put(val, key); q.onsuccess = function () { res() }; q.onerror = function () { rej(q.error) } }) }) }
 function idbDel(store, key) { return openDb().then(function (db) { return new Promise(function (res, rej) { var t = db.transaction(store, 'readwrite'), q = t.objectStore(store).delete(key); q.onsuccess = function () { res() }; q.onerror = function () { rej(q.error) } }) }) }
+function idbClear(store) { return openDb().then(function (db) { return new Promise(function (res, rej) { var t = db.transaction(store, 'readwrite'), q = t.objectStore(store).clear(); q.onsuccess = function () { res() }; q.onerror = function () { rej(q.error) } }) }) }
 
 var DEFAULT_CFG = {
   weatherPriority: ['qweather', 'open-meteo', 'meteoblue', 'amap'],
@@ -10020,19 +10202,25 @@ function syncSrcEditors() {
   var wne = $('windyNotEnabled')
   if (wne) wne.style.display = prio.indexOf('windy') >= 0 ? 'none' : 'flex'
 }
+/* 天气源配置变更统一失效天气缓存（改源后旧多源缓存不当作新配置展示）：
+   invalidateWeather 只清内存；IndexedDB 持久缓存必须显式清除，否则重新搜索会命中旧多源缓存 */
+function wxSrcConfigChanged() {
+  if (typeof invalidateWeather === 'function') invalidateWeather()
+  try { if (typeof idbClear === 'function') idbClear('weather-cache') } catch (e) {}
+}
 function addSourceQuick(id) {
   if ((appConfig.weatherPriority || []).indexOf(id) >= 0) { if (typeof toast === 'function') toast('该源已在优先级列表'); return }
   appConfig.weatherPriority = (appConfig.weatherPriority || []).concat([id])
-  saveConfig(); renderSrcList()
-  if (typeof toast === 'function') toast('已添加 ' + ((SRC_META[id] || {}).label || id))
+  saveConfig(); renderSrcList(); wxSrcConfigChanged()
+  if (typeof toast === 'function') toast('已添加 ' + ((SRC_META[id] || {}).label || id) + ' · 请重新查询')
 }
 function srcAddChange(sel) {
   var id = sel.value
   sel.value = ''
   if (!id) return
   appConfig.weatherPriority = (appConfig.weatherPriority || []).concat([id])
-  saveConfig(); renderSrcList()
-  toast('已添加 ' + (SRC_META[id] || { label: id }).label)
+  saveConfig(); renderSrcList(); wxSrcConfigChanged()
+  toast('已添加 ' + (SRC_META[id] || { label: id }).label + ' · 请重新查询')
 }
 function moveSource(id, dir) {
   var p = appConfig.weatherPriority || []
@@ -10040,26 +10228,28 @@ function moveSource(id, dir) {
   if (i < 0 || j < 0 || j >= p.length) return
   p.splice(j, 0, p.splice(i, 1)[0])
   appConfig.weatherPriority = p
-  saveConfig(); renderSrcList()
+  saveConfig(); renderSrcList(); wxSrcConfigChanged()
+  if (typeof toast === 'function') toast('源优先级已调整 · 请重新查询')
 }
 function removeSource(id) {
   appConfig.weatherPriority = (appConfig.weatherPriority || []).filter(function (x) { return x !== id })
-  saveConfig(); renderSrcList()
+  saveConfig(); renderSrcList(); wxSrcConfigChanged()
+  if (typeof toast === 'function') toast('已移除该源 · 请重新查询')
 }
 function saveAmapKey(v) {
   if (!appConfig.weatherPriorityMeta) appConfig.weatherPriorityMeta = {}
   appConfig.weatherPriorityMeta.amap = { key: String(v || '').trim() }
-  saveConfig(); renderSrcList()
+  saveConfig(); renderSrcList(); wxSrcConfigChanged()
 }
 function saveMeteoblueKey(v) {
   if (!appConfig.weatherPriorityMeta) appConfig.weatherPriorityMeta = {}
   appConfig.weatherPriorityMeta.meteoblue = { key: String(v || '').trim() }
-  saveConfig(); renderSrcList()
+  saveConfig(); renderSrcList(); wxSrcConfigChanged()
 }
 function saveWindyKey(v) {
   if (!appConfig.weatherPriorityMeta) appConfig.weatherPriorityMeta = {}
   appConfig.weatherPriorityMeta.windy = { key: String(v || '').trim() }
-  saveConfig(); renderSrcList()
+  saveConfig(); renderSrcList(); wxSrcConfigChanged()
 }
 function saveTdtField(v) {
   appConfig.tiandituKey = String(v || '').trim()
