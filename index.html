@@ -1160,26 +1160,32 @@ body{padding-bottom:calc(80px + env(safe-area-inset-bottom))}
 /* ==========================================================================
    装备行卡通图标（gear-ico，2026-08-31 /ui-ux-pro-max）
    内联 SVG symbol（weightsys.js wsInjectIconDefs），装饰性元素 aria-hidden。
+   彩色：每图标专属色（沿用 WS_FMT_COLORS 色板，深/浅主题均兼容）；fill:currentColor 让路径随 color。
    动效只用 transform/opacity；em 尺寸随行字号缩放（含 --tx 移动端补偿）；
    prefers-reduced-motion 下全部静止。
    ========================================================================== */
-.gear-ico{width:1.15em;height:1.15em;flex-shrink:0;vertical-align:-.15em;margin-right:7px;color:var(--text-muted)}
-.gear-ico[data-ico="backpack"]{animation:ico-bounce 1.6s ease-in-out infinite}
-.gear-ico[data-ico="tent"]{animation:ico-swing 2.4s ease-in-out infinite;transform-origin:50% 20%}
-.gear-ico[data-ico="pan"]{animation:ico-bob 2s ease-in-out infinite}
-.gear-ico[data-ico="drop"]{animation:ico-pulse 2s ease-in-out infinite}
-.gear-ico[data-ico="coat"]{animation:ico-sway 2.6s ease-in-out infinite}
-.gear-ico[data-ico="compass"]{animation:ico-spin 2.8s ease-in-out infinite}
-.gear-ico[data-ico="shield"]{animation:ico-pulse 2.6s ease-in-out infinite}
-.gear-ico[data-ico="light"]{animation:ico-blink 1.8s ease-in-out infinite}
-.gear-ico[data-ico="wrench"]{animation:ico-wiggle 1.4s ease-in-out infinite}
-.gear-ico[data-ico="bowl"]{animation:ico-bob 2.2s ease-in-out infinite}
-.gear-ico[data-ico="umbrella"]{animation:ico-sway 3s ease-in-out infinite}
-.gear-ico[data-ico="pick"]{animation:ico-swing 2.2s ease-in-out infinite;transform-origin:50% 90%}
-.gear-ico[data-ico="beacon"]{animation:ico-pulse 1.8s ease-in-out infinite}
-.gear-ico[data-ico="boot"]{animation:ico-bounce 1.8s ease-in-out infinite}
-.gear-ico[data-ico="wave"]{animation:ico-sway 2.4s ease-in-out infinite}
-.gear-ico[data-ico="sparkle"]{animation:ico-blink 1.6s ease-in-out infinite}
+.gear-ico{width:1.15em;height:1.15em;flex-shrink:0;vertical-align:-.15em;margin-right:7px;fill:currentColor;color:var(--text-muted)}
+.gear-ico[data-ico="backpack"]{color:#E0A456;animation:ico-bounce 1.6s ease-in-out infinite}
+.gear-ico[data-ico="tent"]{color:#6BB4D6;animation:ico-swing 2.4s ease-in-out infinite;transform-origin:50% 20%}
+.gear-ico[data-ico="pan"]{color:#CE6F4A;animation:ico-bob 2s ease-in-out infinite}
+.gear-ico[data-ico="drop"]{color:#5A93B8;animation:ico-pulse 2s ease-in-out infinite}
+.gear-ico[data-ico="coat"]{color:#8CB269;animation:ico-sway 2.6s ease-in-out infinite}
+.gear-ico[data-ico="compass"]{color:#9B7EC1;animation:ico-spin 2.8s ease-in-out infinite}
+.gear-ico[data-ico="shield"]{color:#7FAF6D;animation:ico-pulse 2.6s ease-in-out infinite}
+.gear-ico[data-ico="light"]{color:#D97B45;animation:ico-blink 1.8s ease-in-out infinite}
+.gear-ico[data-ico="wrench"]{color:#5B8DB8;animation:ico-wiggle 1.4s ease-in-out infinite}
+.gear-ico[data-ico="bowl"]{color:#C26E8A;animation:ico-bob 2.2s ease-in-out infinite}
+.gear-ico[data-ico="umbrella"]{color:#6BB4D6;animation:ico-sway 3s ease-in-out infinite}
+.gear-ico[data-ico="pick"]{color:#708090;animation:ico-swing 2.2s ease-in-out infinite;transform-origin:50% 90%}
+.gear-ico[data-ico="beacon"]{color:#D97B45;animation:ico-pulse 1.8s ease-in-out infinite}
+.gear-ico[data-ico="boot"]{color:#CE6F4A;animation:ico-bounce 1.8s ease-in-out infinite}
+.gear-ico[data-ico="wave"]{color:#5A93B8;animation:ico-sway 2.4s ease-in-out infinite}
+.gear-ico[data-ico="card"]{color:#A8945F;animation:ico-bob 2.8s ease-in-out infinite}
+.gear-ico[data-ico="pill"]{color:#D6604A;animation:ico-wiggle 2s ease-in-out infinite}
+.gear-ico[data-ico="bubbles"]{color:#4EC9B0;animation:ico-sway 3s ease-in-out infinite}
+.gear-ico[data-ico="cactus"]{color:#7FAF6D;animation:ico-bob 3s ease-in-out infinite}
+.gear-ico[data-ico="bike"]{color:#9B7EC1;animation:ico-sway 2.6s ease-in-out infinite}
+.gear-ico[data-ico="sparkle"]{color:#E0A456;animation:ico-blink 1.6s ease-in-out infinite}
 @keyframes ico-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
 @keyframes ico-swing{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}}
 @keyframes ico-bob{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-1.5px) rotate(2deg)}}
