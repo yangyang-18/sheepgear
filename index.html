@@ -5315,6 +5315,23 @@ function sourceCategoryOf(it) {
 /* 城市游允许的装备系统（cat）白名单：仅 背负/导航通讯/卫生/医药/雨具/证照财务 六类；着装/食物/安全修理/卫生应急/饮水食物等城市游不带（城市游玩不复杂） */
 var CITY_CATS = { '背负': 1, '导航通讯': 1, '卫生': 1, '医药': 1, '雨具': 1, '证照财务': 1 }
 
+/* 同槽位替代组：组内装备是「同一件装备的变体/升级」，触发多个时只保留最高层级的一件（冷>升级>基础；同级保留目录靠后的更专用变体）。
+   仅收「二选一/升级替代」；可叠加配件（充气枕/帐内小灯/睡袋内胆/蛋巢垫可叠加等）不入组。 */
+var GEAR_ALT_GROUPS = [
+  ['sleep_tent_3s', 'sleep_tent_4s', 'sleep_tent_5s'],                        // 帐篷：三季/四季/高山四级
+  ['sleep_pad', 'sleep_pad_egg', 'sleep_pad_silver', 'sleep_pad_double'],     // 睡垫：充气/蛋巢/银搓/双层组合
+  ['sleep_bag', 'sleep_bag_duck'],                                            // 睡袋：常规/鸭毛（潮湿低海拔）
+  ['cook_stove', 'cook_stove_split', 'cook_stove_cold', 'cook_stove_multi'],  // 炉头：普通/分体/柴炉备用/多燃料
+  ['cook_canister', 'cook_canister_alpine'],                                  // 气罐：扁罐/高山蓝罐
+  ['wear_shoes', 'wear_boot_hb', 'wear_boot_winter', 'wear_campshoe'],        // 鞋：徒步+营地/高帮重装/冬季保暖/营地鞋
+  ['wear_gloves', 'wear_gloves_thick']                                        // 手套：触屏加厚/加厚防水
+]
+function gearTierRank(t) { return t === 'cold' ? 3 : t === 'upgrade' ? 2 : 1 }
+function gearAltGroup(id) {
+  for (var i = 0; i < GEAR_ALT_GROUPS.length; i++) if (GEAR_ALT_GROUPS[i].indexOf(id) >= 0) return GEAR_ALT_GROUPS[i]
+  return null
+}
+
 /* ---- 规则引擎：自动勾选 + 安全底线缩放（E3）；统一目录（预置+自定义按系统分组）；day 可选＝按天判定 ---- */
 function selectGear(day) {
   var ctx = buildGearCtx(day)
@@ -5358,6 +5375,22 @@ function selectGear(day) {
     else if (it.id === 'health_fa' || it.id === 'tool_whistle') sizeNote = '全尺寸'
     out.push({ item: it, reason: reason, tripSrc: tripSrc, sizeNote: sizeNote, hitDays: ev.hitDays || [], margins: ev.margins || [], source: src })
   })
+  // 同槽位替代去重：组内多件触发时原位只保留最高层级（冷>升级>基础；同级保留目录靠后的更专用变体）
+  if (GEAR_ALT_GROUPS.length) {
+    var kept = {}, result = []
+    out.forEach(function (g) {
+      var group = gearAltGroup(g.item.id)
+      if (!group) { result.push(g); return }
+      var key = group[0], cur = kept[key]
+      if (!cur) { kept[key] = { idx: result.length, entry: g }; result.push(g); return }
+      var curRank = gearTierRank(cur.entry.item.t), newRank = gearTierRank(g.item.t)
+      if (newRank > curRank || (newRank === curRank && group.indexOf(g.item.id) > group.indexOf(cur.entry.item.id))) {
+        result[kept[key].idx] = g
+        kept[key].entry = g
+      }
+    })
+    out = result
+  }
   return { selected: out, fullSize: fullSize }
 }
 
