@@ -14,7 +14,11 @@ var PRECACHE = [
   './SHEEPGEAR.html',
   './SHEEPGEAR-单文件.html',
   './css/app.css',
-  './js/catalog.js'
+  './js/catalog.js',
+  './manifest.webmanifest',
+  './icons/icon-180.png',
+  './icons/icon-192.png',
+  './icons/icon-512.png'
 ]
 
 self.addEventListener('install', function (event) {

@@ -5,8 +5,11 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>SHEEP🐏GEAR · 天气驱动徒步装备清单</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#131B15">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <!-- 首帧防暗闪：先于首绘按「本地偏好/系统浅色」给 <html> 打 th-light 标记，使启动动画与主页同色（避免先黑后浅）；
      app.js 的 syncLightMode 随后正式接管并移除该标记（见 geo.js） -->
 <script>
@@ -1059,6 +1062,63 @@ body.light{--sh-1:0 1px 2px rgba(58,48,28,.07),0 3px 10px rgba(58,48,28,.06);
   .chip,.day-tab,.dest,.ws-slot,.srd-item,.dual-tab,.sub-tab,.cfg-tab,.th-day,.th-cmp-c{transition:none}
 }
 
+/* ==========================================================================
+   移动端打磨层（2026-08-28）：PWA 安全区 / 触控反馈 / 窄屏字号与触控目标补偿
+   基于既有 root zoom 等比缩放模型，只做补偿不做重排；desktop（zoom=1）不受影响。
+   ========================================================================== */
+
+/* —— 触控基础：去掉 iOS 高亮闪烁，消除双击缩放延迟 —— */
+body{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+/* —— 安全区（standalone PWA 刘海屏/手势条）：底部留足 —— */
+body{padding-bottom:calc(80px + env(safe-area-inset-bottom))}
+#cardCfgBtn{bottom:calc(20px + env(safe-area-inset-bottom))}
+.toast{bottom:calc(24px + env(safe-area-inset-bottom))}
+
+/* —— ≤820px（窄屏=移动端）：补偿 root zoom 缩小后的字号与触控目标（沿用 wssys 补偿模式） —— */
+@media (max-width:820px){
+  .sel,.tgl{padding:9px 18px;font-size:13px}
+  .btn{padding:13px 26px;font-size:15px}
+  .btn.primary{font-size:16px}
+  .chip{padding:10px 20px;font-size:13px}
+  .dual-tab,.sub-tab{padding:12px 10px;font-size:14px}
+  .day-tab{padding:9px 18px;font-size:14px}
+  .map-scale button{width:34px;height:34px;font-size:17px}
+  .search input{padding:15px 15px;font-size:16px}
+  .search button{padding:0 26px;font-size:15px}
+  .trip input,.trip select{padding:10px 12px;font-size:14px}
+  .ws-slot{padding:7px 16px;font-size:13px}
+  .step-h{font-size:34px}
+  .gom-word{font-size:30px}
+}
+
+/* ==========================================================================
+   决策时刻 Go Moment 卡（2026-08-28）：出行总览内的「出发判断」高光卡
+   大号 GO/有条件/不建议 + 山脊氛围 + 理由胶囊 + 难度/总重/倒计时 + 改期建议。
+   纯 var() token，5 主题×暗浅自适应。
+   ========================================================================== */
+.gom{position:relative;overflow:hidden;margin-top:14px;padding:18px 18px 14px;border:1px solid var(--border);border-radius:16px;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 7%,var(--surface)),var(--surface));
+  box-shadow:0 1px 0 rgba(255,255,255,.03) inset,var(--sh-1)}
+.gom-back{position:absolute;left:0;right:0;bottom:0;height:46%;pointer-events:none;opacity:.16;color:var(--accent);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 100' preserveAspectRatio='none'%3E%3Cpath d='M0 84 C30 64 48 78 74 58 C100 40 118 70 146 54 C172 40 190 62 220 46 C248 34 270 58 300 84 L300 100 L0 100 Z' fill='currentColor'/%3E%3C/svg%3E");
+  background-repeat:repeat-x;background-position:center bottom;background-size:auto 100%}
+.gom-head{position:relative;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.gom-kicker{font-family:var(--f-m);font-size:10px;font-weight:700;letter-spacing:.16em;color:var(--text-muted);text-transform:uppercase}
+.gom-word{font-family:var(--f-d);font-weight:900;font-size:26px;letter-spacing:-.01em;line-height:1.15;display:inline-flex;align-items:center;gap:9px}
+.gom-word::before{content:'';width:12px;height:12px;border-radius:50%;background:currentColor;flex-shrink:0}
+.gom-red .gom-word{color:var(--error)}
+.gom-orange .gom-word{color:var(--warning)}
+.gom-green .gom-word{color:var(--success)}
+.gom-hint{font-size:12px;color:var(--text-muted)}
+.gom-reasons{position:relative;display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.gom-meta{position:relative;margin-top:12px;padding-top:10px;border-top:1px dashed var(--border);font-family:var(--f-m);font-size:11px;color:var(--text-muted)}
+.gom-better{position:relative;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);font-size:12px}
+.gom-better-h{font-family:var(--f-m);font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--accent)}
+.gom-better-btn{border:1px solid var(--border);background:var(--surface);color:var(--accent);border-radius:999px;padding:4px 12px;font-size:12px;cursor:pointer;font-family:var(--f-b)}
+
+/* —— 分享卡天气指标空态占位（深色底） —— */
+.card-wx-empty{grid-column:1/-1;padding:12px;text-align:center;font-size:11px;color:rgba(255,255,255,.5);border:1px dashed rgba(255,255,255,.18);border-radius:10px}
+
 </style>
 </head>
 <body data-theme="ridge">
@@ -1118,6 +1178,7 @@ body.light{--sh-1:0 1px 2px rgba(58,48,28,.07),0 3px 10px rgba(58,48,28,.06);
       <option value="tundra">苔原绿</option><option value="sandstone">沙岩赤</option>
       <option value="night">暗夜</option>
     </select>
+    <button class="tgl" onclick="cpOpen()" title="命令面板（⌘K / Ctrl+K）">⌘ 命令</button>
     <button class="tgl" onclick="openCfg()">⚙ 配置</button>
   </div>
 </header>
@@ -5921,7 +5982,9 @@ function toggleCardWx(id) {
 function updateCardWx() {
   var box = $('cardWx')
   var items = card.wx.slice(0, WX_MAX).map(resolveCardWx).filter(Boolean)
-  box.innerHTML = items.map(function (x) { return '<div class="wi"><b>' + esc(x.v) + '</b><i>' + esc(x.l) + '</i></div>' }).join('')
+  box.innerHTML = items.length
+    ? items.map(function (x) { return '<div class="wi"><b>' + esc(x.v) + '</b><i>' + esc(x.l) + '</i></div>' }).join('')
+    : '<div class="card-wx-empty">查询天气后，勾选指标这里会显示</div>'
 }
 var gearFilterTouched = false   // 用户是否动过过滤（区分"未动=全选"与"取消到空"）
 function renderGearSel() {
@@ -6290,9 +6353,17 @@ function exportCard() {
   var seed = buildSeed()
   var snap = snapshotOf()
   var html = renderShareHtml(data, seed, snap, seed.ts)
-  var w = window.open('', '_blank')
-  if (w) { w.document.write(html); w.document.close() }
-  else toast('浏览器拦截了弹窗，请允许打开新窗口查看动画卡片')
+  // 用 Blob URL 打开（移动端 window.open('')+document.write 到新窗口不可靠，会载入错误页面）；
+  // 创建 Blob 或弹窗失败时兜底旧式 document.write
+  try {
+    var url = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+    var w = window.open(url, '_blank')
+    if (!w) toast('浏览器拦截了弹窗，请允许打开新窗口查看动画卡片')
+  } catch (e) {
+    var w2 = window.open('', '_blank')
+    if (w2) { w2.document.write(html); w2.document.close() }
+    else toast('浏览器拦截了弹窗，请允许打开新窗口查看动画卡片')
+  }
 }
 
 /* ---- 存 PNG（html2canvas CDN 动态加载，未加载降级提示；总览卡作用于长图容器）---- */
@@ -6308,11 +6379,29 @@ function savePNG() {
     if (sw) sw.style.display = 'none'   // html2canvas 不捕获 WebGL 画布：隐藏让 CSS 兜底层（深金渐变+沙丘）呈现，避免空白
     cardEl.querySelectorAll('.atmos i,.atmos .pine-line,.atmos .wave,.atmos .dune,.atmos .cloud,.atmos .m-peak,.atmos .m-beam,.atmos .m-sun,.atmos .m-cloud,.atmos .m-eagle,.atmos .m-eagle-w,.atmos .m-fall,.atmos .m-bird,.atmos .m-pine,.atmos .o-sun,.atmos .o-cloud,.atmos .o-boat,.atmos .n-moon,.atmos .n-shoot').forEach(function (el) { el.style.animationPlayState = 'paused' })
     if (isOv && cardEl.offsetHeight > 8000) toast('内容较长，导出可能较慢/内存占用高')
-    html2canvas(cardEl, { backgroundColor: '#161616', scale: 2, useCORS: true }).then(function (canvas) {
+    // 移动端 root zoom 缩放会破坏 html2canvas 输出（空白小图）：临时复位 zoom，截完还原；
+    // 期间用遮罩盖住布局跳动，截完移除。desktop zoom=1 时不受影响。
+    var de = document.documentElement
+    var oldZoom = de.style.zoom
+    var needsZoomFix = !!(oldZoom && parseFloat(oldZoom) < 1)
+    var mask = null
+    var opts = { backgroundColor: '#161616', scale: 2, useCORS: true }
+    if (needsZoomFix) {
+      mask = document.createElement('div')
+      mask.textContent = '正在生成 PNG…'
+      mask.style.cssText = 'position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);color:#fff;font-size:15px;letter-spacing:.05em;font-family:var(--f-b)'
+      document.body.appendChild(mask)
+      de.style.zoom = ''
+      opts.windowWidth = cardEl.scrollWidth
+      opts.windowHeight = cardEl.scrollHeight
+    }
+    html2canvas(cardEl, opts).then(function (canvas) {
       var a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = fname; a.click()
       resume()
     }).catch(function () { resume(); toast('PNG 渲染失败，请重试') })
     function resume() {
+      if (mask) mask.remove()
+      if (needsZoomFix && oldZoom) de.style.zoom = oldZoom
       cardEl.querySelectorAll('.atmos i,.atmos .pine-line,.atmos .wave,.atmos .dune,.atmos .cloud,.atmos .m-peak,.atmos .m-beam,.atmos .m-sun,.atmos .m-cloud,.atmos .m-eagle,.atmos .m-eagle-w,.atmos .m-fall,.atmos .m-bird,.atmos .m-pine,.atmos .o-sun,.atmos .o-cloud,.atmos .o-boat,.atmos .n-moon,.atmos .n-shoot').forEach(function (el) { el.style.animationPlayState = '' })
       if (sw) sw.style.display = ''
       if (_sandWave) _sandWave.play()
@@ -7715,6 +7804,31 @@ function goNoGo() {
   var verdict = red ? 'stop' : warn ? 'caution' : 'go'
   return { verdict: verdict, label: GNG_LABEL[verdict], items: items }
 }
+/* ---------- 5. Go Moment 决策时刻：goNoGo + 逐日天气场景（冷/湿/风） ----------
+   与 goNoGo 的唯一差异：把逐日 cold/wet/wind 场景作为「天气风险」项并入（仍为 orange）——
+   冷/湿/风是「带对装备就能应对」的因素，不作为硬 stop。供决策时刻高光卡消费。 */
+function goMoment() {
+  var base = goNoGo()
+  var items = base.items.slice()
+  if (weather && weather.days && weather.days.length) {
+    var worst = {}
+    weather.days.forEach(function (d, idx) {
+      ;['cold', 'wet', 'wind'].forEach(function (k) {
+        var sc = d.scenes && d.scenes[k]
+        if (sc && sc.risk && !worst[k]) worst[k] = { label: sc.label, day: idx + 1 }
+      })
+    })
+    var keys = Object.keys(worst)
+    if (keys.length) {
+      items.push({ key: 'scene', state: 'orange', label: '天气风险',
+        note: keys.map(function (k) { return 'D' + worst[k].day + ' ' + worst[k].label }).join('、') })
+    }
+  }
+  var red = items.some(function (i) { return i.state === 'red' })
+  var warn = items.some(function (i) { return i.state === 'orange' })
+  var v = red ? 'stop' : warn ? 'caution' : 'go'
+  return { verdict: v, label: GNG_LABEL[v], items: items }
+}
 function gearNameOf(id) {
   if (typeof effectiveCatalog === 'function') {
     var it = effectiveCatalog().filter(function (x) { return x.id === id })[0]
@@ -8732,7 +8846,10 @@ function wsVizHtml() {
       '<span class="ws-cat-price" data-anim="price" data-v="' + (priceMap[b.cat] || 0) + '" data-cat="' + esc(ck) + '" style="font-family:var(--f-m);width:64px;text-align:right;color:var(--text-muted)">¥' + wsPriceFmt(priceMap[b.cat] || 0) + '</span>' +
     '</div>'
   })
-  if (!byCat.length) h += '<div class="ws-empty" style="color:var(--text-muted)">暂无装备</div>'
+  if (!byCat.length) h += '<div class="ws-empty" style="color:var(--text-muted);text-align:center;padding:12px 8px">' +
+    '<div style="font-size:12px">选好目的地、查完天气，这里会自动长出该带的装备</div>' +
+    '<div style="font-size:11px;opacity:.75;margin-top:3px">也可以点下方按钮看一个现成演示</div>' +
+    '<div style="margin-top:10px"><button class="btn" style="padding:7px 16px;font-size:12px" onclick="demoTrip()">🧪 载入演示行程</button></div></div>'
   // 合计百分比 = Σ 各分类四舍五入 %（通常为 100%，舍入误差时显示实际和）
   var pctSum = byCat.reduce(function (s, b) { return s + (total ? Math.round(b.grams / total * 100) : 0) }, 0)
   h += '<div class="ws-row ws-total" style="display:flex;align-items:center;gap:8px;padding:8px 0 4px;margin-top:6px;border-top:1px solid var(--border);font-weight:700">' +
@@ -9122,6 +9239,18 @@ function wsSetName(v) { wsName = v.trim() || ('方案' + (wsCur + 1)) }
 function showWeightToast(total) {
   var t = $('wsTotalVal')
   if (t) t.textContent = wsKg(wsTotal())
+}
+
+/* ---- 演示行程（空状态叙事入口）：载入一个现成的重装行程并查天气 ----
+   每步独立 try：任一步失败不阻断后续（如 setMode 内部依赖某元素缺失） */
+function demoTrip() {
+  try { if (typeof confirmLocation === 'function') confirmLocation(
+    { name: '四姑娘山大峰', admin1: '四川省阿坝州', lat: 31.105, lng: 102.905, ele: 5025, src: 'manual' },
+    { noHistory: true }) } catch (e) {}
+  try { if (typeof setMode === 'function') setMode('heavy') } catch (e) {}
+  try { if (typeof go === 'function') go(1) } catch (e) {}
+  try { if (typeof searchWeather === 'function') searchWeather() } catch (e) {}
+  try { if (typeof toast === 'function') toast('已载入演示行程：四姑娘山大峰 · 重装') } catch (e) {}
 }
 
 </script>
@@ -10036,7 +10165,8 @@ function setMode(m) {
   trip.mode = m
   document.querySelectorAll('#modeChips .chip[data-mode]').forEach(function (c) { c.classList.toggle('on', c.dataset.mode === m) })
   renderDestCard()
-  if (typeof renderGearConfirm === 'function' && $('gearConfirm').innerHTML) renderGearConfirm()   // 已在第4步则即时刷新
+  var gc = $('gearConfirm')
+  if (typeof renderGearConfirm === 'function' && gc && gc.innerHTML) renderGearConfirm()   // 已在第4步则即时刷新
 }
 /* 天数自动决定模式：>1 天/过夜 → 重装；单日 → 轻装（用户手动点过 chip 后不再自动改） */
 function autoModeByDays() {
@@ -10046,7 +10176,7 @@ function autoModeByDays() {
   if (trip.mode !== want) {
     trip.mode = want
     document.querySelectorAll('#modeChips .chip[data-mode]').forEach(function (c) { c.classList.toggle('on', c.dataset.mode === want) })
-    if (typeof renderGearConfirm === 'function' && $('gearConfirm').innerHTML) renderGearConfirm()
+    if (typeof renderGearConfirm === 'function') { var gc2 = $('gearConfirm'); if (gc2 && gc2.innerHTML) renderGearConfirm() }
   }
 }
 function setHighAlt() {
@@ -10566,6 +10696,50 @@ function thGoNoGo() {
   if (typeof goNoGo !== 'function') return null
   try { return goNoGo() } catch (e) { return null }
 }
+/* 决策时刻高光卡（Go Moment）：大号 GO/有条件/不建议 + 理由胶囊 + 难度/总重/倒计时 + 改期建议 */
+function renderGoMoment() {
+  var gm = null
+  try { if (typeof goMoment === 'function') gm = goMoment() } catch (e) {}
+  if (!gm) return ''
+  var v = gm.verdict
+  var cls = v === 'stop' ? 'red' : v === 'caution' ? 'orange' : 'green'
+  var words = { go: '出发', caution: '有条件出发', stop: '不建议出发' }
+  var hints = { go: '天气、装备、时间都合适', caution: '有风险因素，先确认装备与预案', stop: '存在阻塞因素，建议改期' }
+  var reasons = (gm.items || []).map(function (it) {
+    var c = it.state === 'red' ? 'red' : it.state === 'orange' ? 'orange' : it.state === 'na' ? 'blue' : 'green'
+    return '<span class="risk ' + c + '">' + thEsc(it.label) + '·' + thEsc(it.note) + '</span>'
+  }).join('')
+
+  var metaBits = []
+  try { if (typeof tripDifficulty === 'function') { var df = tripDifficulty(); if (df) metaBits.push('难度 ' + df.stars + ' ' + df.label) } } catch (e) {}
+  try { if (typeof packWeightAnalysis === 'function') { var wa = packWeightAnalysis(); if (wa) metaBits.push('总重 ' + wa.totalKg.toFixed(1) + 'kg' + (wa.over ? ' · 超 ' + wa.exceedKg.toFixed(1) + 'kg' : ' · 限 ' + (wa.limit / 1000) + 'kg')) } } catch (e) {}
+  var cd = thCountdownTxt()
+  if (cd && cd !== '未设置时刻') metaBits.push('距出发 ' + cd)
+
+  // 哪天更适合（仅非 go 且多天时）：dayScore 更高的日子
+  var better = ''
+  if (v !== 'go' && weather && weather.days && weather.days.length > 1) {
+    try {
+      var scored = weather.days.map(function (d, i) { return { i: i, sc: dayScore(d) } }).sort(function (a, b) { return b.sc - a.sc })
+      var mySc = dayScore(weather.days[0])
+      var betterDays = scored.filter(function (x) { return x.i !== 0 && x.sc > mySc }).slice(0, 2)
+      if (betterDays.length) {
+        better = '<div class="gom-better"><span class="gom-better-h">哪天更适合</span>' +
+          betterDays.map(function (x) { var d = weather.days[x.i]; return '<span class="risk green">' + thEsc(fmtShort(d.date)) + ' · ' + x.sc + '分</span>' }).join('') +
+          '<button class="gom-better-btn" type="button" onclick="thGoPick()">去择日 →</button></div>'
+      }
+    } catch (e) {}
+  }
+
+  return '<div class="gom gom-' + cls + '">' +
+    '<div class="gom-back" aria-hidden="true"></div>' +
+    '<div class="gom-head"><span class="gom-kicker">出发判断 · GO CHECK</span>' +
+    '<span class="gom-word">' + thEsc(words[v]) + '</span>' +
+    '<span class="gom-hint">' + thEsc(hints[v]) + '</span></div>' +
+    '<div class="gom-reasons">' + reasons + '</div>' +
+    '<div class="gom-meta">' + thEsc(metaBits.join(' · ')) + '</div>' +
+    better + '</div>'
+}
 function thCountdownTxt() {
   var ms = (typeof remindDepartureMs === 'function') ? remindDepartureMs() : null
   if (ms == null) return '未设置时刻'
@@ -10611,19 +10785,9 @@ function renderTripHub() {
   if (trip.climbM != null) meta.push('爬升 ' + trip.climbM + 'm')
   if (trip.hours != null) meta.push(trip.hours + 'h')
 
-  // 出发建议（复用 decision.js goNoGo）
-  var gng = thGoNoGo()
-  var gngHtml
-  if (gng) {
-    var gngCls = gng.verdict === 'stop' ? 'red' : gng.verdict === 'caution' ? 'orange' : 'green'
-    var gngItems = (gng.items || []).map(function (it) {
-      var c = it.state === 'red' ? 'red' : it.state === 'orange' ? 'orange' : 'green'
-      return '<span class="risk ' + c + '">' + thEsc(it.label) + '·' + thEsc(it.note) + '</span>'
-    }).join('')
-    gngHtml = '<div class="th-go"><span class="risk ' + gngCls + ' th-go-badge">' + thEsc(gng.label) + '</span><span class="th-go-items">' + gngItems + '</span></div>'
-  } else {
-    gngHtml = '<div class="th-go th-go-empty">出发建议 · 请先搜索天气</div>'
-  }
+  // 决策时刻高光卡（Go Moment）——替代原紧凑「出发建议」行
+  var gomHtml = ''
+  try { gomHtml = renderGoMoment() } catch (e) { gomHtml = '' }
 
   // 今日天气速览
   var wxHtml =
@@ -10650,7 +10814,8 @@ function renderTripHub() {
     '</div>'
 
   box.innerHTML = '<div class="ws-titlebar"><span class="ws-ttl">出行总览 <i class="ws-ttl-en">TRIP HUB</i></span></div>' +
-    '<div class="th-row"><div class="th-loc"><b>' + thEsc(loc) + '</b><span class="th-meta">' + thEsc(meta.join(' · ')) + '</span></div>' + gngHtml + '</div>' +
+    '<div class="th-row"><div class="th-loc"><b>' + thEsc(loc) + '</b><span class="th-meta">' + thEsc(meta.join(' · ')) + '</span></div></div>' +
+    gomHtml +
     '<div class="th-row th-wx">' + wxHtml + '</div>' +
     '<div class="th-row th-row-2">' + gearHtml + cdHtml + '</div>' +
     quickHtml
