@@ -6,7 +6,7 @@
  * ============================================================ */
 'use strict'
 
-var CACHE_NAME = 'sheepgear-v2'
+var CACHE_NAME = 'sheepgear-v3'
 /* 静态资源：多文件版与单文件版均覆盖（相对当前目录） */
 var PRECACHE = [
   './',
