@@ -3451,7 +3451,7 @@ var OM_AIR = 'https://air-quality-api.open-meteo.com/v1/air-quality'
 var OM_MARINE = 'https://marine-api.open-meteo.com/v1/marine'
 var OM_FLOOD = 'https://flood-api.open-meteo.com/v1/flood'
 var QW_TTL = 30 * 60 * 1000
-var WEATHER_CACHE_VER = 14   // 天气缓存 schema 版本：v11=逐点集合+风/降水离散；v12=新增 雪线/土壤/雪深/气压 字段；v13=雪线/雪深加雪情境门槛+雪深改厘米（旧缓存含未过门槛/米单位数据→升版强制重查）；v14=气压改站点气压口径（Open-Meteo 换 surface_pressure / Meteoblue 取 pressure，旧缓存含海平面值→升版强制重查）
+var WEATHER_CACHE_VER = 15   // 天气缓存 schema 版本：v11=逐点集合+风/降水离散；v12=新增 雪线/土壤/雪深/气压 字段；v13=雪线/雪深加雪情境门槛+雪深改厘米（旧缓存含未过门槛/米单位数据→升版强制重查）；v14=气压改站点气压口径（Open-Meteo 换 surface_pressure / Meteoblue 取 pressure，旧缓存含海平面值→升版强制重查）；v15=Windy 气压实测为海平面口径（2026-09-01 实测 3865m 点 pressure-surface≈1013hPa）→按点海拔静压公式折算站点气压，旧缓存含 Windy 海平面值→升版强制重查
 var alertStatus = ''   // 预警拉取状态：''=ok/空 | 'fail'=接口不可用
 var LAPSE_RATE = 6.5 / 1000   // 气温垂直递减率（ISA 标准，°C/米）：海拔每升 1000m 降 6.5°C，用于网格→路线海拔校正
 /* 雪情境判据常量：决定「雪线/雪深」指标何时对目的地有意义（snowRelevant 见 aggregateDays 前）
@@ -3786,7 +3786,11 @@ function cascadeMerge(list) {
   })
   return { daily: daily, hourly: hourly, srcs: list.map(function (s) { return s.src }) }
 }
-function fetchPointWeather(lat, lng, days) {
+/* Windy 气压实测为海平面口径（pressure-surface，2026-09-01 实测：3865m 点≈1013hPa）→ 按点海拔用静压公式反推站点气压：
+   P_station = P_msl × (1 − 2.25577e-5 × h)^5.25588 （ISA 标准大气，与气温垂直递减率同源） */
+function mslToStation(hpa, eleM) { return hpa * Math.pow(1 - 2.25577e-5 * eleM, 5.25588) }
+
+function fetchPointWeather(lat, lng, days, ele) {
   var prio = (appConfig.weatherPriority || ['meteoblue', 'qweather', 'open-meteo', 'amap']).filter(sourceEnabled)
   var jobs = []
   prio.forEach(function (id) {
@@ -3801,6 +3805,19 @@ function fetchPointWeather(lat, lng, days) {
   return Promise.allSettled(jobs).then(function (rs) {
     var ok = rs.filter(function (r) { return r.status === 'fulfilled' && r.value && (r.value.daily || []).length })
     if (!ok.length) return null
+    // 点海拔（用于 Windy 海平面气压→站点气压折算）：调用方传入的点海拔（GPX/选点）优先，其次源自带海拔（meteoblue metadata.height / OM forecast elevation）
+    var pointEle = (ele != null && ele > 0) ? ele : 0
+    for (var _ei0 = 0; _ei0 < ok.length; _ei0++) {
+      if (!(pointEle > 0) && ok[_ei0].value.elevation != null && ok[_ei0].value.elevation > 0) pointEle = ok[_ei0].value.elevation
+    }
+    // Windy pressure 实测为海平面口径 → 折算为站点气压；无海拔则置 null（交级联兜底），避免高海拔显示海平面值
+    ok.forEach(function (s) {
+      if (!(s.value && s.value.src === 'windy' && s.value.daily)) return
+      s.value.daily.forEach(function (d) {
+        if (d.pressure == null) return
+        d.pressure = pointEle > 0 ? mslToStation(d.pressure, pointEle) : null
+      })
+    })
     var merged = cascadeMerge(ok.map(function (r) { return r.value }))
     merged.srcs = ok.map(function (r) { return r.value.src })
     // C6 源可用性：优先级中被启用的源里未成功返回数据的（rejected / 空 / 未配置参与）
@@ -4995,7 +5012,9 @@ async function runWeather() {
     var offset = Math.max(0, dateDiffDays(today(), startDate))
     var need = Math.min(16, offset + days)
     var key = routeHashKey()
-    var ckey = key + '|' + startDate + '|' + days
+    // 缓存键含源配置：改源（增/删/调序）后旧多源缓存键不同→必然 miss，防止「删了 OM 重查仍显示 OM 不一致/不可用」
+    var srcKey = (appConfig.weatherPriority || []).join(',')
+    var ckey = key + '|' + startDate + '|' + days + '|' + srcKey
     cached = await idbGet('weather-cache', ckey)
     var cacheUsable = !!(cached && cached.ver === WEATHER_CACHE_VER && cached.weather)
     // C2 新鲜度：ageHours 快照年龄、leadDays 出发剩余天数；新鲜缓存直接用，陈旧/失效走拉取（失败时 catch 兜底）
@@ -5018,14 +5037,14 @@ async function runWeather() {
       if (allSame) {
         $('wxStatus').textContent = '查询中…（第 1/1 点）'
         setWxProgress(0.1)
-        var w0 = await fetchPointWeather(first.lat, first.lon, need)
+        var w0 = await fetchPointWeather(first.lat, first.lon, need, first.ele)
         list = splitPoints.map(function () { return w0 })
         setWxProgress(1)
       } else {
         for (var i = 0; i < splitPoints.length; i++) {
           $('wxStatus').textContent = '查询中…（第 ' + (i + 1) + '/' + splitPoints.length + ' 点）'
           setWxProgress(i / splitPoints.length)
-          list.push(await fetchPointWeather(splitPoints[i].lat, splitPoints[i].lon, need))
+          list.push(await fetchPointWeather(splitPoints[i].lat, splitPoints[i].lon, need, splitPoints[i].ele))
         }
         setWxProgress(1)
       }
