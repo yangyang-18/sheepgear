@@ -145,6 +145,19 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .wx-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:14px;flex-wrap:wrap}
 .wx-cond{font-family:var(--f-d);font-weight:700;font-size:17px}
 .wx-src{font-size:11px;color:var(--text-muted);font-family:var(--f-m);text-align:right}
+/* 逐日文字总结（wx-sum，天气概览对比表上方）：人味正文在上、完整数据行在下 */
+.wx-sum{margin-bottom:14px;border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:14px}
+.wx-sum-h{font-family:var(--f-d);font-weight:700;font-size:16px}
+.wx-sum-sub{font-size:11px;color:var(--text-muted);font-family:var(--f-m);margin-bottom:8px}
+.wx-sum-day{border-top:1px dashed var(--border);padding-top:8px;margin-top:8px}
+.wx-sum-day:first-of-type{border-top:none;margin-top:0;padding-top:0}
+.wx-sum-dt{font-size:12px;font-weight:700;font-family:var(--f-d);line-height:1.5}
+.wx-sum-cond{font-weight:400}
+.wx-sum-t{font-size:13px;line-height:1.7;margin-top:4px}
+.wx-sum-d{font-size:11px;color:var(--text-muted);font-family:var(--f-m);margin-top:6px;line-height:1.6}
+.wx-sum-line{margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed var(--border);font-size:12px;line-height:1.6}
+.wx-sum-tip{font-size:11px;color:var(--text-muted);margin-top:3px;line-height:1.6}
+.wx-sum-gear{cursor:pointer;border-bottom:1px dotted var(--border)}
 .wx-3h{margin-top:14px;border-top:1px solid var(--border);padding-top:12px}
 .wx-3h .lab{font-size:11px;color:var(--text-muted);margin-bottom:10px}
 .precip-row{display:flex;gap:6px;align-items:flex-end;height:64px}
@@ -1133,17 +1146,18 @@ body{padding-bottom:calc(80px + env(safe-area-inset-bottom))}
   /* —— 微注层（设计 10–11px → 移动端 ≥12px）—— */
   .th-meta,.th-go-items,.gom-kicker,.gom-better-h,.gom-meta,
   .th-day-r,.th-rec,.th-pick-h,.th-cmp-x,.wx-src,.map-hint,.card-wx-empty,
-  .risk{font-size:calc(12px*var(--tx))}
+  .wx-sum-sub,.wx-sum-d,.wx-sum-line,.wx-sum-tip,.risk{font-size:calc(12px*var(--tx))}
   .risk{padding:calc(3px*var(--tx)) calc(9px*var(--tx))}
   /* —— 小标签层（设计 12–13px → 移动端 ≥13px）—— */
   .th-wx-i,.th-gear-l,.th-cd,.th-go-empty,
   .th-day-d,.th-cmp-m,.th-cmp-empty,.th-cmp-h,.th-cmp-name,
-  .gom-better-btn,.th-quick .btn{font-size:calc(13px*var(--tx))}
+  .gom-better-btn,.th-quick .btn,.wx-sum-dt{font-size:calc(13px*var(--tx))}
   .th-wx-i{padding:calc(5px*var(--tx)) calc(10px*var(--tx))}
   .th-quick .btn{padding:calc(8px*var(--tx)) calc(14px*var(--tx))}
   .th-day{padding:calc(11px*var(--tx)) calc(13px*var(--tx))}
   /* —— 正文/值层（设计 14–16px → 移动端保持）—— */
   .gom-hint{font-size:calc(15px*var(--tx))}
+  .wx-sum-t{font-size:calc(14px*var(--tx))}
   .th-loc b{font-size:calc(16px*var(--tx))}
   /* —— 展示/标题层（20px+）—— */
   .th-day-s{font-size:calc(24px*var(--tx))}
@@ -4790,6 +4804,235 @@ function confidenceDisplay() {
   return '<div style="margin-top:8px"><span class="risk ' + cls + '" style="margin-right:6px">' + label + '</span><span style="color:var(--text-muted)">' + esc(reason) + '</span></div>' +
     '<div style="margin-top:4px;font-size:10px;color:var(--text-muted)">基于多源一致性与集合预报估算，非官方概率预报</div>'
 }
+
+/* ================= 逐日文字总结（人味版，天气概览对比表上方）=================
+   每天一个文字块：人味正文在上（首句=最主要含义，句式按风险主次分三档、口语措辞按天序号轮换避免多天雷同）、
+   完整数据行在下（resolveItem 取值、缺值跳过）。固定核心字段、不随 ⚙ 配置指标 勾选变化；未查询/0 天返回空串。 */
+var WX_SUM_CORE = ['temp_mean', 'night_min', 'feels_day', 'feels_night', 'humidity', 'precip', 'wind', 'visibility', 'uvi', 'cloud', 'sun_rise_set']
+var WX_SUM_LABEL = { temp_mean: '气温', night_min: '夜间', feels_day: '白天体感', feels_night: '夜间体感', humidity: '湿度', precip: '降水', wind: '风', visibility: '能见度', uvi: 'UV', cloud: '云量', sun_rise_set: '日出/日落' }
+/* 逐日文字总结（人味版）：正文 = 时间线(含天气状况) → 风险句(≤2) → 扎营/夜间句(≤2)，体验句(≤1)为次要行；
+   顶部跨天重点汇总两行；有装备映射的句子可点击看触发装备。全部有数据才写、缺值跳过、数值同源既有计算。 */
+function dayDepHour() { var t = (typeof trip !== 'undefined' && trip && trip.departureTime) || ''; var m = /^(\d{1,2})/.exec(t); var h = m ? +m[1] : 8; return Math.max(4, Math.min(h, 12)) }
+function h12(h) { if (h == null) return null; h = h % 24; return h === 0 ? 12 : (h > 12 ? h - 12 : h) }
+function bearingTo(lat1, lon1, lat2, lon2) {
+  var r = Math.PI / 180, f1 = lat1 * r, f2 = lat2 * r, dl = (lon2 - lon1) * r
+  var y = Math.sin(dl) * Math.cos(f2)
+  var x = Math.cos(f1) * Math.sin(f2) - Math.sin(f1) * Math.cos(f2) * Math.cos(dl)
+  return (Math.atan2(y, x) / r + 360) % 360
+}
+/* 营地坡度（路线坡向近似）：相邻营地 |Δele|≥80m 判明显；上坡→反方位、下坡→路线方位，返回 16 方位或 null */
+function campSlopeDir(k) {
+  if (typeof perDay === 'undefined' || !perDay || !perDay[k] || !perDay[k].point) return null
+  var cur = perDay[k].point, prev = k > 0 ? perDay[k - 1].point : null
+  if (!cur || !prev || cur.lat == null || cur.lon == null || prev.lat == null || prev.lon == null) return null
+  if (cur.ele == null || prev.ele == null) return null
+  var diff = cur.ele - prev.ele
+  if (Math.abs(diff) < 80) return null
+  var br = bearingTo(prev.lat, prev.lon, cur.lat, cur.lon)
+  return diff > 0 ? windDir16((br + 180) % 360) : windDir16(br)
+}
+/* 夜间风（扎营朝向优先源）：perDay[k].hourly 21 时风；无逐时或字段缺失返回 null（回退全天字段） */
+function nightWind(k) {
+  var hr = (typeof perDay !== 'undefined' && perDay && perDay[k] && perDay[k].hourly) || []
+  var rec = hr.find(function (x) { return hourOf(x.time) === 21 })
+  if (!rec || (rec.windSpeed == null && rec.windDir == null)) return null
+  return { level: rec.windSpeed != null ? beaufortKmh(rec.windSpeed).level : null, dir: rec.windDir }
+}
+function campWind(d, k) {
+  var nw = nightWind(k)
+  if (nw && nw.level != null && nw.dir != null) return { level: nw.level, dir: nw.dir }
+  if (typeof d.windLevel === 'number' && typeof d.windDir === 'number') return { level: d.windLevel, dir: d.windDir }
+  return null
+}
+/* 扎营朝向三选一：背风(风≥3) / 朝东(无风晴) / 下坡排水(坡度明显)；每天至多一条，双措辞轮换 */
+function campOrient(d, k) {
+  var w = campWind(d, k)
+  if (w && w.level >= 3 && typeof w.dir === 'number') {
+    var from = windDir16(w.dir), opp = windDir16((w.dir + 180) % 360), L = fmtInt(w.level)
+    var pair = L >= 6
+      ? ['夜风从' + from + '来（' + L + '级），帐篷门朝' + opp + '搭、背风面，地钉风绳都加固，白天迎风坡走起来也费劲', '夜里风挺猛（' + L + '级，' + from + '风），帐篷门朝' + opp + '，别在迎风坡扎营，风绳拉满']
+      : (w.level >= 5
+        ? ['夜里风从' + from + '来（5级），帐篷门朝' + opp + '搭，找个背风处', from + '风 5 级，扎营门朝' + opp + '，背风侧睡安稳']
+        : ['傍晚风从' + from + '来，帐篷门朝' + opp + '背风搭', '风不大，门朝' + opp + '顺手避风'])
+    return { txt: pair[k % 2], gear: 'windLevel' }
+  }
+  var clear = d.weatherCode === 0 || d.weatherCode === 1 || d.weatherCode === 2 || (d.cloudCover != null && d.cloudCover <= 50)
+  if (clear) return { txt: ['风小，帐篷门朝东，早上有阳光晒帐篷', '夜里没风，门朝东睡，天亮就能晒到太阳'][k % 2], gear: '' }
+  var down = campSlopeDir(k)
+  if (down) return { txt: ['营地有坡度，门朝' + down + '下坡方向，下雨不积水', '扎营门朝' + down + '（下坡），排水不积水'][k % 2], gear: '' }
+  return ''
+}
+/* 气温时间线（G1 融合逐时天气状况）：出发/午后/傍晚附天气码中文，变化标「转X」、相同不标、缺失仅温度 */
+function dayTimeline(d, k) {
+  var hr = (typeof perDay !== 'undefined' && perDay && perDay[k] && perDay[k].hourly) || []
+  var tempAt = function (h) { var r = hr.find(function (x) { return hourOf(x.time) === h }); return r && r.temp != null ? r.temp : null }
+  var condAt = function (h) { var r = hr.find(function (x) { return hourOf(x.time) === h }); return r && r.weatherCode != null ? r.weatherCode : null }
+  var shown = null
+  var condWord = function (h) {
+    var c = condAt(h); if (c == null) return ''
+    var w = wmoOf(c).zh
+    if (w === shown) return ''
+    var s = (shown == null ? ' ' + w : ' 转' + w); shown = w
+    return s
+  }
+  var pt = []
+  var depH = dayDepHour()
+  var depT = tempAt(depH)
+  if (depT != null) pt.push('早上 ' + h12(depH) + ' 点出发 ' + fmtInt(depT) + '°' + condWord(depH))
+  var peak = null
+  hr.forEach(function (x) { var h = hourOf(x.time); if (h >= 10 && h <= 16 && x.temp != null && (peak == null || x.temp > peak.temp)) peak = { hour: h, temp: x.temp } })
+  if (peak && peak.temp != null) pt.push('下午 ' + h12(peak.hour) + ' 点最热 ' + fmtInt(peak.temp) + '°' + condWord(peak.hour))
+  else if (d.tempMax != null) pt.push('午后最高 ' + fmtInt(d.tempMax) + '°')
+  var sunH = d.sunset ? +String(d.sunset).slice(0, 2) : null
+  var duskH = sunH != null ? Math.max(16, Math.min(sunH, 20)) : 18
+  var duskT = tempAt(duskH)
+  if (duskT != null) pt.push('傍晚 ' + h12(duskH) + ' 点扎营 ' + fmtInt(duskT) + '°' + condWord(duskH))
+  var nightT = tempAt(21)
+  if (nightT != null) pt.push('夜里 ' + h12(21) + ' 点 ' + fmtInt(nightT) + '°')
+  var dawnMin = null
+  hr.forEach(function (x) { var h = hourOf(x.time); if (h >= 2 && h <= 6 && x.temp != null && (dawnMin == null || x.temp < dawnMin)) dawnMin = x.temp })
+  if (dawnMin != null) pt.push('凌晨最冷 ' + fmtInt(dawnMin) + '°')
+  else if (d.nightMin != null) pt.push('凌晨最冷 ' + fmtInt(d.nightMin) + '°')
+  return pt
+}
+function riverFlowThreshold() { return (typeof appConfig !== 'undefined' && appConfig && appConfig.riverFlowThreshold != null) ? appConfig.riverFlowThreshold : 100 }
+/* 风险句池（≤2，优先级：雷暴>降雪>高反>雪线>结冰>涉水>降水时段>气压骤降>能见度>UV） */
+function dayRiskNote(d, k) {
+  var notes = []
+  function push(cond, gear, v1, v2) { if (cond) notes.push({ gear: gear, v: [v1, v2] }) }
+  push(isThunderCode(d.weatherCode) || d.thunder, 'thunder', '午后可能有雷暴，走山脊段要留意', '有雷暴风险，别在垭口和孤树下久留')
+  var sp = snowProb(d.snowfall, d.nightMin, d.hourlyCodes)
+  push(sp && sp.tone === 'warn' && sp.label !== '0', 'snow', '高海拔可能有雪，防滑保暖别省', '山里会下雪，走路留神脚下')
+  push(d.ele != null && d.ele >= 3500, 'elevation', '海拔 ' + fmtInt(d.ele) + 'm 已超 3500，注意节奏防高反，别硬撑', '高海拔，今天爬升别太猛，头晕就停')
+  push(d.ele != null && d.snowline != null && d.ele > d.snowline, 'elevation,snow', '营地海拔 ' + fmtInt(d.ele) + 'm 在雪线以上，今晚可能见雪，保暖防滑备上', '营地高过雪线，夜里可能飘雪，睡袋按更冷准备')
+  push(d.nightMin != null && d.nightMin < 0, 'nightMin', '夜里结冰，明早等太阳出来再走，天亮前路面滑', '夜里零下结冰，明早别赶早，冰面滑留神')
+  push(d.riverDischarge != null && d.riverDischarge > riverFlowThreshold(), 'riverDischarge', '河里水大，涉水点别硬趟，过河找浅处', '河流量大，涉水要谨慎，别贪快')
+  var firstRainH = null, maxMmH = null, maxMm = 0
+  ;(d.precip3h || []).forEach(function (p) {
+    if (p.hour == null) return
+    if ((p.prob != null && p.prob >= 40) || (p.mm != null && p.mm > 0)) { if (firstRainH == null) firstRainH = p.hour }
+    if (p.mm != null && p.mm > maxMm) { maxMm = p.mm; maxMmH = p.hour }
+  })
+  if (firstRainH != null) {
+    var rainT = '下午 ' + h12(firstRainH) + ' 点后有雨' + (maxMmH != null ? '、' + h12(maxMmH) + ' 点前后最大' : '') + '，雨衣别压箱底'
+    push(true, 'precipProb', rainT, rainT.replace('雨衣别压箱底', '防水带上才安心'))
+  } else {
+    push((d.precipProb || 0) >= 40, 'precipProb', '午后有雨的可能，雨衣别压箱底', '多半要下雨，防水带上才安心')
+  }
+  push(k > 0 && d.pressure != null && typeof weather !== 'undefined' && weather && weather.days[k - 1].pressure != null && d.pressure < weather.days[k - 1].pressure - 5, 'pressure', '气压骤降，天气可能转坏，留意', '气压掉了不少，天气可能要变，别大意')
+  push(d.visibility != null && d.visibility < 10000, 'visibility', '能见度不高，岔路口多对下轨迹', '雾可能起来，认路多靠轨迹')
+  push((d.uvi || 0) >= 7, 'uvi', '紫外线挺强，帽子墨镜带上', '太阳毒，防晒要勤补')
+  return notes.slice(0, 2).map(function (it) { return { txt: it.v[k % it.v.length], gear: it.gear } })
+}
+/* 扎营/夜间句池（≤2）：扎营朝向 + 月相/观星 */
+function dayCampNote(d, k) {
+  var out = []
+  var orient = campOrient(d, k)
+  if (orient) out.push(orient)
+  var mp = d.date ? moonPhase(d.date) : null
+  if (mp) {
+    if (mp.bright <= 20) out.push({ txt: ['新月夜黑，头灯备用电池带上', '今晚没月亮，夜路和帐篷内记得带头灯'][k % 2], gear: '' })
+    else if (mp.bright >= 80) out.push({ txt: ['满月夜亮，营地灯可省', '满月当头，夜里不用摸黑'][k % 2], gear: '' })
+    else {
+      var st = calcStar(d.cloudCover, d.precipProb, mp.bright)
+      if (st && st.tone === 'good') out.push({ txt: ['夜里云少，观星条件不错', '星星条件好，扎营抬头就能看'][k % 2], gear: '' })
+    }
+  }
+  return out.slice(0, 2)
+}
+/* 体验句池（≤1，次要行）：温差>WBGT>云海>黄金时段 */
+function dayExpNote(d, k) {
+  var spread = d.tempMax != null && d.tempMin != null ? d.tempMax - d.tempMin : null
+  if (spread != null && spread >= 15) return { txt: ['昼夜温差 ' + fmtInt(spread) + '°，穿层走，早晚多带一件', '白天晚上差 ' + fmtInt(spread) + '° 挺大，衣服穿脱方便点'][k % 2], gear: 'tempMin,tempMax' }
+  var wb = wbgtIndex(d)
+  if (wb && wb.tone === 'warn') return { txt: ['午后 WBGT ' + wb.value + ' 偏高，防晒补水别硬扛', '下午闷热，WBGT 高，节奏放慢'][k % 2], gear: 'uvi' }
+  var cs = calcCloudSea(d.humidity, d.cloudCover, d.ele)
+  if (cs && cs.tone === 'good') return { txt: ['云海概率高，日出早点占位', '清晨可能出云海，别睡过头'][k % 2], gear: '' }
+  var gb = goldenBlueText(d)
+  if (gb) return { txt: ['黄金时段 ' + gb + '，拍照光线最柔', '日出日落前后半小时光线好，爱拍照别错过'][k % 2], gear: '' }
+  return ''
+}
+function dayMeaning(d, k) {
+  var body = []
+  var tl = dayTimeline(d, k)
+  if (tl.length) body.push({ txt: tl.join('，'), gear: '' })
+  dayRiskNote(d, k).forEach(function (s) { body.push(s) })
+  dayCampNote(d, k).forEach(function (s) { body.push(s) })
+  var tip = dayExpNote(d, k)
+  if (!body.length && !tip) body.push({ txt: ['白天天气不错，适合赶路', '天气整体稳当，按计划走就行', '一天下来天气平和，没什么可担心的'][k % 3], gear: '' })
+  return { body: body, tip: tip }
+}
+/* 装备联动（G4）：有映射的句子包成可点 span */
+function gearSpan(txt, gear) {
+  if (!gear) return esc(txt)
+  return '<span class="wx-sum-gear" data-gear="' + esc(gear) + '" onclick="showSummaryGear(this)">' + esc(txt) + '</span>'
+}
+function showSummaryGear(el) {
+  if (!el) return
+  var fields = String(el.getAttribute('data-gear') || '').split(',').filter(Boolean)
+  var names = [], seen = {}
+  fields.forEach(function (f) { gearNamesForField(f).forEach(function (n) { if (!seen[n]) { seen[n] = 1; names.push(n) } }) })
+  if (typeof toast === 'function') toast(names.length ? '触发装备：' + names.join('、') : '当前行程未触发对应装备')
+}
+/* 跨天风险权重（G5）：雷暴90>大风80>降雪70>高反70>雪线60>结冰60>涉水50>强降水50>气压45>能见度40 */
+function dayRiskWeight(d, k) {
+  if (isThunderCode(d.weatherCode) || d.thunder) return { w: 90, label: '雷暴' }
+  if ((d.windLevel || 0) >= 6) return { w: 80, label: '大风' }
+  var sp = snowProb(d.snowfall, d.nightMin, d.hourlyCodes)
+  if (sp && sp.tone === 'warn' && sp.label !== '0') return { w: 70, label: '降雪' }
+  if (d.ele != null && d.ele >= 3500) return { w: 70, label: '高反' }
+  if (d.ele != null && d.snowline != null && d.ele > d.snowline) return { w: 60, label: '雪线以上' }
+  if (d.nightMin != null && d.nightMin < 0) return { w: 60, label: '结冰' }
+  if (d.riverDischarge != null && d.riverDischarge > riverFlowThreshold()) return { w: 50, label: '涉水' }
+  if ((d.precipProb || 0) >= 60) return { w: 50, label: '强降水' }
+  if (k > 0 && d.pressure != null && typeof weather !== 'undefined' && weather && weather.days[k - 1].pressure != null && d.pressure < weather.days[k - 1].pressure - 5) return { w: 45, label: '气压骤降' }
+  if (d.visibility != null && d.visibility < 10000) return { w: 40, label: '低能见度' }
+  return null
+}
+/* 跨天重点汇总（G5）：重点风险日 + 温差最大日 */
+function summaryOverview(days) {
+  if (!days || !days.length) return { risk: '', range: '' }
+  var best = null
+  days.forEach(function (d, k) { var w = dayRiskWeight(d, k); if (w && (!best || w.w > best.w)) best = { k: k, d: d, label: w.label, w: w.w } })
+  var risk = best ? '全程最需要注意 Day ' + (best.k + 1) + '（' + fmtShort(best.d.date) + '）：' + best.label + '，扎营行进都留神' : '全程天气整体平稳，按计划走就行'
+  var range = null, rangeK = -1
+  days.forEach(function (d, k) {
+    if (d.tempMax != null && d.tempMin != null && d.tempMax - d.tempMin >= 15 && (range == null || d.tempMax - d.tempMin > range)) { range = d.tempMax - d.tempMin; rangeK = k }
+  })
+  return { risk: risk, range: range != null ? '全程温差最大 Day ' + (rangeK + 1) + '（' + fmtInt(range) + '°），早晚多带件保暖层' : '' }
+}
+function daySummaryCard(d, k) {
+  var wm = d.weatherCode != null ? wmoOf(d.weatherCode) : null
+  var cond = wm ? '<span class="wx-sum-cond">' + wxIconHtml(d.weatherCode) + ' ' + esc(wm.zh) + '</span>' : ''
+  var title = '<div class="wx-sum-dt">Day ' + (k + 1) + ' · ' + esc(fmtShort(d.date)) + (cond ? ' · ' + cond : '') + '</div>'
+  var m = dayMeaning(d, k)
+  var body = m.body.map(function (s) { return gearSpan(s.txt, s.gear) }).join('。')
+  var bodyHtml = body ? '<div class="wx-sum-t">' + body + '。</div>' : ''
+  var tipHtml = m.tip ? '<div class="wx-sum-tip">' + gearSpan(m.tip.txt, m.tip.gear) + '</div>' : ''
+  var line = []
+  WX_SUM_CORE.forEach(function (id) {
+    var r = resolveItem(id, d)
+    if (!r || r.value === '—') return
+    if (id === 'sun_rise_set') {
+      var p = String(r.value).split('/')
+      if (p.length === 2) { line.push('日出 ' + p[0]); line.push('日落 ' + p[1]) }
+      else line.push((WX_SUM_LABEL[id] || id) + ' ' + r.value)
+      return
+    }
+    line.push((WX_SUM_LABEL[id] || id) + ' ' + r.value)
+  })
+  var dataLine = line.length ? '<div class="wx-sum-d">' + esc(line.join(' · ')) + '</div>' : ''
+  return '<div class="wx-sum-day">' + title + bodyHtml + tipHtml + dataLine + '</div>'
+}
+function renderDaySummary(days) {
+  if (!days || !days.length) return ''
+  var ov = summaryOverview(days)
+  var lines = '<div class="wx-sum-line">' + esc(ov.risk) + '</div>' + (ov.range ? '<div class="wx-sum-line">' + esc(ov.range) + '</div>' : '')
+  return '<div class="wx-sum"><div class="wx-sum-h">逐日文字总结</div>' +
+    '<div class="wx-sum-sub">每天核心数据文字摘要 · 缺值跳过 · 不受指标勾选影响</div>' +
+    lines + days.map(daySummaryCard).join('') + '</div>'
+}
+
 function renderWxList() {
   var box = $('wxList')
   if (!box) return
@@ -4803,11 +5046,11 @@ function renderWxList() {
   }
   var enabled = WX_TEMPLATE.filter(function (it) { return enabledInd.has(it.id) })
   if (!enabled.length) {
-    box.innerHTML = '<div class="ov-wrap" style="border-top:none;margin-top:0;padding-top:0"><div style="font-size:12px;color:var(--text-muted)">未勾选任何指标，可在 ⚙ 配置指标 中勾选</div></div>'
+    box.innerHTML = '<div class="wx-detail"><div class="wx-h"><div class="wx-cond">天气指标概览</div><div class="wx-src">所有天横排 · 随勾选变化</div></div>' + renderDaySummary(weather.days) + '<div style="font-size:12px;color:var(--text-muted)">未勾选任何指标，可在 ⚙ 配置指标 中勾选</div></div>'
     return
   }
   var table = renderDayTable(weather.days, enabledInd, { clickable: true })
-  box.innerHTML = '<div class="wx-detail"><div class="wx-h"><div class="wx-cond">天气指标概览</div><div class="wx-src">所有天横排 · 随勾选变化<br>点指标名查看触发的装备' + (weather.lapseApplied ? '<br><span style="color:var(--info)">温度按海拔校正（6.5°C/1000m）</span>' : '') + '</div></div>' + timeSafetyDisplay() + uvDisplay() + confidenceDisplay() + '<div class="dt-scroll">' + table + '</div><div id="fieldGearTip" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div></div>'
+  box.innerHTML = '<div class="wx-detail"><div class="wx-h"><div class="wx-cond">天气指标概览</div><div class="wx-src">所有天横排 · 随勾选变化<br>点指标名查看触发的装备' + (weather.lapseApplied ? '<br><span style="color:var(--info)">温度按海拔校正（6.5°C/1000m）</span>' : '') + '</div></div>' + renderDaySummary(weather.days) + timeSafetyDisplay() + uvDisplay() + confidenceDisplay() + '<div class="dt-scroll">' + table + '</div><div id="fieldGearTip" style="font-size:12px;color:var(--text-muted);margin-top:8px"></div></div>'
 }
 
 /* 概览指标点击：显示该指标命中的装备（取本次 selectGear 结果，按行程最保守值） */
@@ -9931,7 +10174,14 @@ function wxSummaryText() {
   var risk = (typeof riskProfileText === 'function') ? riskProfileText() : ''
   var alertsTxt = (typeof alerts !== 'undefined' && alerts && alerts.length)
     ? '，有 ' + alerts.map(function (a) { return a.typeName }).join('、') + ' 预警' : ''
-  return '天气播报：' + s.join('，') + (risk ? '，' + risk : '') + alertsTxt + '。'
+  /* 语音同步全程最高风险（与跨天汇总同权重体系，w≥50 才念） */
+  var riskNote = ''
+  if (typeof dayRiskWeight === 'function') {
+    var bw = null, bk = -1
+    ds.forEach(function (d, k) { var w = dayRiskWeight(d, k); if (w && (!bw || w.w > bw.w)) { bw = w; bk = k } })
+    if (bw && bw.w >= 50) riskNote = '，重点注意' + bw.label + '日（Day ' + (bk + 1) + '）'
+  }
+  return '天气播报：' + s.join('，') + (risk ? '，' + risk : '') + riskNote + alertsTxt + '。'
 }
 function wxVoiceToggle() {
   if (!('speechSynthesis' in window)) { toast('当前浏览器不支持语音播报'); return }
